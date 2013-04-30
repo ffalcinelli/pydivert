@@ -22,7 +22,7 @@ Quick Start
 You may access the driver for your python code by using the following example which intercept and resend the telnet traffic:
 
 ```python
-windivert = WinDivert("C:\PyDivert\WinDivert.dll"))
+windivert = WinDivert("C:\PyDivert\WinDivert.dll")
 with Handle(windivert, filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
     while True:
         raw_packet, metadata = handle.receive()
@@ -40,18 +40,18 @@ License
 
 LGPLv3
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+> This program is free software: you can redistribute it and/or modify
+> it under the terms of the GNU Lesser General Public License as published by
+> the Free Software Foundation, either version 3 of the License, or
+> (at your option) any later version.
+>
+> This program is distributed in the hope that it will be useful,
+> but WITHOUT ANY WARRANTY; without even the implied warranty of
+> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+> GNU Lesser General Public License for more details.
+>
+> You should have received a copy of the GNU Lesser General Public License
+> along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 TODOs
 =====
