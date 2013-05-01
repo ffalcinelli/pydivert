@@ -1,0 +1,18 @@
+When you install your signed drivers, this folder should have a tree as this:
+.
+├── amd64
+│   ├── readme
+│   ├── WdfCoInstaller01009.dll
+│   ├── WinDivert.dll
+│   ├── WinDivert.inf
+│   ├── WinDivert.lib
+│   └── WinDivert.sys
+├── readme
+└── x86
+    ├── readme
+    ├── WdfCoInstaller01009.dll
+    ├── WinDivert.dll
+    ├── WinDivert.inf
+    ├── WinDivert.lib
+    └── WinDivert.sys
+

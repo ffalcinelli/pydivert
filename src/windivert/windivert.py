@@ -164,9 +164,13 @@ class Handle(object):
     An handle object got from a WinDivert DLL.
     """
 
-    def __init__(self, driver, filter="true", layer=enum.DIVERT_LAYER_NETWORK, priority=0, flags=0):
-        self.driver = driver
-        self._lib = driver.get_reference()
+    def __init__(self, driver=None, filter="true", layer=enum.DIVERT_LAYER_NETWORK, priority=0, flags=0):
+        if not driver:
+            #Try to construct by loading from the registry
+            self.driver = WinDivert()
+        else:
+            self.driver = driver
+        self._lib = self.driver.get_reference()
         self._handle = None
         self._filter = filter
         self._layer = layer
