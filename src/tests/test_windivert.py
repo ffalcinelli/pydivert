@@ -14,18 +14,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from binascii import hexlify
+import socket
+import struct
 from windivert import enum
+from windivert.win_inet_pton import inet_pton
 
 __author__ = 'fabio'
 
 import threading
-from tests import FakeTCPServer, EchoTCPRequestHandler, FakeTCPClient
-import struct
+from tests import FakeTCPServer, EchoUpperTCPRequestHandler, FakeTCPClient
 import unittest
 import os
 import platform
 from windivert.enum import DIVERT_PARAM_QUEUE_LEN, DIVERT_PARAM_QUEUE_TIME
-from windivert.models import int_to_ipv4, int_to_ipv6
 from windivert.winregistry import get_hklm_reg_values
 from windivert.windivert import Handle, WinDivert
 
@@ -137,7 +138,7 @@ class WinDivertTestCase(unittest.TestCase):
         """
         address = "192.168.1.1"
         result = WinDivert().parse_ipv4_address(address)
-        self.assertEqual(address, ".".join([str(x) for x in map(ord, struct.pack(">I", result))]))
+        self.assertEqual(struct.unpack(">I", inet_pton(socket.AF_INET, address))[0], result)
 
     def test_parse_ipv6_address(self):
         """
@@ -145,7 +146,7 @@ class WinDivertTestCase(unittest.TestCase):
         """
         address = "2607:f0d0:1002:0051:0000:0000:0000:0004"
         result = WinDivert().parse_ipv6_address(address)
-        self.assertEqual(address, int_to_ipv6(result))
+        self.assertEqual(struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, address)), tuple(result))
 
     def tearDown(self):
         pass
@@ -153,20 +154,58 @@ class WinDivertTestCase(unittest.TestCase):
 
 class WinDivertTCPCaptureTestCase(unittest.TestCase):
     """
-    Tests capturing TCP traffic
+    Tests capturing TCP traffic with payload
     """
 
     def setUp(self):
         os.chdir(driver_dir)
         # Initialize the fake tcp server
-        self.server = FakeTCPServer(("localhost", 0), EchoTCPRequestHandler)
+        self.server = FakeTCPServer((socket.gethostbyname(socket.gethostname()), 0), EchoUpperTCPRequestHandler)
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.start()
+
+        # Initialize the fake tcp client
+        self.text = "Hello World!"
+        self.client = FakeTCPClient(self.server.server_address, self.text)
+        self.client_thread = threading.Thread(target=self.client.send)
+
+    # def test_pass_through_no_payload(self):
+    #     """
+    #     Test capturing everything make pass our request
+    #     """
+    #     with Handle(filter="tcp.DstPort == %s" % self.server.server_address[1]) as handle:
+    #         self.client_thread.start()
+    #         packet = None
+    #         while True:
+    #             raw_packet, meta = handle.receive()
+    #             packet = handle.driver.parse_packet(raw_packet)
+    #             if self.text in packet.payload:
+    #                 handle.send((raw_packet, meta))
+    #                 break
+    #             handle.send((raw_packet, meta))
+    #         self.client_thread.join(timeout=10)
+    #         self.assertEqual(self.text.upper(), self.client.response)
+
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class WinDivertTCPCapturePayloadTestCase(unittest.TestCase):
+    """
+    Tests capturing TCP traffic with payload
+    """
+
+    def setUp(self):
+        os.chdir(driver_dir)
+        # Initialize the fake tcp server
+        self.server = FakeTCPServer(("localhost", 0), EchoUpperTCPRequestHandler)
         filter = "outbound and tcp.DstPort == %d and tcp.PayloadLength > 0" % self.server.server_address[1]
         self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
         self.handle = self.driver.open_handle(filter=filter)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
-        # Exit the server thread when the main thread terminates
-        self.server_thread.daemon = True
         self.server_thread.start()
 
         # Initialize the fake tcp client
@@ -198,7 +237,7 @@ class WinDivertTCPCaptureTestCase(unittest.TestCase):
         packet = self.driver.parse_packet(raw_packet)
         self.assertEqual("%s:%d" % (packet.dst_addr, packet.dst_port),
                          "%s:%d" % self.server.server_address)
-        self.assertEqual(self.text, packet.content)
+        self.assertEqual(self.text, packet.payload)
 
     def test_dump_data(self):
         """
@@ -206,11 +245,19 @@ class WinDivertTCPCaptureTestCase(unittest.TestCase):
         """
         raw_packet, metadata = self.handle.receive()
         packet = self.handle.driver.parse_packet(raw_packet)
-        self.assertIn(raw_packet[len(packet.content)*-1:], str(packet))
+        self.assertIn(raw_packet[len(packet.payload)*-1:], str(packet))
         self.handle.send((raw_packet, metadata))
         self.client_thread.join(timeout=10)
         self.assertEqual(self.text.upper(), self.client.response)
 
+    def test_raw_packet_from_captured(self):
+        """
+        Test reconstructing raw packet from a captured one
+        """
+        raw_packet1, metadata = self.handle.receive()
+        packet = self.handle.driver.parse_packet(raw_packet1)
+        raw_packet2 = packet.to_raw_packet()
+        self.assertEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
     def test_packet_checksum(self):
         """
@@ -234,39 +281,36 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
     def setUp(self):
         os.chdir(driver_dir)
         # Initialize the fake tcp server
-        self.server = FakeTCPServer(("127.0.0.1", 0), EchoTCPRequestHandler)
-        filter_ = "outbound and tcp.DstPort == %d" % self.server.server_address[1]
+        self.server = FakeTCPServer(("127.0.0.1", 0), EchoUpperTCPRequestHandler)
         self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-        self.handle = self.driver.open_handle(filter=filter_, priority=1000)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
-        # Exit the server thread when the main thread terminates
-        self.server_thread.daemon = True
         self.server_thread.start()
 
-    def test_packet_checksums(self):
+    def test_packet_injection(self):
         """
-        Test recalculating the checksum on a modified packet
+        Test injection of a modified packet
         """
-        # Initialize the fake tcp client
-        self.text = "Hello world! ZZZZ"
-        self.client = FakeTCPClient(("192.168.1.1", self.server.server_address[1]), self.text)
-        self.client_thread = threading.Thread(target=self.client.send)
-        self.client_thread.start()
+        with Handle(filter="outbound and tcp.DstPort == %s and tcp.PayloadLength>0" % self.server.server_address[1]) as handle:
+            self.text = "Hello world! ZZZZ"
+            self.new_text = "Hello World!"
+            # Initialize the fake tcp client
+            self.client = FakeTCPClient(("127.0.0.1", self.server.server_address[1]), self.text)
+            self.client_thread = threading.Thread(target=self.client.send)
+            self.client_thread.start()
 
-        raw_packet, metadata = self.handle.receive()
+            raw_packet, metadata = handle.receive()
+            if metadata.direction == enum.DIVERT_DIRECTION_OUTBOUND:
+                packet = handle.driver.parse_packet(raw_packet)
+                self.assertEqual(self.text, packet.payload)
+                packet.payload = self.new_text
+                raw_packet = packet.to_raw_packet()
 
-        if metadata.direction == enum.DIVERT_DIRECTION_OUTBOUND:
-            packet = self.handle.driver.parse_packet(raw_packet)
-            packet.raw_net_hdr.DstAddr = self.driver.parse_ipv4_address("127.0.0.1")
-            raw_packet = self.handle.driver.calc_checksums(packet.to_raw_packet())
-
-        self.handle.send((raw_packet, metadata))
-        self.client_thread.join(timeout=10)
-        self.assertEqual(self.text.upper(), self.client.response)
+            handle.send((raw_packet, metadata))
+            self.client_thread.join(timeout=10)
+            self.assertEqual(self.new_text.upper(), self.client.response)
 
     def tearDown(self):
-        self.handle.close()
         self.server.shutdown()
         self.server.server_close()
 

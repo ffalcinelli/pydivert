@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from binascii import unhexlify, hexlify
+import socket
+from win_inet_pton import inet_ntop, inet_pton
 
 __author__ = 'fabio'
 
@@ -21,18 +23,24 @@ import ctypes
 import struct
 
 
-int_to_port = lambda x: sum([ord(x) * (256 ** i) for i, x in enumerate(struct.pack(">H", x))])
-int_to_ipv4 = lambda x: ".".join([str(x) for x in map(ord, struct.pack("<I", x))])
+def string_to_addr(address_family, value):
+    """
+    Convert a ip string in dotted form into a packed, binary format
+    """
+    if address_family == socket.AF_INET:
+        return struct.unpack("!I", inet_pton(socket.AF_INET, value))[0]
+    else:
+        return struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, value))
 
 
-#TODO simplify for readability...
-def int_to_ipv6(addr):
-    out = []
-    for i in addr:
-        ipv6_tokens = [hex(ord(x)).rstrip("L").lstrip("0x").zfill(2) for x in struct.pack("<H", i)]
-        out.append(["".join([a, b]) for a, b in zip(ipv6_tokens[::2], ipv6_tokens[1::2])][0])
-    return ":".join(out)
-
+def addr_to_string(address_family, value):
+    """
+    Convert a packed, binary format into a ip string in dotted form
+    """
+    if address_family == socket.AF_INET:
+        return inet_ntop(socket.AF_INET, struct.pack("<I", value))
+    else:
+        return inet_ntop(socket.AF_INET6, struct.pack("<HHHHHHHH", value))
 
 def format_structure(instance):
     """
@@ -269,39 +277,83 @@ class CapturedPacket(object):
     """
     #TODO: changes to attributes reflecting to raw_packet would be cool :-)
 
-    def __init__(self, net_hdr=None, tran_hdr=None, content=None, raw_packet=None):
-        self.content = content
+    def __init__(self, headers, payload=None, raw_packet=None):
+        self.payload = payload
         self.raw_packet = raw_packet
-        self.src_addr, self.src_port = None, None
-        self.dst_addr, self.dst_port = None, None
-        self.raw_net_hdr, self.raw_tran_hdr = None, None
-        if net_hdr:
-            self.set_network_header(net_hdr)
-        if tran_hdr:
-            self.set_transport_header(tran_hdr)
+        self.headers = headers
 
-    def set_network_header(self, header):
-        self.raw_net_hdr = header
-        if hasattr(header, "SrcAddr"):
-            self.src_addr = int_to_ipv4(header.SrcAddr)
-        if hasattr(header, "DstAddr"):
-            self.dst_addr = int_to_ipv4(header.DstAddr)
+    def _get_from_headers(self, key):
+        for header in self.headers:
+            if hasattr(header, key):
+                return header, getattr(header, key, None)
+        return None, None
 
-    def set_transport_header(self, header):
-        self.raw_tran_hdr = header
-        if hasattr(header, "SrcPort"):
-            self.src_port = int_to_port(header.SrcPort)
-        if hasattr(header, "DstPort"):
-            self.dst_port = int_to_port(header.DstPort)
+    def _set_in_headers(self, key, value):
+        for header in self.headers:
+            if hasattr(header, key):
+                setattr(header, key, value)
+                break
+
+    @property
+    def address_family(self):
+        for header in self.headers:
+            for v6hdr in (DivertIcmpv6Header, DivertIpv6Header):
+                if isinstance(header, v6hdr):
+                    return socket.AF_INET6
+        return socket.AF_INET
+
+    @property
+    def src_port(self):
+        header, src_port = self._get_from_headers("SrcPort")
+        if src_port:
+            return socket.htons(src_port)
+
+    @src_port.setter
+    def src_port(self, value):
+        self._set_in_headers("SrcPort", socket.ntohs(value))
+
+    @property
+    def dst_port(self):
+        header, dst_port = self._get_from_headers("DstPort")
+        if dst_port:
+            return socket.htons(dst_port)
+
+    @dst_port.setter
+    def dst_port(self, value):
+        self._set_in_headers("DstPort", socket.ntohs(value))
+
+    @property
+    def src_addr(self):
+        header, src_addr = self._get_from_headers("SrcAddr")
+        if src_addr:
+            return addr_to_string(self.address_family, src_addr)
+
+    @src_addr.setter
+    def src_addr(self, value):
+        self._set_in_headers("SrcAddr", string_to_addr(self.address_family, value))
+
+    @property
+    def dst_addr(self):
+        header, dst_addr = self._get_from_headers("DstAddr")
+        if dst_addr:
+            return addr_to_string(self.address_family, dst_addr)
+
+
+    @dst_addr.setter
+    def dst_addr(self, value):
+        self._set_in_headers("DstAddr", string_to_addr(self.address_family, value))
 
     def to_raw_packet(self):
-        hexed = hexlify(self.raw_packet)
-        headers = hexlify(self.raw_net_hdr)+hexlify(self.raw_tran_hdr)
-        return unhexlify(headers+hexed[len(headers):])
+        #hexed = hexlify(self.raw_packet)
+        hexed_hdr = ""
+        for header in self.headers:
+            hexed_hdr += hexlify(header)
+        return unhexlify(hexed_hdr+hexlify(self.payload))
 
     def __str__(self):
-        return "Packet from %s to %s [%s]" % ("%s:%s" % (self.src_addr, self.src_port),
-                                              "%s:%s" % (self.dst_addr, self.dst_port),
-                                              self.content)
+        return "Packet from %s to %s \n[%s]\n[%s]" % ("%s:%s" % (self.src_addr, self.src_port),
+                                                            "%s:%s" % (self.dst_addr, self.dst_port),
+                                                            "\n".join(["%s" % str(h) for h in self.headers]),
+                                                            self.payload)
 
 

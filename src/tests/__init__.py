@@ -26,7 +26,7 @@ except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 
 
-class EchoTCPRequestHandler(BaseRequestHandler):
+class EchoUpperTCPRequestHandler(BaseRequestHandler):
     """
     Simple TCP request handler returning data to uppercase.
     """
@@ -37,6 +37,18 @@ class EchoTCPRequestHandler(BaseRequestHandler):
         # just send back the same data, but upper-cased
         #print self.data
         self.request.sendall(self.data.upper())
+
+class EchoLowerTCPRequestHandler(BaseRequestHandler):
+    """
+    Simple TCP request handler returning data to lowercase.
+    """
+
+    def handle(self):
+        # self.request is the TCP socket connected to the client
+        self.data = self.request.recv(1024).strip()
+        # just send back the same data, but upper-cased
+        #print self.data
+        self.request.sendall(self.data.lower())
 
 
 class EchoUDPHandler(BaseRequestHandler):

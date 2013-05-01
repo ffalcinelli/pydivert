@@ -13,6 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from binascii import hexlify
+import socket
+import struct
+
 __author__ = 'fabio'
 
 import ctypes
@@ -79,6 +83,7 @@ class WinDivert(object):
         ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
         tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
+        headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
         self._lib.DivertHelperParsePacket(raw_packet,
                                           packet_len,
                                           ctypes.byref(ip_hdr),
@@ -95,15 +100,10 @@ class WinDivert(object):
         # if payload_len:
         #     payload = packet[payload_len.value * -1:]
 
-        captured = CapturedPacket(content=ctypes.string_at(payload.value) if payload else "", raw_packet=raw_packet)
-        #captured = CapturedPacket(contents=payload if payload else None)
-        for hdr in (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr):
-            if hdr:
-                captured.set_network_header(hdr.contents)
-        for hdr in (tcp_hdr, udp_hdr):
-            if hdr:
-                captured.set_transport_header(hdr.contents)
-        return captured
+        return CapturedPacket(payload=ctypes.string_at(payload.value) if payload else "",
+                              raw_packet=raw_packet,
+                              headers=[hdr.contents for hdr in headers if hdr])
+
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -117,8 +117,11 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.c_uint32(0)
+        #TODO: I need some clarifications on the byte orders
+        #address = ".".join(reversed(address.split(".")))
         self._lib.DivertHelperParseIPv4Address(address, ctypes.byref(ip_addr))
         return ip_addr.value
+
 
     @winerror_on_retcode
     def parse_ipv6_address(self, address):
@@ -293,13 +296,18 @@ class Handle(object):
         self.close()
 
 
-# if __name__ == "__main__":
-#     current_dir = os.path.join(os.path.dirname(__file__), os.pardir, "../lib")
-#     os.chdir(current_dir)
-#     windivert = WinDivert(os.path.join(current_dir, "WinDivert.dll"))
-#     with Handle(windivert, filter="tcp.DstPort == 23", priority=1000) as filter1:
-#         while True:
-#             raw_packet, meta = filter1.receive()
-#             captured_packet = windivert.parse_packet(raw_packet)
-#             print captured_packet
-#             filter1.send((raw_packet, meta))
+if __name__ == "__main__":
+    driver_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "lib")
+    import platform
+    if platform.architecture()[0] == "32bit":
+        driver_dir = os.path.join(driver_dir, "x86")
+    else:
+        driver_dir = os.path.join(driver_dir, "amd64")
+    os.chdir(driver_dir)
+    driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
+    with Handle(driver, filter="tcp.DstPort == 13131", priority=1000) as filter1:
+        while True:
+            raw_packet, meta = filter1.receive()
+            captured_packet = driver.parse_packet(raw_packet)
+            print captured_packet
+            filter1.send((raw_packet, meta))
