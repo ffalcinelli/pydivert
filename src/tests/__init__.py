@@ -13,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from time import sleep
 
 __author__ = 'fabio'
 
@@ -35,8 +34,9 @@ class EchoUpperTCPRequestHandler(BaseRequestHandler):
         # self.request is the TCP socket connected to the client
         self.data = self.request.recv(1024).strip()
         # just send back the same data, but upper-cased
-        #print self.data
+        # print self.data
         self.request.sendall(self.data.upper())
+
 
 class EchoLowerTCPRequestHandler(BaseRequestHandler):
     """
@@ -46,8 +46,8 @@ class EchoLowerTCPRequestHandler(BaseRequestHandler):
     def handle(self):
         # self.request is the TCP socket connected to the client
         self.data = self.request.recv(1024).strip()
-        # just send back the same data, but upper-cased
-        #print self.data
+        # just send back the same data, but lower-cased
+        # print self.data
         self.request.sendall(self.data.lower())
 
 
@@ -79,7 +79,6 @@ class FakeUDPServer(ThreadingMixIn, UDPServer):
 
 
 class FakeTCPClient():
-
     def __init__(self, connect_address, message):
         self.connect_addr = connect_address
         self.message = message

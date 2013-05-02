@@ -3,6 +3,7 @@
 import socket
 import ctypes
 
+
 class sockaddr(ctypes.Structure):
     _fields_ = [("sa_family", ctypes.c_short),
                 ("__pad1", ctypes.c_ushort),
@@ -10,8 +11,10 @@ class sockaddr(ctypes.Structure):
                 ("ipv6_addr", ctypes.c_byte * 16),
                 ("__pad2", ctypes.c_ulong)]
 
+
 WSAStringToAddressA = ctypes.windll.ws2_32.WSAStringToAddressA
 WSAAddressToStringA = ctypes.windll.ws2_32.WSAAddressToStringA
+
 
 def inet_pton(address_family, ip_string):
     addr = sockaddr()
@@ -27,6 +30,7 @@ def inet_pton(address_family, ip_string):
         return ctypes.string_at(addr.ipv6_addr, 16)
 
     raise socket.error('unknown address family')
+
 
 def inet_ntop(address_family, packed_ip):
     addr = sockaddr()
@@ -49,4 +53,4 @@ def inet_ntop(address_family, packed_ip):
     if WSAAddressToStringA(ctypes.byref(addr), addr_size, None, ip_string, ctypes.byref(ip_string_size)) != 0:
         raise socket.error(ctypes.FormatError())
 
-    return ip_string[:ip_string_size.value-1]
+    return ip_string[:ip_string_size.value - 1]

@@ -28,7 +28,7 @@ def string_to_addr(address_family, value):
     Convert a ip string in dotted form into a packed, binary format
     """
     if address_family == socket.AF_INET:
-        return struct.unpack("!I", inet_pton(socket.AF_INET, value))[0]
+        return struct.unpack("<I", inet_pton(socket.AF_INET, value))[0]
     else:
         return struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, value))
 
@@ -41,6 +41,7 @@ def addr_to_string(address_family, value):
         return inet_ntop(socket.AF_INET, struct.pack("<I", value))
     else:
         return inet_ntop(socket.AF_INET6, struct.pack("<HHHHHHHH", value))
+
 
 def format_structure(instance):
     """
@@ -111,7 +112,6 @@ class DivertIpHeader(ctypes.Structure):
         return format_structure(self)
 
 
-#TODO: adjust fields to code instead of documentation
 class DivertIpv6Header(ctypes.Structure):
     """
     Ctypes structure for DIVERT_IPV6HDR: IPv6 header definition.
@@ -275,7 +275,6 @@ class CapturedPacket(object):
     """
     Gathers several network layers of data
     """
-    #TODO: changes to attributes reflecting to raw_packet would be cool :-)
 
     def __init__(self, headers, payload=None, raw_packet=None):
         self.payload = payload
@@ -338,22 +337,26 @@ class CapturedPacket(object):
         if dst_addr:
             return addr_to_string(self.address_family, dst_addr)
 
-
     @dst_addr.setter
     def dst_addr(self, value):
         self._set_in_headers("DstAddr", string_to_addr(self.address_family, value))
 
     def to_raw_packet(self):
         #hexed = hexlify(self.raw_packet)
-        hexed_hdr = ""
-        for header in self.headers:
-            hexed_hdr += hexlify(header)
-        return unhexlify(hexed_hdr+hexlify(self.payload))
+        hexed_headers = []
+        for hdr in self.headers:
+            hexed = hexlify(hdr)
+            hdr_len = getattr(hdr, "HdrLength", 0) * 4
+            if len(hexed) < hdr_len:
+                hexed += "0" * (hdr_len - len(hexed))
+            hexed_headers.append(hexed)
+
+        return unhexlify("".join(hexed_headers) + hexlify(self.payload))
 
     def __str__(self):
         return "Packet from %s to %s \n[%s]\n[%s]" % ("%s:%s" % (self.src_addr, self.src_port),
-                                                            "%s:%s" % (self.dst_addr, self.dst_port),
-                                                            "\n".join(["%s" % str(h) for h in self.headers]),
-                                                            self.payload)
+                                                      "%s:%s" % (self.dst_addr, self.dst_port),
+                                                      "\n".join(["%s" % str(h) for h in self.headers]),
+                                                      self.payload)
 
 

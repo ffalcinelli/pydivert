@@ -13,9 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from binascii import hexlify
-import socket
-import struct
 
 __author__ = 'fabio'
 
@@ -78,8 +75,9 @@ class WinDivert(object):
         );
         """
         packet_len = len(raw_packet)
-        payload = ctypes.c_void_p(0)
-        payload_len = ctypes.c_uint(0)
+        # Consider everything else not part of headers as payload
+        # payload = ctypes.c_void_p(0)
+        # payload_len = ctypes.c_uint(0)
         ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
         tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
@@ -92,18 +90,17 @@ class WinDivert(object):
                                           ctypes.byref(icmpv6_hdr),
                                           ctypes.byref(tcp_hdr),
                                           ctypes.byref(udp_hdr),
-                                          ctypes.byref(payload),
-                                          ctypes.byref(payload_len))
+                                          None,
+                                          None)
+        #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
+        headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
 
-        # This works as well as reading the pointed location.
-        # So far, we use that way
-        # if payload_len:
-        #     payload = packet[payload_len.value * -1:]
-
-        return CapturedPacket(payload=ctypes.string_at(payload.value) if payload else "",
+        # return CapturedPacket(payload=ctypes.string_at(payload.value, payload_len) if payload else "",
+        #                       raw_packet=raw_packet,
+        #                       headers=[hdr.contents for hdr in headers if hdr])
+        return CapturedPacket(payload=raw_packet[headers_len:],
                               raw_packet=raw_packet,
                               headers=[hdr.contents for hdr in headers if hdr])
-
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -117,8 +114,6 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.c_uint32(0)
-        #TODO: I need some clarifications on the byte orders
-        #address = ".".join(reversed(address.split(".")))
         self._lib.DivertHelperParseIPv4Address(address, ctypes.byref(ip_addr))
         return ip_addr.value
 
@@ -153,10 +148,9 @@ class WinDivert(object):
         );
         """
         packet_len = len(packet)
-        buff_pointer = ctypes.pointer(ctypes.create_string_buffer(packet))
-        self._lib.DivertHelperCalcChecksums(ctypes.byref(buff_pointer), packet_len, flags)
-        #TODO: check the reason why there's a 0 at the end
-        return buff_pointer.contents[:-1]
+        buff = ctypes.c_buffer(packet, packet_len)
+        self._lib.DivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
+        return buff.raw
 
     def __str__(self):
         return "%s" % self._lib
@@ -299,6 +293,7 @@ class Handle(object):
 if __name__ == "__main__":
     driver_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "lib")
     import platform
+
     if platform.architecture()[0] == "32bit":
         driver_dir = os.path.join(driver_dir, "x86")
     else:
@@ -309,5 +304,5 @@ if __name__ == "__main__":
         while True:
             raw_packet, meta = filter1.receive()
             captured_packet = driver.parse_packet(raw_packet)
-            print captured_packet
+            print(captured_packet)
             filter1.send((raw_packet, meta))
