@@ -11,11 +11,12 @@ Right now PyDivert supports those platforms supported by the driver itself
 It should work with Python 2.7/3.3 on Windows Vista, 7, 8. I've tested only on Windows7 64bit.
 Plans are to support Divert Sockets on BSD-like systems (such as OSX) and similar for linux.
 
-Caveats
--------
+Warnings
+--------
 
-* Administrator privileges are required to run the API.
+* Administrator privileges are required to run the API
 * Windows 64bit must be in **Test Mode** to load drivers signed with untrusted certificates
+* The API is still under heavy development and could receive changes in near future without any notification
 
 Quick Start
 ===========
@@ -93,7 +94,7 @@ with Handle(driver, filter="outbound and tcp.DstPort == 23", priority=1000) as h
         handle.send( (raw_packet, metadata) )
 ```
 
-If the driver is already registered you can avoid the explicit instance of `WinDivert`` class
+If the driver is already registered you can avoid the explicit instance of `WinDivert` class
 
 ```python
 with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:

@@ -28,7 +28,7 @@ def string_to_addr(address_family, value):
     Convert a ip string in dotted form into a packed, binary format
     """
     if address_family == socket.AF_INET:
-        return struct.unpack("<I", inet_pton(socket.AF_INET, value))[0]
+        return struct.unpack("I", inet_pton(socket.AF_INET, value))[0]
     else:
         return struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, value))
 
@@ -106,7 +106,7 @@ class DivertIpHeader(ctypes.Structure):
                 ("Protocol", ctypes.c_uint8),
                 ("Checksum", ctypes.c_uint16),
                 ("SrcAddr", ctypes.c_uint32),
-                ("DstAddr", ctypes.c_uint32)]
+                ("DstAddr", ctypes.c_uint32), ]
 
     def __str__(self):
         return format_structure(self)
@@ -229,7 +229,7 @@ class DivertTcpHeader(ctypes.Structure):
                 ("Reserved2", ctypes.c_uint16, 2),
                 ("Window", ctypes.c_uint16),
                 ("Checksum", ctypes.c_uint16),
-                ("UrgPtr", ctypes.c_uint16)]
+                ("UrgPtr", ctypes.c_uint16), ]
 
     def __str__(self):
         return format_structure(self)
@@ -256,6 +256,43 @@ class DivertUdpHeader(ctypes.Structure):
         return format_structure(self)
 
 
+class HeaderWrapper(object):
+    """
+    Since there's no "Options" field in the header structs, we use this wrapper
+    to carry the "Options" field if available.
+
+    Any field requested to an instance of this class is delegated to the original
+    header, except the "Options" one.
+    """
+
+    def __init__(self, hdr, opts=''):
+        self.hdr, self.opts = hdr, opts
+
+    def __getattr__(self, item):
+        if item != "hdr" and hasattr(self.hdr, item):
+            return getattr(self.hdr, item)
+        elif item == "Options":
+            return self.opts if self.opts else ''
+        else:
+            return super(HeaderWrapper, self).__getattribute__(item)
+
+    def __setattr__(self, key, value):
+        if key != "hdr" and hasattr(self.hdr, key):
+            setattr(self.hdr, key, value)
+        elif key == "Options":
+            self.opts = value if value else ''
+        else:
+            return super(HeaderWrapper, self).__setattr__(key, value)
+
+
+headers_map = {"ipv4_hdr": DivertIpHeader,
+               "ipv6_hdr": DivertIpv6Header,
+               "tcp_hdr": DivertTcpHeader,
+               "udp_hdr": DivertUdpHeader,
+               "icmp_hdr": DivertIcmpHeader,
+               "icmpv6_hdr": DivertIcmpv6Header}
+
+
 class CapturedMetadata(object):
     """
     Captured metadata on interface and flow direction
@@ -277,9 +314,19 @@ class CapturedPacket(object):
     """
 
     def __init__(self, headers, payload=None, raw_packet=None):
+        if len(headers) > 2:
+            raise ValueError("No more than 2 headers (tcp/udp/icmp over ip) are supported")
+
         self.payload = payload
         self.raw_packet = raw_packet
-        self.headers = headers
+
+        self.headers = [None, None]
+        self.headers_opt = [None, None]
+        for header in headers:
+            if type(header.hdr) in (DivertIpHeader, DivertIpv6Header):
+                self.headers[0] = header
+            else:
+                self.headers[1] = header
 
     def _get_from_headers(self, key):
         for header in self.headers:
@@ -295,10 +342,9 @@ class CapturedPacket(object):
 
     @property
     def address_family(self):
-        for header in self.headers:
-            for v6hdr in (DivertIcmpv6Header, DivertIpv6Header):
-                if isinstance(header, v6hdr):
-                    return socket.AF_INET6
+        for v6hdr in ("ipv6_hdr", "icmpv6_hdr"):
+            if getattr(self, v6hdr):
+                return socket.AF_INET6
         return socket.AF_INET
 
     @property
@@ -341,22 +387,49 @@ class CapturedPacket(object):
     def dst_addr(self, value):
         self._set_in_headers("DstAddr", string_to_addr(self.address_family, value))
 
-    def to_raw_packet(self):
-        #hexed = hexlify(self.raw_packet)
-        hexed_headers = []
-        for hdr in self.headers:
-            hexed = hexlify(hdr)
-            hdr_len = getattr(hdr, "HdrLength", 0) * 4
-            if len(hexed) < hdr_len:
-                hexed += "0" * (hdr_len - len(hexed))
-            hexed_headers.append(hexed)
+    def __getattr__(self, item):
+        clazz = headers_map.get(item, None)
+        if clazz:
+            for header in self.headers:
+                if isinstance(header.hdr, clazz):
+                    return header
+        else:
+            return super(CapturedPacket, self).__getattribute__(item)
 
+    def __setattr__(self, key, value):
+        clazz = headers_map.get(key, None)
+        if clazz:
+            if key in ("ipv4_hdr", "ipv6_hdr"):
+                self.headers[0].hdr = value
+            else:
+                self.headers[1].hdr = value
+        else:
+            super(CapturedPacket, self).__setattr__(key, value)
+
+    def to_raw_packet(self):
+        """
+        Transform the CapturedPacket into raw packet bytes
+        """
+        hexed_headers = []
+        for i, header in enumerate(self.headers):
+            hexed = hexlify(header.hdr)
+            if header.opts:
+                hexed += hexlify(header.opts)
+            hdr_len = getattr(header, "HdrLength", 0) * 4
+            #print "LEN %d - %d" %(len(hexed), hdr_len)
+            if (len(hexed) / 2) < hdr_len:
+                hexed += "00" * (hdr_len - len(hexed) / 2)
+            hexed_headers.append(hexed)
         return unhexlify("".join(hexed_headers) + hexlify(self.payload))
 
     def __str__(self):
-        return "Packet from %s to %s \n[%s]\n[%s]" % ("%s:%s" % (self.src_addr, self.src_port),
-                                                      "%s:%s" % (self.dst_addr, self.dst_port),
-                                                      "\n".join(["%s" % str(h) for h in self.headers]),
-                                                      self.payload)
-
-
+        return """Packet: \t%s --> %s
+Headers:\t[%s]
+        \t[%s]
+Payload:\t[%s]
+        \t[%s]""" % ("%s:%s" % (self.src_addr, self.src_port),
+                     "%s:%s" % (self.dst_addr, self.dst_port),
+                     "],\n\t\t\t[".join(["%s[Options: %s]" % (str(h.hdr), hexlify(h.opts)) for h in self.headers]),
+                     "],\n\t\t\t[".join(["%s%s" % (hexlify(h.hdr), hexlify(h.opts)) for h in self.headers]),
+                     self.payload,
+                     hexlify(self.payload))

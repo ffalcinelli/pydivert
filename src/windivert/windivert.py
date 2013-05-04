@@ -20,7 +20,7 @@ import ctypes
 import os
 from decorators import winerror_on_retcode
 from winregistry import get_hklm_reg_values
-from models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata
+from models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 import enum
 
 
@@ -77,7 +77,7 @@ class WinDivert(object):
         packet_len = len(raw_packet)
         # Consider everything else not part of headers as payload
         # payload = ctypes.c_void_p(0)
-        # payload_len = ctypes.c_uint(0)
+        payload_len = ctypes.c_uint(0)
         ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
         tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
@@ -91,16 +91,27 @@ class WinDivert(object):
                                           ctypes.byref(tcp_hdr),
                                           ctypes.byref(udp_hdr),
                                           None,
-                                          None)
+                                          ctypes.byref(payload_len))
         #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
-        headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
+        #headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
 
-        # return CapturedPacket(payload=ctypes.string_at(payload.value, payload_len) if payload else "",
-        #                       raw_packet=raw_packet,
-        #                       headers=[hdr.contents for hdr in headers if hdr])
-        return CapturedPacket(payload=raw_packet[headers_len:],
+        # clean headers, consider just those that are not None (!=NULL)
+        headers = [hdr.contents for hdr in headers if hdr]
+        headers_opts = []
+        offset = 0
+        for header in headers:
+            if hasattr(header, "HdrLength"):
+                header_len = getattr(header, "HdrLength", 0) * 4
+                opt_len = header_len - ctypes.sizeof(header)
+                if opt_len:
+                    opt = raw_packet[offset + header_len - opt_len:offset + header_len]
+                    headers_opts.append(opt)
+                else:
+                    headers_opts.append('')
+                offset += header_len
+        return CapturedPacket(payload=raw_packet[offset:],
                               raw_packet=raw_packet,
-                              headers=[hdr.contents for hdr in headers if hdr])
+                              headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)])
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -300,9 +311,19 @@ if __name__ == "__main__":
         driver_dir = os.path.join(driver_dir, "amd64")
     os.chdir(driver_dir)
     driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-    with Handle(driver, filter="tcp.DstPort == 13131", priority=1000) as filter1:
+    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 13131", priority=1000) as filter1:
         while True:
+            print("-----ROUND-----")
             raw_packet, meta = filter1.receive()
+            print meta
             captured_packet = driver.parse_packet(raw_packet)
             print(captured_packet)
-            filter1.send((raw_packet, meta))
+
+            if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
+                captured_packet.dst_port = 13131
+            else:
+                captured_packet.src_port = 23
+
+            captured_packet = driver.parse_packet(driver.calc_checksums(captured_packet.to_raw_packet()))
+            print(captured_packet)
+            filter1.send((captured_packet.to_raw_packet(), meta))
