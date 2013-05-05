@@ -91,7 +91,7 @@ with Handle(driver, filter="outbound and tcp.DstPort == 23", priority=1000) as h
         raw_packet, metadata = handle.receive()
         captured_packet = driver.parse_packet(raw_packet)
         print(captured_packet)
-        handle.send( (raw_packet, metadata) )
+        handle.send(raw_packet, metadata)
 ```
 
 If the driver is already registered you can avoid the explicit instance of `WinDivert` class
@@ -102,7 +102,7 @@ with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
         raw_packet, metadata = handle.receive()
         captured_packet = handle.driver.parse_packet(raw_packet)
         print(captured_packet)
-        handle.send( (raw_packet, metadata) )
+        handle.send(raw_packet, metadata)
 ```
 
 Checkout the test suite for examples of usage.

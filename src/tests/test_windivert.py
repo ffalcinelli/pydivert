@@ -22,7 +22,7 @@ from windivert.win_inet_pton import inet_pton
 __author__ = 'fabio'
 
 import threading
-from tests import FakeTCPServer, EchoUpperTCPRequestHandler, FakeTCPClient
+from tests import FakeTCPServer, EchoUpperTCPRequestHandler, FakeTCPClient, get_free_port
 import unittest
 import os
 import platform
@@ -188,6 +188,15 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         self.client_thread.join(timeout=10)
         self.assertEqual(self.text.upper(), self.client.response)
 
+    def test_pass_through_no_tuple(self):
+        """
+        Test receiving and resending data. Send using 2 arguments instead of tuple
+        """
+        raw_packet, meta = self.handle.receive()
+        self.handle.send(raw_packet, meta)
+        self.client_thread.join(timeout=10)
+        self.assertEqual(self.text.upper(), self.client.response)
+
     def test_parse_packet(self):
         """
         Test parsing packets to intercept the payload
@@ -234,7 +243,6 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         Test checksum without changes
         """
         raw_packet1, metadata = self.handle.receive()
-        #print self.handle.driver.parse_packet(raw_packet1)
         raw_packet2 = self.handle.driver.calc_checksums(raw_packet1)
         self.assertEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
@@ -331,7 +339,7 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
             self.text = "Hello world! ZZZZ"
             self.new_text = "Hello World!"
             # Initialize the fake tcp client
-            self.client = FakeTCPClient(("127.0.0.1", self.server.server_address[1]), self.text)
+            self.client = FakeTCPClient(self.server.server_address, self.text)
             self.client_thread = threading.Thread(target=self.client.send)
             self.client_thread.start()
 
@@ -346,46 +354,37 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
             self.client_thread.join(timeout=10)
             self.assertEqual(self.new_text.upper(), self.client.response)
 
-    # def test_packet_injection_checksum(self):
-    #     """
-    #     Test recalculating checksum after altering packet header
-    #     """
-    #     new_server = FakeTCPServer(("0.0.0.0", 0), EchoLowerTCPRequestHandler)
-    #     try:
-    #         new_server_thread = threading.Thread(target=new_server.serve_forever)
-    #         new_server_thread.start()
-    #
-    #         filter_ = "tcp.DstPort == {0} or tcp.SrcPort == {0}".format(self.server.server_address[1],
-    #                                                                     new_server.server_address[1])
-    #         with Handle(filter=filter_, priority=1000) as handle:
-    #             self.text = "Hello World!"
-    #             # Initialize the fake tcp client
-    #             self.client = FakeTCPClient(self.server.server_address, self.text)
-    #             self.client_thread = threading.Thread(target=self.client.send)
-    #             self.client_thread.start()
-    #
-    #             while True:
-    #                 raw_packet, meta = handle.receive()
-    #                 packet = handle.driver.parse_packet(raw_packet)
-    #                 print packet
-    #
-    #                 if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
-    #                     packet.dst_port = new_server.server_address[1]
-    #                 else:
-    #                     packet.src_port = self.server.server_address[1]
-    #
-    #                 packet = handle.driver.parse_packet(handle.driver.calc_checksums(packet.to_raw_packet()))
-    #                 print packet
-    #                 handle.send((packet.to_raw_packet(), meta))
-    #                 if hasattr(self.client, "response") and self.client.response:
-    #                     break
-    #
-    #             self.client_thread.join(timeout=10)
-    #             self.assertEqual(self.text.lower(), self.client.response)
-    #     finally:
-    #         if new_server:
-    #             new_server.shutdown()
-    #             new_server.server_close()
+    def test_modify_packet_tcp_header(self):
+        """
+        Test injection of a packet with a modified tcp header
+        """
+        fake_port = get_free_port()
+        srv_port = self.server.server_address[1]
+        text = "Hello World!"
+        client = FakeTCPClient(("127.0.0.1", fake_port), text)
+        client_thread = threading.Thread(target=client.send)
+
+        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        with Handle(filter=f, priority=1000) as handle:
+            # Initialize the fake tcp client
+            client_thread.start()
+            while True:
+                raw_packet, meta = handle.receive()
+                packet = handle.driver.parse_packet(raw_packet)
+
+                #With loopback interface it seems each packet flow is outbound
+                if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = srv_port
+                    if packet.src_port == srv_port:
+                        packet.src_port = fake_port
+
+                packet = handle.driver.parse_packet(handle.driver.calc_checksums(packet.to_raw_packet()))
+                handle.send((packet.to_raw_packet(), meta))
+                if hasattr(client, "response") and client.response and not client_thread.is_alive():
+                    break
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response)
 
     def tearDown(self):
         self.server.shutdown()

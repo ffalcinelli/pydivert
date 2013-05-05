@@ -20,7 +20,7 @@ __author__ = 'fabio'
 import socket
 
 try:
-    from socketserver import ThreadingMixIn, ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
+    from socketserver import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 
@@ -91,3 +91,15 @@ class FakeTCPClient():
             self.response = sock.recv(1024)
         finally:
             sock.close()
+
+
+def get_free_port():
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        for p in range(1025, 65535):
+            if s.connect_ex(('127.0.0.1', p)) == 0:
+                return p
+    finally:
+        s.close()

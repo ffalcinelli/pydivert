@@ -225,7 +225,7 @@ class Handle(object):
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
-    def send(self, (data, dest)):
+    def send(self, *args):
         """
         Injects a packet into the network stack.
         The injected packet may be one received from receive(), or a modified version, or a completely new packet.
@@ -240,6 +240,13 @@ class Handle(object):
             __out_opt UINT *sendLen
         );
         """
+        if len(args) == 1:
+            data, dest = args[0]
+        elif len(args) == 2:
+            data, dest = args[0], args[1]
+        else:
+            raise ValueError("Too many arguments")
+
         address = DivertAddress()
         address.IfIdx = dest.iface[0]
         address.SubIfIdx = dest.iface[1]
@@ -312,6 +319,7 @@ if __name__ == "__main__":
     os.chdir(driver_dir)
     driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
     with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 13131", priority=1000) as filter1:
+        dest_address = None
         while True:
             print("-----ROUND-----")
             raw_packet, meta = filter1.receive()
@@ -321,8 +329,11 @@ if __name__ == "__main__":
 
             if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
                 captured_packet.dst_port = 13131
+                dest_address = captured_packet.dst_addr
+                captured_packet.dst_addr = "192.168.1.2"
             else:
                 captured_packet.src_port = 23
+                captured_packet.src_addr = dest_address
 
             captured_packet = driver.parse_packet(driver.calc_checksums(captured_packet.to_raw_packet()))
             print(captured_packet)
