@@ -88,7 +88,7 @@ You may access the driver for your python code by using the following example wh
 driver = WinDivert("C:\PyDivert\WinDivert.dll")
 with Handle(driver, filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
     while True:
-        raw_packet, metadata = handle.receive()
+        raw_packet, metadata = handle.recv()
         captured_packet = driver.parse_packet(raw_packet)
         print(captured_packet)
         handle.send(raw_packet, metadata)
@@ -99,10 +99,20 @@ If the driver is already registered you can avoid the explicit instance of `WinD
 ```python
 with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
     while True:
-        raw_packet, metadata = handle.receive()
+        raw_packet, metadata = handle.recv()
         captured_packet = handle.driver.parse_packet(raw_packet)
         print(captured_packet)
         handle.send(raw_packet, metadata)
+```
+
+There are a set of high level functions to avoid repeating common operations. The following snippet is perfectly equivalent to the above:
+
+```python
+with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
+    while True:
+        packet = handle.receive()
+        print(packet)
+        handle.send(packet)
 ```
 
 Checkout the test suite for examples of usage.

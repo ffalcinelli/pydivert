@@ -16,7 +16,6 @@
 from binascii import hexlify
 import socket
 import struct
-from windivert import enum
 from windivert.win_inet_pton import inet_pton
 
 __author__ = 'fabio'
@@ -177,14 +176,15 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         Test if metadata is right
         """
-        raw_packet, metadata = self.handle.receive()
-        self.assertEqual(metadata.direction, enum.DIVERT_DIRECTION_OUTBOUND)
+        raw_packet, metadata = self.handle.recv()
+        self.assertTrue(metadata.is_outbound())
+        self.assertTrue(metadata.is_loopback())
 
-    def test_pass_through(self):
+    def test_pass_through_tuple(self):
         """
         Test receiving and resending data
         """
-        self.handle.send(self.handle.receive())
+        self.handle.send(self.handle.recv())
         self.client_thread.join(timeout=10)
         self.assertEqual(self.text.upper(), self.client.response)
 
@@ -192,8 +192,16 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         Test receiving and resending data. Send using 2 arguments instead of tuple
         """
-        raw_packet, meta = self.handle.receive()
+        raw_packet, meta = self.handle.recv()
         self.handle.send(raw_packet, meta)
+        self.client_thread.join(timeout=10)
+        self.assertEqual(self.text.upper(), self.client.response)
+
+    def test_pass_through_packet(self):
+        """
+        Test receiving and resending data. Send using an higher level packet object
+        """
+        self.handle.send(self.handle.receive())
         self.client_thread.join(timeout=10)
         self.assertEqual(self.text.upper(), self.client.response)
 
@@ -201,17 +209,28 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         Test parsing packets to intercept the payload
         """
-        raw_packet, metadata = self.handle.receive()
+        raw_packet, metadata = self.handle.recv()
         packet = self.driver.parse_packet(raw_packet)
         self.assertEqual("%s:%d" % (packet.dst_addr, packet.dst_port),
                          "%s:%d" % self.server.server_address)
         self.assertEqual(self.text, packet.payload)
 
+    def test_parse_packet_meta(self):
+        """
+        Test parsing packets to intercept the payload and store meta in result
+        """
+        raw_packet, metadata = self.handle.recv()
+        packet = self.driver.parse_packet(raw_packet, metadata)
+        self.assertEqual("%s:%d" % (packet.dst_addr, packet.dst_port),
+                         "%s:%d" % self.server.server_address)
+        self.assertEqual(self.text, packet.payload)
+        self.assertEqual(packet.meta, metadata)
+
     def test_dump_data(self):
         """
         Test receiving, print and resending data
         """
-        raw_packet, metadata = self.handle.receive()
+        raw_packet, metadata = self.handle.recv()
         packet = self.handle.driver.parse_packet(raw_packet)
         self.assertIn(raw_packet[len(packet.payload) * -1:], str(packet))
         self.handle.send((raw_packet, metadata))
@@ -222,27 +241,27 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         Test reconstructing raw packet from a captured one
         """
-        raw_packet1, metadata = self.handle.receive()
+        raw_packet1, metadata = self.handle.recv()
         packet = self.handle.driver.parse_packet(raw_packet1)
-        raw_packet2 = packet.to_raw_packet()
+        raw_packet2 = packet.raw_packet
         self.assertEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
     def test_raw_packet_len(self):
         """
         Test reconstructing raw packet from a captured and modified one
         """
-        raw_packet1, metadata = self.handle.receive()
+        raw_packet1, metadata = self.handle.recv()
         packet1 = self.handle.driver.parse_packet(raw_packet1)
         packet1.dst_port = 80
         packet1.dst_addr = "10.10.10.10"
-        raw_packet2 = packet1.to_raw_packet()
+        raw_packet2 = packet1.raw_packet
         self.assertEqual(len(raw_packet1), len(raw_packet2))
 
     def test_packet_checksum(self):
         """
         Test checksum without changes
         """
-        raw_packet1, metadata = self.handle.receive()
+        raw_packet1, metadata = self.handle.recv()
         raw_packet2 = self.handle.driver.calc_checksums(raw_packet1)
         self.assertEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
@@ -250,27 +269,27 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         Test checksum with changes
         """
-        raw_packet1, metadata = self.handle.receive()
+        raw_packet1, metadata = self.handle.recv()
         packet = self.handle.driver.parse_packet(raw_packet1)
         packet.dst_port = 80
         packet.dst_addr = "10.10.10.10"
-        raw_packet2 = self.handle.driver.calc_checksums(packet.to_raw_packet())
+        raw_packet2 = self.handle.driver.calc_checksums(packet.raw_packet)
         self.assertNotEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
     def test_packet_reconstruct_checksummed(self):
         """
         Test reconstruction of a packet after checksum calculation
         """
-        raw_packet1, metadata = self.handle.receive()
+        raw_packet1, metadata = self.handle.recv()
         packet1 = self.handle.driver.parse_packet(raw_packet1)
         packet1.dst_port = 80
         packet1.dst_addr = "10.10.10.10"
-        raw_packet2 = self.handle.driver.calc_checksums(packet1.to_raw_packet())
+        raw_packet2 = self.handle.driver.calc_checksums(packet1.raw_packet)
         packet2 = self.handle.driver.parse_packet(raw_packet2)
         self.assertEqual(packet1.dst_port, packet2.dst_port)
         self.assertEqual(packet1.dst_addr, packet2.dst_addr)
         self.assertNotEqual(hexlify(raw_packet1), hexlify(raw_packet2))
-        self.assertEqual(len(raw_packet1), len(packet2.to_raw_packet()))
+        self.assertEqual(len(raw_packet1), len(packet2.raw_packet))
 
     def tearDown(self):
         self.handle.close()
@@ -304,7 +323,7 @@ class WinDivertTCPCaptureTestCase(unittest.TestCase):
         """
         Test the right capturing of tcp options field
         """
-        raw_packet, meta = self.handle.receive()
+        raw_packet, meta = self.handle.recv()
         packet = self.driver.parse_packet(raw_packet)
         self.assertEqual(packet.tcp_hdr.Syn, 1)
         self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffd70103030801010402")
@@ -343,12 +362,12 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
             self.client_thread = threading.Thread(target=self.client.send)
             self.client_thread.start()
 
-            raw_packet, metadata = handle.receive()
-            if metadata.direction == enum.DIVERT_DIRECTION_OUTBOUND:
+            raw_packet, metadata = handle.recv()
+            if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
                 self.assertEqual(self.text, packet.payload)
                 packet.payload = self.new_text
-                raw_packet = packet.to_raw_packet()
+                raw_packet = packet.raw_packet
 
             handle.send((raw_packet, metadata))
             self.client_thread.join(timeout=10)
@@ -369,18 +388,48 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
             # Initialize the fake tcp client
             client_thread.start()
             while True:
-                raw_packet, meta = handle.receive()
+                raw_packet, meta = handle.recv()
                 packet = handle.driver.parse_packet(raw_packet)
 
                 #With loopback interface it seems each packet flow is outbound
-                if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
+                if meta.is_outbound():
                     if packet.dst_port == fake_port:
                         packet.dst_port = srv_port
                     if packet.src_port == srv_port:
                         packet.src_port = fake_port
 
-                packet = handle.driver.parse_packet(handle.driver.calc_checksums(packet.to_raw_packet()))
-                handle.send((packet.to_raw_packet(), meta))
+                packet = handle.driver.update_packet_checksums(packet)
+                handle.send((packet.raw_packet, meta))
+                if hasattr(client, "response") and client.response and not client_thread.is_alive():
+                    break
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response)
+
+    def test_modify_packet_tcp_header_shortcut(self):
+        """
+        Test injection of a packet with a modified tcp header using shortcutted send
+        """
+        fake_port = get_free_port()
+        srv_port = self.server.server_address[1]
+        text = "Hello World!"
+        client = FakeTCPClient(("127.0.0.1", fake_port), text)
+        client_thread = threading.Thread(target=client.send)
+
+        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        with Handle(filter=f, priority=1000) as handle:
+            # Initialize the fake tcp client
+            client_thread.start()
+            while True:
+                packet = handle.receive()
+
+                #With loopback interface it seems each packet flow is outbound
+                if packet.meta.is_outbound():
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = srv_port
+                    if packet.src_port == srv_port:
+                        packet.src_port = fake_port
+
+                handle.send(packet)
                 if hasattr(client, "response") and client.response and not client_thread.is_alive():
                     break
             client_thread.join(timeout=10)

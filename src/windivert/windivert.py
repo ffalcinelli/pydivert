@@ -53,9 +53,11 @@ class WinDivert(object):
         return self._lib
 
     @winerror_on_retcode
-    def parse_packet(self, raw_packet):
+    def parse_packet(self, *args):
         """
         Parses a raw packet into a higher level object.
+        Args could be a tuple or two different values. In each case the first one is the raw data and the second
+        is the meta about the direction and interface to use.
 
         The function remapped is DivertHelperParsePacket:
         Parses a raw packet (e.g. from DivertRecv()) into the various packet headers
@@ -74,6 +76,16 @@ class WinDivert(object):
             __out_opt UINT *pDataLen
         );
         """
+        if len(args) == 1:
+            if hasattr(args[0], "__iter__"):
+                raw_packet, meta = args[0]
+            else:
+                raw_packet, meta = args[0], None
+        elif len(args) == 2:
+            raw_packet, meta = args[0], args[1]
+        else:
+            raise ValueError("Too many arguments")
+
         packet_len = len(raw_packet)
         # Consider everything else not part of headers as payload
         # payload = ctypes.c_void_p(0)
@@ -111,7 +123,8 @@ class WinDivert(object):
                 offset += header_len
         return CapturedPacket(payload=raw_packet[offset:],
                               raw_packet=raw_packet,
-                              headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)])
+                              headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)],
+                              meta=meta)
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -161,7 +174,15 @@ class WinDivert(object):
         packet_len = len(packet)
         buff = ctypes.c_buffer(packet, packet_len)
         self._lib.DivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
-        return buff.raw
+        return buff
+
+    @winerror_on_retcode
+    def update_packet_checksums(self, packet):
+        """
+        An utility shortcut method to update the checksums into an higher level packet
+        """
+        raw = self.calc_checksums(packet.raw_packet)
+        return self.parse_packet(raw, packet.meta)
 
     def __str__(self):
         return "%s" % self._lib
@@ -204,9 +225,11 @@ class Handle(object):
         return self
 
     @winerror_on_retcode
-    def receive(self):
+    def recv(self):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor.
+        The return value is a pair (raw_packet, meta) where raw_packet is the data read by the handle, and meta contains
+        the direction and interface indexes.
         The received packet is guaranteed to match the filter.
 
         The remapped function is DivertRecv:
@@ -225,9 +248,24 @@ class Handle(object):
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
+    def receive(self):
+        """
+        Receives a diverted packet that matched the filter passed to the handle constructor.
+        The return value is an high level packet with right headers and payload parsed
+        The received packet is guaranteed to match the filter.
+        This is the low level way to access the driver.
+        """
+        return self.driver.parse_packet(self.recv())
+
+    @winerror_on_retcode
     def send(self, *args):
         """
         Injects a packet into the network stack.
+        Args could be a tuple or two different values, or an high level packet. In each case the raw data and the meta
+        about the direction and interface to use are required.
+        If the packet is an highlevel packet, recalculates the checksum before sending.
+        The return value is the number of bytes actually sent.
+
         The injected packet may be one received from receive(), or a modified version, or a completely new packet.
         Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.
 
@@ -241,7 +279,11 @@ class Handle(object):
         );
         """
         if len(args) == 1:
-            data, dest = args[0]
+            if hasattr(args[0], "__iter__"):
+                data, dest = args[0]
+            else:
+                packet = self.driver.update_packet_checksums(args[0])
+                data, dest = packet.raw_packet, packet.meta
         elif len(args) == 2:
             data, dest = args[0], args[1]
         else:
@@ -259,8 +301,9 @@ class Handle(object):
     @winerror_on_retcode
     def close(self):
         """
-        Closes a WinDivert handle opened by open().
+        Closes the handle opened by open().
 
+        The remapped function is:
         BOOL DivertClose(
             __in HANDLE handle
         );
@@ -322,7 +365,7 @@ if __name__ == "__main__":
         dest_address = None
         while True:
             print("-----ROUND-----")
-            raw_packet, meta = filter1.receive()
+            raw_packet, meta = filter1.recv()
             print meta
             captured_packet = driver.parse_packet(raw_packet)
             print(captured_packet)
@@ -335,6 +378,6 @@ if __name__ == "__main__":
                 captured_packet.src_port = 23
                 captured_packet.src_addr = dest_address
 
-            captured_packet = driver.parse_packet(driver.calc_checksums(captured_packet.to_raw_packet()))
+            captured_packet = driver.parse_packet(driver.calc_checksums(captured_packet._to_raw_packet()))
             print(captured_packet)
-            filter1.send((captured_packet.to_raw_packet(), meta))
+            filter1.send((captured_packet._to_raw_packet(), meta))

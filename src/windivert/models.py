@@ -16,6 +16,7 @@
 from binascii import unhexlify, hexlify
 import socket
 from win_inet_pton import inet_ntop, inet_pton
+import enum
 
 __author__ = 'fabio'
 
@@ -302,6 +303,15 @@ class CapturedMetadata(object):
         self.iface = iface
         self.direction = direction
 
+    def is_outbound(self):
+        return self.direction == enum.DIVERT_DIRECTION_OUTBOUND
+
+    def is_inbound(self):
+        return self.direction == enum.DIVERT_DIRECTION_INBOUND
+
+    def is_loopback(self):
+        return self.iface[0] == 1
+
     def __str__(self):
         return "Interface: (Index: %s, SubIndex %s) Flow: %s" % (self.iface[0],
                                                                  self.iface[1],
@@ -313,12 +323,13 @@ class CapturedPacket(object):
     Gathers several network layers of data
     """
 
-    def __init__(self, headers, payload=None, raw_packet=None):
+    def __init__(self, headers, payload=None, raw_packet=None, meta=None):
         if len(headers) > 2:
             raise ValueError("No more than 2 headers (tcp/udp/icmp over ip) are supported")
 
         self.payload = payload
-        self.raw_packet = raw_packet
+        self._raw_packet = raw_packet
+        self.meta = meta
 
         self.headers = [None, None]
         self.headers_opt = [None, None]
@@ -406,7 +417,11 @@ class CapturedPacket(object):
         else:
             super(CapturedPacket, self).__setattr__(key, value)
 
-    def to_raw_packet(self):
+    @property
+    def raw_packet(self):
+        return self._to_raw_packet()
+
+    def _to_raw_packet(self):
         """
         Transform the CapturedPacket into raw packet bytes
         """
@@ -416,7 +431,6 @@ class CapturedPacket(object):
             if header.opts:
                 hexed += hexlify(header.opts)
             hdr_len = getattr(header, "HdrLength", 0) * 4
-            #print "LEN %d - %d" %(len(hexed), hdr_len)
             if (len(hexed) / 2) < hdr_len:
                 hexed += "00" * (hdr_len - len(hexed) / 2)
             hexed_headers.append(hexed)
