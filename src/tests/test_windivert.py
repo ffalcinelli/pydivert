@@ -26,7 +26,7 @@ import unittest
 import os
 import platform
 from windivert.enum import DIVERT_PARAM_QUEUE_LEN, DIVERT_PARAM_QUEUE_TIME
-from windivert.winregistry import get_hklm_reg_values
+from windivert.winregistry import get_reg_values
 from windivert.windivert import Handle, WinDivert
 
 
@@ -48,6 +48,14 @@ class WinDivertTestCase(unittest.TestCase):
 
     # def test_insufficient_privileges(self):
     #     self.assertRaises(WindowsError, WinDivert.load_library, self.dll_path)
+
+    def test_register(self):
+        """
+        Test DLL registration
+        """
+        w = WinDivert(self.dll_path)
+        w.register()
+        self.assertTrue(w.is_registered())
 
     def test_load_ok(self):
         """
@@ -81,7 +89,7 @@ class WinDivertTestCase(unittest.TestCase):
         """
         try:
             reg_key = "SYSTEM\\CurrentControlSet\\Services\\WinDivert1.0"
-            if get_hklm_reg_values(reg_key):
+            if get_reg_values(reg_key):
                 WinDivert(reg_key=reg_key)
         except WindowsError as e:
             self.fail("WinDivert() constructor raised %s" % e)

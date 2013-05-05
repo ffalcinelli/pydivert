@@ -19,7 +19,7 @@ __author__ = 'fabio'
 import ctypes
 import os
 from decorators import winerror_on_retcode
-from winregistry import get_hklm_reg_values
+from winregistry import get_reg_values
 from models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 import enum
 
@@ -32,13 +32,14 @@ class WinDivert(object):
     Python interface for WinDivert.dll library.
     """
 
-    def __init__(self, dll_path=None, reg_key="SYSTEM\\CurrentControlSet\\Services\\WinDivert1.0"):
+    def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0"):
         if not dll_path:
             #We try to load from registry key
-            self.registry = get_hklm_reg_values(reg_key)
+            self.registry = get_reg_values(reg_key)
             self.driver = self.registry["ImagePath"]
             dll_path = ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
         self._lib = ctypes.CDLL(dll_path)
+        self.reg_key = reg_key
 
     def open_handle(self, filter="true", layer=enum.DIVERT_LAYER_NETWORK, priority=0, flags=0):
         """
@@ -183,6 +184,21 @@ class WinDivert(object):
         """
         raw = self.calc_checksums(packet.raw_packet)
         return self.parse_packet(raw, packet.meta)
+
+    @winerror_on_retcode
+    def register(self):
+        """
+        An utility method to register the driver the first time
+        """
+        handle = self.open_handle("false")
+        handle.close()
+
+    @winerror_on_retcode
+    def is_registered(self):
+        """
+        Check if an entry exist in windows registry
+        """
+        return hasattr(self, "registry") or get_reg_values(self.reg_key)
 
     def __str__(self):
         return "%s" % self._lib
@@ -369,7 +385,8 @@ if __name__ == "__main__":
             print meta
             captured_packet = driver.parse_packet(raw_packet)
             print(captured_packet)
-
+            print("{}:{}".format(captured_packet.dst_addr, captured_packet.dst_port))
+            print("{}:{}".format(captured_packet.ipv4_hdr.DstAddr, captured_packet.tcp_hdr.DstPort))
             if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
                 captured_packet.dst_port = 13131
                 dest_address = captured_packet.dst_addr
