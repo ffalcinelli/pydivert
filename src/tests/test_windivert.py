@@ -16,12 +16,13 @@
 from binascii import hexlify
 import socket
 import struct
-from windivert.win_inet_pton import inet_pton
+from windivert.models import addr_to_string, string_to_addr
+from windivert.wininet import inet_pton
 
 __author__ = 'fabio'
 
 import threading
-from tests import FakeTCPServer, EchoUpperTCPRequestHandler, FakeTCPClient, get_free_port
+from tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, get_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 import unittest
 import os
 import platform
@@ -154,6 +155,41 @@ class WinDivertTestCase(unittest.TestCase):
         result = WinDivert().parse_ipv6_address(address)
         self.assertEqual(struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, address)), tuple(result))
 
+    def test_ipv4_loopback_conversion(self):
+        """
+        Test IPv4 loopback address conversions
+        """
+        address = "127.0.0.1"
+        addr_fam = socket.AF_INET
+        self.assertEqual(address, addr_to_string(addr_fam, string_to_addr(addr_fam, address)))
+
+    def test_ipv6_loopback_conversion(self):
+        """
+        Test IPv6 loopback address conversions
+        """
+        address = "::1"
+        addr_fam = socket.AF_INET6
+        ipv6 = addr_to_string(addr_fam, string_to_addr(addr_fam, address))
+        self.assertIn(ipv6, "::1")
+
+
+    def test_ipv4_address_conversion(self):
+        """
+        Test IPv4 address conversions
+        """
+        address = "192.168.1.1"
+        addr_fam = socket.AF_INET
+        self.assertEqual(address, addr_to_string(addr_fam, string_to_addr(addr_fam, address)))
+
+    def test_ipv6_address_conversion(self):
+        """
+        Test IPv6 address conversions
+        """
+        address = "2607:f0d0:1002:0051:0000:0000:0000:0004"
+        addr_fam = socket.AF_INET6
+        ipv6 = addr_to_string(addr_fam, string_to_addr(addr_fam, address))
+        self.assertIn(ipv6, (address, "2607:f0d0:1002:51::4"))
+
     def tearDown(self):
         pass
 
@@ -166,7 +202,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
     def setUp(self):
         os.chdir(driver_dir)
         # Initialize the fake tcp server
-        self.server = FakeTCPServer(("127.0.0.1", 0), EchoUpperTCPRequestHandler)
+        self.server = FakeTCPServerIPv4(("127.0.0.1", 0), EchoUpperTCPHandler)
         filter = "outbound and tcp.DstPort == %d and tcp.PayloadLength > 0" % self.server.server_address[1]
         self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
         self.handle = self.driver.open_handle(filter=filter)
@@ -305,83 +341,60 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         self.server.server_close()
 
 
-class WinDivertTCPCaptureTestCase(unittest.TestCase):
+class WinDivertTCPIPv4TestCase(unittest.TestCase):
     """
-    Tests capturing TCP traffic with payload
+    Tests on the fly capturing and injecting TCP/IPv4 traffic
     """
 
     def setUp(self):
         os.chdir(driver_dir)
         # Initialize the fake tcp server
-        self.server = FakeTCPServer(("127.0.0.1", 0), EchoUpperTCPRequestHandler)
-        filter = "tcp.DstPort == %d" % self.server.server_address[1]
+        self.server = FakeTCPServerIPv4(("127.0.0.1", 0),
+                                        EchoUpperTCPHandler)
         self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-        self.handle = self.driver.open_handle(filter=filter)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
-
-        # Initialize the fake tcp client
-        self.text = "Hello World!"
-        self.client = FakeTCPClient(self.server.server_address, self.text)
-        self.client_thread = threading.Thread(target=self.client.send)
-        self.client_thread.start()
 
     def test_syn_tcp_options(self):
         """
         Test the right capturing of tcp options field
         """
-        raw_packet, meta = self.handle.recv()
-        packet = self.driver.parse_packet(raw_packet)
-        self.assertEqual(packet.tcp_hdr.Syn, 1)
-        self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffd70103030801010402")
+        text = "Hello World!"
+        client = FakeTCPClient(self.server.server_address, text)
+        client_thread = threading.Thread(target=client.send)
 
-    def tearDown(self):
-        self.handle.close()
-        self.server.shutdown()
-        self.server.server_close()
+        with Handle(filter="tcp.DstPort == %d" % self.server.server_address[1]) as handle:
+            client_thread.start()
+            packet = handle.receive()
+            self.assertEqual(packet.tcp_hdr.Syn, 1)
+            self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffd70103030801010402")
 
-
-class WinDivertTCPInjectTestCase(unittest.TestCase):
-    """
-    Tests on the fly capturing and injecting TCP traffic
-    """
-
-    def setUp(self):
-        os.chdir(driver_dir)
-        # Initialize the fake tcp server
-        self.server = FakeTCPServer(("127.0.0.1", 0),
-                                    EchoUpperTCPRequestHandler)
-        self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-
-        self.server_thread = threading.Thread(target=self.server.serve_forever)
-        self.server_thread.start()
-
-    def test_modify_packet_payload(self):
+    def test_modify_tcp_payload(self):
         """
-        Test injection of a payload modified packet
+        Test injection of a TCP packet with modified payload
         """
         filter_ = "outbound and tcp.DstPort == %s and tcp.PayloadLength > 0" % self.server.server_address[1]
         with Handle(filter=filter_) as handle:
-            self.text = "Hello world! ZZZZ"
-            self.new_text = "Hello World!"
+            text = "Hello world! ZZZZ"
+            new_text = "Hello World!"
             # Initialize the fake tcp client
-            self.client = FakeTCPClient(self.server.server_address, self.text)
-            self.client_thread = threading.Thread(target=self.client.send)
-            self.client_thread.start()
+            client = FakeTCPClient(self.server.server_address, text)
+            client_thread = threading.Thread(target=client.send)
+            client_thread.start()
 
             raw_packet, metadata = handle.recv()
             if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
-                self.assertEqual(self.text, packet.payload)
-                packet.payload = self.new_text
+                self.assertEqual(text, packet.payload)
+                packet.payload = new_text
                 raw_packet = packet.raw_packet
 
             handle.send((raw_packet, metadata))
-            self.client_thread.join(timeout=10)
-            self.assertEqual(self.new_text.upper(), self.client.response)
+            client_thread.join(timeout=10)
+            self.assertEqual(new_text.upper(), client.response)
 
-    def test_modify_packet_tcp_header(self):
+    def test_modify_tcp_header(self):
         """
         Test injection of a packet with a modified tcp header
         """
@@ -408,12 +421,12 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
 
                 packet = handle.driver.update_packet_checksums(packet)
                 handle.send((packet.raw_packet, meta))
-                if hasattr(client, "response") and client.response and not client_thread.is_alive():
+                if hasattr(client, "response") and client.response:
                     break
             client_thread.join(timeout=10)
             self.assertEqual(text.upper(), client.response)
 
-    def test_modify_packet_tcp_header_shortcut(self):
+    def test_modify_tcp_header_shortcut(self):
         """
         Test injection of a packet with a modified tcp header using shortcutted send
         """
@@ -438,8 +451,209 @@ class WinDivertTCPInjectTestCase(unittest.TestCase):
                         packet.src_port = fake_port
 
                 handle.send(packet)
-                if hasattr(client, "response") and client.response and not client_thread.is_alive():
+                if hasattr(client, "response") and client.response:
                     break
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class WinDivertTCPIPv6TestCase(unittest.TestCase):
+    """
+    Tests on the fly capturing and injecting TCP/IPv6 traffic
+    """
+
+    def setUp(self):
+        os.chdir(driver_dir)
+        # Initialize the fake tcp server
+        self.server = FakeTCPServerIPv6(("::1", 0), EchoUpperTCPHandler)
+        WinDivert(os.path.join(driver_dir, "WinDivert.dll")).register()
+
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.start()
+
+    def test_syn_tcp_options(self):
+        """
+        Test the right capturing of tcp options field
+        """
+        text = "Hello World!"
+        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client_thread = threading.Thread(target=client.send)
+
+        with Handle(filter="tcp.DstPort == %d" % self.server.server_address[1]) as handle:
+            client_thread.start()
+            packet = handle.receive()
+            self.assertEqual(packet.tcp_hdr.Syn, 1)
+            self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffc30103030801010402")
+
+    def test_pass_through(self):
+        """
+        Test capture and reinjection of data
+        """
+        srv_port = self.server.server_address[1]
+        text = "Hello World!"
+        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client_thread = threading.Thread(target=client.send)
+
+        with Handle(filter="tcp.DstPort == %d and tcp.PayloadLength > 0" % srv_port) as handle:
+            client_thread.start()
+            handle.send(handle.receive())
+
+        client_thread.join(timeout=10)
+        self.assertEqual(text.upper(), client.response)
+
+    def test_modify_tcp_payload(self):
+        """
+        Test injection of a TCP packet with modified payload
+        """
+        text = "Hello world! ZZZZ"
+        new_text = "Hello World!"
+        # Initialize the fake tcp client
+        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client_thread = threading.Thread(target=client.send)
+        f = "outbound and tcp.DstPort == %s and tcp.PayloadLength > 0" % self.server.server_address[1]
+        with Handle(filter=f) as handle:
+            client_thread.start()
+
+            raw_packet, metadata = handle.recv()
+            if metadata.is_outbound():
+                packet = handle.driver.parse_packet(raw_packet)
+                self.assertEqual(text, packet.payload)
+                packet.payload = new_text
+                raw_packet = packet.raw_packet
+
+            handle.send((raw_packet, metadata))
+            client_thread.join(timeout=10)
+            self.assertEqual(new_text.upper(), client.response)
+
+    # def test_modify_tcp_header(self):
+    #     """
+    #     Test injection of a packet with a modified tcp header
+    #     """
+    #     fake_port = get_free_port()
+    #     srv_port = self.server.server_address[1]
+    #     text = "Hello World!"
+    #     client = FakeTCPClient(("::1", fake_port), text, ipv6=True)
+    #     client_thread = threading.Thread(target=client.send)
+    #
+    #     f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+    #     with Handle(filter=f, priority=1000) as handle:
+    #         # Initialize the fake tcp client
+    #         client_thread.start()
+    #         while True:
+    #             raw_packet, meta = handle.recv()
+    #             packet = handle.driver.parse_packet(raw_packet)
+    #             print hexlify(raw_packet)
+    #             print packet
+    #             #With loopback interface it seems each packet flow is outbound
+    #             print "OUTBOUND?", meta.is_outbound()
+    #             if packet.dst_port == fake_port:
+    #                 packet.dst_port = srv_port
+    #             if packet.src_port == srv_port:
+    #                 packet.src_port = fake_port
+    #
+    #             packet = handle.driver.update_packet_checksums(packet)
+    #             print packet
+    #             print hexlify(packet.raw_packet)
+    #             handle.send((packet.raw_packet, meta))
+    #             if hasattr(client, "response") and client.response:
+    #                 break
+    #         client_thread.join(timeout=10)
+    #         self.assertEqual(text.upper(), client.response)
+    #
+    # def test_modify_tcp_header_shortcut(self):
+    #     """
+    #     Test injection of a packet with a modified tcp header using shortcutted send
+    #     """
+    #     fake_port = get_free_port()
+    #     srv_port = self.server.server_address[1]
+    #     text = "Hello World!"
+    #     client = FakeTCPClient(("::1", fake_port), text, ipv6=True)
+    #     client_thread = threading.Thread(target=client.send)
+    #
+    #     f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+    #     with Handle(filter=f, priority=1000) as handle:
+    #         # Initialize the fake tcp client
+    #         client_thread.start()
+    #         while True:
+    #             packet = handle.receive()
+    #             #With loopback interface it seems each packet flow is outbound
+    #
+    #             if packet.dst_port == fake_port:
+    #                 packet.dst_port = srv_port
+    #             if packet.src_port == srv_port:
+    #                 packet.src_port = fake_port
+    #
+    #             handle.send(packet)
+    #             if hasattr(client, "response") and client.response:
+    #                 break
+    #         client_thread.join(timeout=10)
+    #         self.assertEqual(text.upper(), client.response)
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class WinDivertUDPTestCase(unittest.TestCase):
+    def setUp(self):
+        os.chdir(driver_dir)
+        # Initialize the fake tcp server
+        self.server = FakeUDPServer(("127.0.0.1", 0),
+                                    EchoUpperUDPHandler)
+        self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
+
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.start()
+
+    def test_modify_udp_payload(self):
+        """
+        Test injection of a UDP packet with modified payload
+        """
+        text = "Hello World!"
+        client = FakeUDPClient(("127.0.0.1", self.server.server_address[1]), text)
+        client_thread = threading.Thread(target=client.send)
+        filter_ = "outbound and udp.DstPort == %s" % self.server.server_address[1]
+        with Handle(filter=filter_) as handle:
+            client_thread.start()
+
+            packet = handle.receive()
+            self.assertEqual(text, packet.payload)
+            handle.send(packet)
+
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response)
+
+    def test_modify_udp_header(self):
+        """
+        Test injection of a packet with a modified udp header
+        """
+        fake_port = get_free_port()
+        srv_port = self.server.server_address[1]
+        text = "Hello World!"
+        client = FakeUDPClient(("127.0.0.1", fake_port), text)
+        client_thread = threading.Thread(target=client.send)
+
+        f = "udp.DstPort == {0} or udp.SrcPort == {1}".format(fake_port, srv_port)
+        with Handle(filter=f, priority=1000) as handle:
+            # Initialize the fake tcp client
+            client_thread.start()
+
+            for i in range(2):
+                packet = handle.receive()
+
+                #With loopback interface it seems each packet flow is outbound
+                if packet.meta.is_outbound():
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = srv_port
+                    if packet.src_port == srv_port:
+                        packet.src_port = fake_port
+
+                handle.send(packet)
+
             client_thread.join(timeout=10)
             self.assertEqual(text.upper(), client.response)
 

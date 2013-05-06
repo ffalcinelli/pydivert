@@ -25,7 +25,7 @@ except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 
 
-class EchoUpperTCPRequestHandler(BaseRequestHandler):
+class EchoUpperTCPHandler(BaseRequestHandler):
     """
     Simple TCP request handler returning data to uppercase.
     """
@@ -38,20 +38,7 @@ class EchoUpperTCPRequestHandler(BaseRequestHandler):
         self.request.sendall(self.data.upper())
 
 
-class EchoLowerTCPRequestHandler(BaseRequestHandler):
-    """
-    Simple TCP request handler returning data to lowercase.
-    """
-
-    def handle(self):
-        # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024).strip()
-        # just send back the same data, but lower-cased
-        # print self.data
-        self.request.sendall(self.data.lower())
-
-
-class EchoUDPHandler(BaseRequestHandler):
+class EchoUpperUDPHandler(BaseRequestHandler):
     """
     Simple UDP request handler returning data to uppercase.
     """
@@ -64,11 +51,19 @@ class EchoUDPHandler(BaseRequestHandler):
         socket.sendto(data.upper(), self.client_address)
 
 
-class FakeTCPServer(ThreadingMixIn, TCPServer):
+class FakeTCPServerIPv4(ThreadingMixIn, TCPServer):
     allow_reuse_address = True
 
     def __str__(self):
-        return "FakeTCPServer listening on %s" % self.server_address
+        return "FakeTCPServerIPv4 listening on %s" % self.server_address
+
+
+class FakeTCPServerIPv6(ThreadingMixIn, TCPServer):
+    allow_reuse_address = True
+    address_family = socket.AF_INET6
+
+    def __str__(self):
+        return "FakeTCPServerIPv6 listening on %s" % self.server_address
 
 
 class FakeUDPServer(ThreadingMixIn, UDPServer):
@@ -79,12 +74,13 @@ class FakeUDPServer(ThreadingMixIn, UDPServer):
 
 
 class FakeTCPClient():
-    def __init__(self, connect_address, message):
+    def __init__(self, connect_address, message, ipv6=False):
         self.connect_addr = connect_address
         self.message = message
+        self.ipv6 = ipv6
 
     def send(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(socket.AF_INET if not self.ipv6 else socket.AF_INET6, socket.SOCK_STREAM)
         sock.connect(self.connect_addr)
         try:
             sock.sendall(self.message)
@@ -93,13 +89,29 @@ class FakeTCPClient():
             sock.close()
 
 
-def get_free_port():
+class FakeUDPClient():
+    def __init__(self, connect_address, message, ipv6=False):
+        self.connect_addr = connect_address
+        self.message = message
+        self.ipv6 = ipv6
+
+    def send(self):
+        sock = socket.socket(socket.AF_INET if not self.ipv6 else socket.AF_INET6, socket.SOCK_DGRAM)
+        try:
+            sock.sendto(self.message, self.connect_addr)
+            self.response = sock.recv(1024)
+        finally:
+            sock.close()
+
+
+def get_free_port(ipv6=False, udp=False):
     import socket
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s = socket.socket(socket.AF_INET if not ipv6 else socket.AF_INET6,
+                      socket.SOCK_STREAM if not udp else socket.SOCK_DGRAM)
     try:
         for p in range(1025, 65535):
-            if s.connect_ex(('127.0.0.1', p)) == 0:
+            if s.connect_ex(('127.0.0.1' if not ipv6 else '::1', p)) == 0:
                 return p
     finally:
         s.close()

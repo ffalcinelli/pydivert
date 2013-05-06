@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from binascii import unhexlify, hexlify
 import socket
-from win_inet_pton import inet_ntop, inet_pton
+from wininet import inet_ntop, inet_pton
 import enum
 
 __author__ = 'fabio'
@@ -29,9 +29,9 @@ def string_to_addr(address_family, value):
     Convert a ip string in dotted form into a packed, binary format
     """
     if address_family == socket.AF_INET:
-        return struct.unpack("I", inet_pton(socket.AF_INET, value))[0]
+        return struct.unpack("<I", inet_pton(socket.AF_INET, value))[0]
     else:
-        return struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, value))
+        return struct.unpack("<IIII", inet_pton(socket.AF_INET6, value))
 
 
 def addr_to_string(address_family, value):
@@ -41,7 +41,7 @@ def addr_to_string(address_family, value):
     if address_family == socket.AF_INET:
         return inet_ntop(socket.AF_INET, struct.pack("<I", value))
     else:
-        return inet_ntop(socket.AF_INET6, struct.pack("<HHHHHHHH", value))
+        return inet_ntop(socket.AF_INET6, "".join([struct.pack("<I", v) for v in value]))
 
 
 def format_structure(instance):

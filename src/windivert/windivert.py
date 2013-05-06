@@ -85,11 +85,11 @@ class WinDivert(object):
         elif len(args) == 2:
             raw_packet, meta = args[0], args[1]
         else:
-            raise ValueError("Too many arguments")
+            raise ValueError("Wrong number of arguments passed to parse_packet")
 
         packet_len = len(raw_packet)
         # Consider everything else not part of headers as payload
-        # payload = ctypes.c_void_p(0)
+        payload = ctypes.c_void_p(0)
         payload_len = ctypes.c_uint(0)
         ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
@@ -103,13 +103,14 @@ class WinDivert(object):
                                           ctypes.byref(icmpv6_hdr),
                                           ctypes.byref(tcp_hdr),
                                           ctypes.byref(udp_hdr),
-                                          None,
+                                          ctypes.byref(payload),
                                           ctypes.byref(payload_len))
         #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
         #headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
 
         # clean headers, consider just those that are not None (!=NULL)
         headers = [hdr.contents for hdr in headers if hdr]
+
         headers_opts = []
         offset = 0
         for header in headers:
@@ -121,8 +122,12 @@ class WinDivert(object):
                     headers_opts.append(opt)
                 else:
                     headers_opts.append('')
-                offset += header_len
-        return CapturedPacket(payload=raw_packet[offset:],
+            else:
+                headers_opts.append('')
+                header_len = ctypes.sizeof(header)
+            offset += header_len
+
+        return CapturedPacket(payload=ctypes.string_at(payload.value) if payload else '',
                               raw_packet=raw_packet,
                               headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)],
                               meta=meta)
@@ -303,7 +308,7 @@ class Handle(object):
         elif len(args) == 2:
             data, dest = args[0], args[1]
         else:
-            raise ValueError("Too many arguments")
+            raise ValueError("Wrong number of arguments passed to send")
 
         address = DivertAddress()
         address.IfIdx = dest.iface[0]
@@ -377,24 +382,20 @@ if __name__ == "__main__":
         driver_dir = os.path.join(driver_dir, "amd64")
     os.chdir(driver_dir)
     driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 13131", priority=1000) as filter1:
+    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 23", priority=1000) as filter1:
         dest_address = None
         while True:
             print("-----ROUND-----")
-            raw_packet, meta = filter1.recv()
-            print meta
-            captured_packet = driver.parse_packet(raw_packet)
-            print(captured_packet)
-            print("{}:{}".format(captured_packet.dst_addr, captured_packet.dst_port))
-            print("{}:{}".format(captured_packet.ipv4_hdr.DstAddr, captured_packet.tcp_hdr.DstPort))
-            if meta.direction == enum.DIVERT_DIRECTION_OUTBOUND:
-                captured_packet.dst_port = 13131
-                dest_address = captured_packet.dst_addr
-                captured_packet.dst_addr = "192.168.1.2"
-            else:
-                captured_packet.src_port = 23
-                captured_packet.src_addr = dest_address
+            packet = filter1.receive()
 
-            captured_packet = driver.parse_packet(driver.calc_checksums(captured_packet._to_raw_packet()))
-            print(captured_packet)
-            filter1.send((captured_packet._to_raw_packet(), meta))
+            print(packet)
+            if packet.meta.is_outbound():
+                packet.dst_port = 23
+                dest_address = packet.dst_addr
+                packet.dst_addr = "10.6.72.226"
+            else:
+                packet.src_port = 23
+                packet.src_addr = dest_address
+
+            print(packet)
+            filter1.send(packet)
