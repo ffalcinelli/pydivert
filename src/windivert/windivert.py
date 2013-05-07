@@ -246,7 +246,7 @@ class Handle(object):
         return self
 
     @winerror_on_retcode
-    def recv(self):
+    def recv(self, bufsize=PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor.
         The return value is a pair (raw_packet, meta) where raw_packet is the data read by the handle, and meta contains
@@ -262,21 +262,21 @@ class Handle(object):
             __out_opt UINT *recvLen
         );
         """
-        packet = ctypes.create_string_buffer(PACKET_BUFFER_SIZE)
+        packet = ctypes.create_string_buffer(bufsize)
         address = DivertAddress()
         recv_len = ctypes.c_int(0)
-        self._lib.DivertRecv(self._handle, packet, PACKET_BUFFER_SIZE, ctypes.byref(address), ctypes.byref(recv_len))
+        self._lib.DivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
-    def receive(self):
+    def receive(self, bufsize=PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor.
         The return value is an high level packet with right headers and payload parsed
         The received packet is guaranteed to match the filter.
         This is the low level way to access the driver.
         """
-        return self.driver.parse_packet(self.recv())
+        return self.driver.parse_packet(self.recv(bufsize))
 
     @winerror_on_retcode
     def send(self, *args):
@@ -382,7 +382,7 @@ if __name__ == "__main__":
         driver_dir = os.path.join(driver_dir, "amd64")
     os.chdir(driver_dir)
     driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 23", priority=1000) as filter1:
+    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 13131", priority=1000) as filter1:
         dest_address = None
         while True:
             print("-----ROUND-----")
@@ -390,9 +390,9 @@ if __name__ == "__main__":
 
             print(packet)
             if packet.meta.is_outbound():
-                packet.dst_port = 23
+                packet.dst_port = 13131
                 dest_address = packet.dst_addr
-                packet.dst_addr = "10.6.72.226"
+                packet.dst_addr = "192.168.1.2"
             else:
                 packet.src_port = 23
                 packet.src_addr = dest_address

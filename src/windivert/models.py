@@ -41,7 +41,7 @@ def addr_to_string(address_family, value):
     if address_family == socket.AF_INET:
         return inet_ntop(socket.AF_INET, struct.pack("<I", value))
     else:
-        return inet_ntop(socket.AF_INET6, "".join([struct.pack("<I", v) for v in value]))
+        return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value))
 
 
 def format_structure(instance):
@@ -257,6 +257,14 @@ class DivertUdpHeader(ctypes.Structure):
         return format_structure(self)
 
 
+headers_map = {"ipv4_hdr": DivertIpHeader,
+               "ipv6_hdr": DivertIpv6Header,
+               "tcp_hdr": DivertTcpHeader,
+               "udp_hdr": DivertUdpHeader,
+               "icmp_hdr": DivertIcmpHeader,
+               "icmpv6_hdr": DivertIcmpv6Header}
+
+
 class HeaderWrapper(object):
     """
     Since there's no "Options" field in the header structs, we use this wrapper
@@ -268,6 +276,10 @@ class HeaderWrapper(object):
 
     def __init__(self, hdr, opts=''):
         self.hdr, self.opts = hdr, opts
+
+        for name, clazz in headers_map.items():
+            if isinstance(hdr, clazz):
+                self.type = name.split("_")[0]
 
     def __getattr__(self, item):
         if item != "hdr" and hasattr(self.hdr, item):
@@ -285,13 +297,19 @@ class HeaderWrapper(object):
         else:
             return super(HeaderWrapper, self).__setattr__(key, value)
 
+    def __repr__(self):
+        hexed = hexlify(self.hdr)
+        if self.opts:
+            hexed += hexlify(self.opts)
+        hdr_len = getattr(self, "HdrLength", 0) * 4
+        if (len(hexed) / 2) < hdr_len:
+            hexed += "00" * (hdr_len - len(hexed) / 2)
+        return hexed
 
-headers_map = {"ipv4_hdr": DivertIpHeader,
-               "ipv6_hdr": DivertIpv6Header,
-               "tcp_hdr": DivertTcpHeader,
-               "udp_hdr": DivertUdpHeader,
-               "icmp_hdr": DivertIcmpHeader,
-               "icmpv6_hdr": DivertIcmpv6Header}
+    def __str__(self):
+        return "{} Header: {}[Options: {}]".format(self.type.title(),
+                                                   self.hdr,
+                                                   hexlify(self.opts) if self.opts else '')
 
 
 class CapturedMetadata(object):
@@ -419,31 +437,19 @@ class CapturedPacket(object):
 
     @property
     def raw_packet(self):
-        return self._to_raw_packet()
-
-    def _to_raw_packet(self):
-        """
-        Transform the CapturedPacket into raw packet bytes
-        """
-        hexed_headers = []
-        for i, header in enumerate(self.headers):
-            hexed = hexlify(header.hdr)
-            if header.opts:
-                hexed += hexlify(header.opts)
-            hdr_len = getattr(header, "HdrLength", 0) * 4
-            if (len(hexed) / 2) < hdr_len:
-                hexed += "00" * (hdr_len - len(hexed) / 2)
-            hexed_headers.append(hexed)
-        return unhexlify("".join(hexed_headers) + hexlify(self.payload))
+        hexed = "".join([repr(header) for header in self.headers])
+        if self.payload:
+            hexed += hexlify(self.payload)
+        return unhexlify(hexed)
 
     def __str__(self):
-        return """Packet: \t%s --> %s
-Headers:\t[%s]
-        \t[%s]
-Payload:\t[%s]
-        \t[%s]""" % ("%s:%s" % (self.src_addr, self.src_port),
-                     "%s:%s" % (self.dst_addr, self.dst_port),
-                     "],\n\t\t\t[".join(["%s[Options: %s]" % (str(h.hdr), hexlify(h.opts)) for h in self.headers]),
-                     "],\n\t\t\t[".join(["%s%s" % (hexlify(h.hdr), hexlify(h.opts)) for h in self.headers]),
-                     self.payload,
-                     hexlify(self.payload))
+        tokens = list()
+        tokens.append("Packet: {}:{} --> {}:{}".format(self.src_addr,
+                                                       self.src_port,
+                                                       self.dst_addr,
+                                                       self.dst_port))
+        tokens.append(str(self.meta))
+        tokens.extend([str(hdr) for hdr in self.headers])
+        tokens.append("Payload: [{}] [HEX: {}]".format(self.payload,
+                                                       hexlify(self.payload) if self.payload else ''))
+        return "\n".join(tokens)
