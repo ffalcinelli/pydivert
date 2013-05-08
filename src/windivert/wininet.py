@@ -24,7 +24,11 @@ def inet_pton(address_family, ip_string):
     addr.sa_family = address_family
     addr_size = ctypes.c_int(ctypes.sizeof(addr))
 
-    if WSAStringToAddressA(ip_string, address_family, None, ctypes.byref(addr), ctypes.byref(addr_size)) != 0:
+    if WSAStringToAddressA(ip_string.encode("UTF-8"),
+                           address_family,
+                           None,
+                           ctypes.byref(addr),
+                           ctypes.byref(addr_size)) != 0:
         raise socket.error(ctypes.FormatError())
 
     if address_family == socket.AF_INET:
@@ -53,7 +57,11 @@ def inet_ntop(address_family, packed_ip):
     else:
         raise socket.error('unknown address family')
 
-    if WSAAddressToStringA(ctypes.byref(addr), addr_size, None, ip_string, ctypes.byref(ip_string_size)) != 0:
+    if WSAAddressToStringA(ctypes.byref(addr),
+                           addr_size,
+                           None,
+                           ip_string,
+                           ctypes.byref(ip_string_size)) != 0:
         raise socket.error(ctypes.FormatError())
 
-    return ip_string[:ip_string_size.value - 1]
+    return (ip_string[:ip_string_size.value - 1]).decode("UTF-8")

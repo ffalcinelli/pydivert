@@ -13,11 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-__author__ = 'fabio'
-
 import ctypes
 import os
 
+__author__ = 'fabio'
 #0      Success
 #997    Overlapped I/O is in progress
 SUCCESS_RETCODES = (0, 997)

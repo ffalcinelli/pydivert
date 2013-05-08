@@ -14,8 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-__author__ = 'fabio'
-
 #SocketServer has been renamed in python3 to socketserver
 import socket
 
@@ -23,6 +21,8 @@ try:
     from socketserver import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
+
+__author__ = 'fabio'
 
 
 class EchoUpperTCPHandler(BaseRequestHandler):

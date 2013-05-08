@@ -18,9 +18,6 @@ import socket
 import struct
 from windivert.models import addr_to_string, string_to_addr
 from windivert.wininet import inet_pton
-
-__author__ = 'fabio'
-
 import threading
 from tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, get_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 import unittest
@@ -30,6 +27,7 @@ from windivert.enum import DIVERT_PARAM_QUEUE_LEN, DIVERT_PARAM_QUEUE_TIME
 from windivert.winregistry import get_reg_values
 from windivert.windivert import Handle, WinDivert
 
+__author__ = 'fabio'
 
 driver_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "lib")
 if platform.architecture()[0] == "32bit":
@@ -190,6 +188,7 @@ class WinDivertTestCase(unittest.TestCase):
         ipv6 = addr_to_string(addr_fam, string_to_addr(addr_fam, address))
         self.assertIn(ipv6, (address, "2607:f0d0:1002:51::4"))
 
+
     def tearDown(self):
         pass
 
@@ -212,7 +211,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
 
         # Initialize the fake tcp client
         self.text = "Hello World!"
-        self.client = FakeTCPClient(self.server.server_address, self.text)
+        self.client = FakeTCPClient(self.server.server_address, self.text.encode("UTF-8"))
         self.client_thread = threading.Thread(target=self.client.send)
         self.client_thread.start()
 
@@ -230,7 +229,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         self.handle.send(self.handle.recv())
         self.client_thread.join(timeout=10)
-        self.assertEqual(self.text.upper(), self.client.response)
+        self.assertEqual(self.text.upper(), self.client.response.decode("UTF-8"))
 
     def test_pass_through_no_tuple(self):
         """
@@ -239,7 +238,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         raw_packet, meta = self.handle.recv()
         self.handle.send(raw_packet, meta)
         self.client_thread.join(timeout=10)
-        self.assertEqual(self.text.upper(), self.client.response)
+        self.assertEqual(self.text.upper(), self.client.response.decode("UTF-8"))
 
     def test_pass_through_packet(self):
         """
@@ -247,7 +246,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         self.handle.send(self.handle.receive())
         self.client_thread.join(timeout=10)
-        self.assertEqual(self.text.upper(), self.client.response)
+        self.assertEqual(self.text.upper(), self.client.response.decode("UTF-8"))
 
     def test_parse_packet(self):
         """
@@ -255,9 +254,9 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         raw_packet, metadata = self.handle.recv()
         packet = self.driver.parse_packet(raw_packet)
-        self.assertEqual("%s:%d" % (packet.dst_addr, packet.dst_port),
-                         "%s:%d" % self.server.server_address)
-        self.assertEqual(self.text, packet.payload)
+        self.assertEqual("{}:{}".format(packet.dst_addr, packet.dst_port),
+                         "{}:{}".format(*self.server.server_address))
+        self.assertEqual(self.text.encode("UTF-8"), packet.payload)
 
     def test_parse_packet_meta(self):
         """
@@ -267,7 +266,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         packet = self.driver.parse_packet(raw_packet, metadata)
         self.assertEqual("%s:%d" % (packet.dst_addr, packet.dst_port),
                          "%s:%d" % self.server.server_address)
-        self.assertEqual(self.text, packet.payload)
+        self.assertEqual(self.text.encode("UTF-8"), packet.payload)
         self.assertEqual(packet.meta, metadata)
 
     def test_dump_data(self):
@@ -276,10 +275,11 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         raw_packet, metadata = self.handle.recv()
         packet = self.handle.driver.parse_packet(raw_packet)
-        self.assertIn(raw_packet[len(packet.payload) * -1:], str(packet))
+        self.assertEqual(raw_packet[len(packet.payload) * -1:],
+                         packet.raw[len(packet.payload) * -1:])
         self.handle.send((raw_packet, metadata))
         self.client_thread.join(timeout=10)
-        self.assertEqual(self.text.upper(), self.client.response)
+        self.assertEqual(self.text.upper(), self.client.response.decode("UTF-8"))
 
     def test_raw_packet_from_captured(self):
         """
@@ -287,7 +287,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         """
         raw_packet1, metadata = self.handle.recv()
         packet = self.handle.driver.parse_packet(raw_packet1)
-        raw_packet2 = packet.raw_packet
+        raw_packet2 = packet.raw
         self.assertEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
     def test_raw_packet_len(self):
@@ -298,7 +298,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         packet1 = self.handle.driver.parse_packet(raw_packet1)
         packet1.dst_port = 80
         packet1.dst_addr = "10.10.10.10"
-        raw_packet2 = packet1.raw_packet
+        raw_packet2 = packet1.raw
         self.assertEqual(len(raw_packet1), len(raw_packet2))
 
     def test_packet_checksum(self):
@@ -317,7 +317,7 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         packet = self.handle.driver.parse_packet(raw_packet1)
         packet.dst_port = 80
         packet.dst_addr = "10.10.10.10"
-        raw_packet2 = self.handle.driver.calc_checksums(packet.raw_packet)
+        raw_packet2 = self.handle.driver.calc_checksums(packet.raw)
         self.assertNotEqual(hexlify(raw_packet1), hexlify(raw_packet2))
 
     def test_packet_reconstruct_checksummed(self):
@@ -328,12 +328,23 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         packet1 = self.handle.driver.parse_packet(raw_packet1)
         packet1.dst_port = 80
         packet1.dst_addr = "10.10.10.10"
-        raw_packet2 = self.handle.driver.calc_checksums(packet1.raw_packet)
+        raw_packet2 = self.handle.driver.calc_checksums(packet1.raw)
         packet2 = self.handle.driver.parse_packet(raw_packet2)
         self.assertEqual(packet1.dst_port, packet2.dst_port)
         self.assertEqual(packet1.dst_addr, packet2.dst_addr)
         self.assertNotEqual(hexlify(raw_packet1), hexlify(raw_packet2))
-        self.assertEqual(len(raw_packet1), len(packet2.raw_packet))
+        self.assertEqual(len(raw_packet1), len(packet2.raw))
+
+
+    def test_packet_to_string(self):
+        """
+        Test string conversions
+        """
+        packet = self.handle.receive()
+        self.assertIn(str(packet.tcp_hdr), str(packet))
+        self.assertIn(str(packet.ipv4_hdr), str(packet))
+        self.assertEqual(packet.tcp_hdr.raw.decode("UTF-8"), repr(packet.tcp_hdr))
+        self.handle.send(packet)
 
     def tearDown(self):
         self.handle.close()
@@ -361,14 +372,14 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         Test the right capturing of tcp options field
         """
         text = "Hello World!"
-        client = FakeTCPClient(self.server.server_address, text)
+        client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         with Handle(filter="tcp.DstPort == %d" % self.server.server_address[1]) as handle:
             client_thread.start()
             packet = handle.receive()
             self.assertEqual(packet.tcp_hdr.Syn, 1)
-            self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffd70103030801010402")
+            self.assertEqual(hexlify(packet.tcp_hdr.Options), b"0204ffd70103030801010402")
 
     def test_modify_tcp_payload(self):
         """
@@ -379,20 +390,20 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
             text = "Hello world! ZZZZ"
             new_text = "Hello World!"
             # Initialize the fake tcp client
-            client = FakeTCPClient(self.server.server_address, text)
+            client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"))
             client_thread = threading.Thread(target=client.send)
             client_thread.start()
 
             raw_packet, metadata = handle.recv()
             if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
-                self.assertEqual(text, packet.payload)
-                packet.payload = new_text
-                raw_packet = packet.raw_packet
+                self.assertEqual(text.encode("UTF-8"), packet.payload)
+                packet.payload = new_text.encode("UTF-8")
+                raw_packet = packet.raw
 
             handle.send((raw_packet, metadata))
             client_thread.join(timeout=10)
-            self.assertEqual(new_text.upper(), client.response)
+            self.assertEqual(new_text.upper(), client.response.decode("UTF-8"))
 
     def test_modify_tcp_header(self):
         """
@@ -401,7 +412,7 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         fake_port = get_free_port()
         srv_port = self.server.server_address[1]
         text = "Hello World!"
-        client = FakeTCPClient(("127.0.0.1", fake_port), text)
+        client = FakeTCPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
@@ -420,20 +431,22 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
                         packet.src_port = fake_port
 
                 packet = handle.driver.update_packet_checksums(packet)
-                handle.send((packet.raw_packet, meta))
+                handle.send((packet.raw, meta))
                 if hasattr(client, "response") and client.response:
                     break
             client_thread.join(timeout=10)
-            self.assertEqual(text.upper(), client.response)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def test_modify_tcp_header_shortcut(self):
         """
         Test injection of a packet with a modified tcp header using shortcutted send
         """
         fake_port = get_free_port()
+        fake_addr = "10.10.10.10"
         srv_port = self.server.server_address[1]
+        srv_addr = self.server.server_address[0]
         text = "Hello World!"
-        client = FakeTCPClient(("127.0.0.1", fake_port), text)
+        client = FakeTCPClient((fake_addr, fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
@@ -442,19 +455,22 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
             client_thread.start()
             while True:
                 packet = handle.receive()
-
+                #print(hexlify(packet.raw))
                 #With loopback interface it seems each packet flow is outbound
                 if packet.meta.is_outbound():
                     if packet.dst_port == fake_port:
                         packet.dst_port = srv_port
+                        packet.dst_addr = srv_addr
                     if packet.src_port == srv_port:
                         packet.src_port = fake_port
-
+                        packet.src_addr = fake_addr
+                #print(hexlify(packet.raw))
+                #print(packet)
                 handle.send(packet)
                 if hasattr(client, "response") and client.response:
                     break
             client_thread.join(timeout=10)
-            self.assertEqual(text.upper(), client.response)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def test_pass_through_mtu_size(self):
         """
@@ -462,7 +478,7 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         """
         srv_port = self.server.server_address[1]
         text = "#"*1501
-        client = FakeTCPClient(("127.0.0.1", srv_port), text)
+        client = FakeTCPClient(("127.0.0.1", srv_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         f = "tcp.DstPort == {0} or tcp.SrcPort == {0} and tcp.PayloadLength > 0".format(srv_port)
@@ -470,13 +486,11 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
             # Initialize the fake tcp client
             client_thread.start()
             while True:
-                packet = handle.receive()
-                print(packet)
-                handle.send(packet)
+                handle.send(handle.receive())
                 if hasattr(client, "response") and client.response:
                     break
             client_thread.join(timeout=10)
-            self.assertEqual(text.upper(), client.response)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def tearDown(self):
         self.server.shutdown()
@@ -502,14 +516,14 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         Test the right capturing of tcp options field
         """
         text = "Hello World!"
-        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"), ipv6=True)
         client_thread = threading.Thread(target=client.send)
 
         with Handle(filter="tcp.DstPort == %d" % self.server.server_address[1]) as handle:
             client_thread.start()
             packet = handle.receive()
             self.assertEqual(packet.tcp_hdr.Syn, 1)
-            self.assertEqual(hexlify(packet.tcp_hdr.Options), "0204ffc30103030801010402")
+            self.assertEqual(hexlify(packet.tcp_hdr.Options), b"0204ffc30103030801010402")
 
     def test_pass_through(self):
         """
@@ -517,15 +531,14 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         """
         srv_port = self.server.server_address[1]
         text = "Hello World!"
-        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"), ipv6=True)
         client_thread = threading.Thread(target=client.send)
 
         with Handle(filter="tcp.DstPort == %d and tcp.PayloadLength > 0" % srv_port) as handle:
             client_thread.start()
             handle.send(handle.receive())
-
         client_thread.join(timeout=10)
-        self.assertEqual(text.upper(), client.response)
+        self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def test_modify_tcp_payload(self):
         """
@@ -534,7 +547,7 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         text = "Hello world! ZZZZ"
         new_text = "Hello World!"
         # Initialize the fake tcp client
-        client = FakeTCPClient(self.server.server_address, text, ipv6=True)
+        client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"), ipv6=True)
         client_thread = threading.Thread(target=client.send)
         f = "outbound and tcp.DstPort == %s and tcp.PayloadLength > 0" % self.server.server_address[1]
         with Handle(filter=f) as handle:
@@ -543,13 +556,13 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
             raw_packet, metadata = handle.recv()
             if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
-                self.assertEqual(text, packet.payload)
-                packet.payload = new_text
-                raw_packet = packet.raw_packet
+                self.assertEqual(text.encode("UTF-8"), packet.payload)
+                packet.payload = new_text.encode("UTF-8")
+                raw_packet = packet.raw
 
             handle.send((raw_packet, metadata))
             client_thread.join(timeout=10)
-            self.assertEqual(new_text.upper(), client.response)
+            self.assertEqual(new_text.upper(), client.response.decode("UTF-8"))
 
     # def test_modify_tcp_header(self):
     #     """
@@ -624,8 +637,7 @@ class WinDivertUDPTestCase(unittest.TestCase):
     def setUp(self):
         os.chdir(driver_dir)
         # Initialize the fake tcp server
-        self.server = FakeUDPServer(("127.0.0.1", 0),
-                                    EchoUpperUDPHandler)
+        self.server = FakeUDPServer(("127.0.0.1", 0), EchoUpperUDPHandler)
         self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -636,18 +648,18 @@ class WinDivertUDPTestCase(unittest.TestCase):
         Test injection of a UDP packet with modified payload
         """
         text = "Hello World!"
-        client = FakeUDPClient(("127.0.0.1", self.server.server_address[1]), text)
+        client = FakeUDPClient(("127.0.0.1", self.server.server_address[1]), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
         filter_ = "outbound and udp.DstPort == %s" % self.server.server_address[1]
         with Handle(filter=filter_) as handle:
             client_thread.start()
 
             packet = handle.receive()
-            self.assertEqual(text, packet.payload)
+            self.assertEqual(text.encode("UTF-8"), packet.payload)
             handle.send(packet)
 
             client_thread.join(timeout=10)
-            self.assertEqual(text.upper(), client.response)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def test_modify_udp_header(self):
         """
@@ -656,7 +668,7 @@ class WinDivertUDPTestCase(unittest.TestCase):
         fake_port = get_free_port()
         srv_port = self.server.server_address[1]
         text = "Hello World!"
-        client = FakeUDPClient(("127.0.0.1", fake_port), text)
+        client = FakeUDPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         f = "udp.DstPort == {0} or udp.SrcPort == {1}".format(fake_port, srv_port)
@@ -677,7 +689,7 @@ class WinDivertUDPTestCase(unittest.TestCase):
                 handle.send(packet)
 
             client_thread.join(timeout=10)
-            self.assertEqual(text.upper(), client.response)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
     def tearDown(self):
         self.server.shutdown()

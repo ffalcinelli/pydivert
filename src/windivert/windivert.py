@@ -13,19 +13,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from binascii import hexlify
-
-__author__ = 'fabio'
-
 import ctypes
 import os
-from decorators import winerror_on_retcode
-from winregistry import get_reg_values
-from models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
-import enum
+from .decorators import winerror_on_retcode
+from .winregistry import get_reg_values
+from .models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
+from . import enum
 
-
-PACKET_BUFFER_SIZE = 4096
+__author__ = 'fabio'
+PACKET_BUFFER_SIZE = 1500
 
 
 class WinDivert(object):
@@ -79,7 +75,8 @@ class WinDivert(object):
         );
         """
         if len(args) == 1:
-            if hasattr(args[0], "__iter__"):
+            #Maybe this is a poor way to check the type, but it should work
+            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
                 raw_packet, meta = args[0]
             else:
                 raw_packet, meta = args[0], None
@@ -145,7 +142,7 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.c_uint32(0)
-        self._lib.DivertHelperParseIPv4Address(address, ctypes.byref(ip_addr))
+        self._lib.DivertHelperParseIPv4Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
         return ip_addr.value
 
 
@@ -161,7 +158,7 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.ARRAY(ctypes.c_uint16, 8)()
-        self._lib.DivertHelperParseIPv6Address(address, ctypes.byref(ip_addr))
+        self._lib.DivertHelperParseIPv6Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
         return [x for x in ip_addr]
 
     @winerror_on_retcode
@@ -188,7 +185,7 @@ class WinDivert(object):
         """
         An utility shortcut method to update the checksums into an higher level packet
         """
-        raw = self.calc_checksums(packet.raw_packet)
+        raw = self.calc_checksums(packet.raw)
         return self.parse_packet(raw, packet.meta)
 
     @winerror_on_retcode
@@ -223,7 +220,7 @@ class Handle(object):
             self.driver = driver
         self._lib = self.driver.get_reference()
         self._handle = None
-        self._filter = filter
+        self._filter = filter.encode("UTF-8")
         self._layer = layer
         self._priority = priority
         self._flags = flags
@@ -267,8 +264,6 @@ class Handle(object):
         address = DivertAddress()
         recv_len = ctypes.c_int(0)
         self._lib.DivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
-        print("RECVLEN {}/{}".format(recv_len, len(packet)))
-        print("".join([x for x in packet]))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
@@ -303,11 +298,12 @@ class Handle(object):
         );
         """
         if len(args) == 1:
-            if hasattr(args[0], "__iter__"):
+            #Maybe this is a poor way to check the type, but it should work
+            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
                 data, dest = args[0]
             else:
                 packet = self.driver.update_packet_checksums(args[0])
-                data, dest = packet.raw_packet, packet.meta
+                data, dest = packet.raw, packet.meta
         elif len(args) == 2:
             data, dest = args[0], args[1]
         else:
@@ -373,23 +369,3 @@ class Handle(object):
 
     def __exit__(self, *args):
         self.close()
-
-
-if __name__ == "__main__":
-    driver_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "lib")
-    import platform
-
-    if platform.architecture()[0] == "32bit":
-        driver_dir = os.path.join(driver_dir, "x86")
-    else:
-        driver_dir = os.path.join(driver_dir, "amd64")
-    os.chdir(driver_dir)
-    driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-    with Handle(driver, filter="tcp.DstPort == 3128 or tcp.SrcPort == 3128", priority=1000) as filter1:
-        dest_address = None
-        while True:
-            print("-----ROUND-----")
-            raw_packet, meta = filter1.recv()
-            packet = filter1.driver.parse_packet(raw_packet, meta)
-            print(packet)
-            filter1.send(packet.raw_packet, packet.meta)

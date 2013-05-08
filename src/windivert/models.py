@@ -15,13 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from binascii import unhexlify, hexlify
 import socket
-from wininet import inet_ntop, inet_pton
-import enum
-
-__author__ = 'fabio'
-
+from .wininet import inet_ntop, inet_pton
+from . import enum
 import ctypes
 import struct
+
+__author__ = 'fabio'
 
 
 def string_to_addr(address_family, value):
@@ -297,14 +296,18 @@ class HeaderWrapper(object):
         else:
             return super(HeaderWrapper, self).__setattr__(key, value)
 
-    def __repr__(self):
+    @property
+    def raw(self):
         hexed = hexlify(self.hdr)
         if self.opts:
             hexed += hexlify(self.opts)
         hdr_len = getattr(self, "HdrLength", 0) * 4
         if (len(hexed) / 2) < hdr_len:
-            hexed += "00" * (hdr_len - len(hexed) / 2)
+            hexed += b"00" * (hdr_len - len(hexed) / 2)
         return hexed
+
+    def __repr__(self):
+        return self.raw.decode("UTF-8")
 
     def __str__(self):
         return "{} Header: {}[Options: {}]".format(self.type.title(),
@@ -436,11 +439,14 @@ class CapturedPacket(object):
             super(CapturedPacket, self).__setattr__(key, value)
 
     @property
-    def raw_packet(self):
-        hexed = "".join([repr(header) for header in self.headers])
+    def raw(self):
+        hexed = b"".join([header.raw for header in self.headers])
         if self.payload:
             hexed += hexlify(self.payload)
         return unhexlify(hexed)
+
+    def __repr__(self):
+        return self.raw.decode("UTF-8")
 
     def __str__(self):
         tokens = list()
