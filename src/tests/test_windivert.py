@@ -16,6 +16,7 @@
 from binascii import hexlify
 import socket
 import struct
+import windivert
 from windivert.models import addr_to_string, string_to_addr
 from windivert.wininet import inet_pton
 import threading
@@ -44,9 +45,6 @@ class WinDivertTestCase(unittest.TestCase):
     def setUp(self):
         os.chdir(driver_dir)
         self.dll_path = os.path.join(driver_dir, "WinDivert.dll")
-
-    # def test_insufficient_privileges(self):
-    #     self.assertRaises(WindowsError, WinDivert.load_library, self.dll_path)
 
     def test_register(self):
         """
@@ -187,7 +185,6 @@ class WinDivertTestCase(unittest.TestCase):
         addr_fam = socket.AF_INET6
         ipv6 = addr_to_string(addr_fam, string_to_addr(addr_fam, address))
         self.assertIn(ipv6, (address, "2607:f0d0:1002:51::4"))
-
 
     def tearDown(self):
         pass
@@ -385,16 +382,18 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         """
         Test injection of a TCP packet with modified payload
         """
+        text = "Hello world! ZZZZ"
+        new_text = "Hello World!"
+        # Initialize the fake tcp client
+        client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"))
+        client_thread = threading.Thread(target=client.send)
+
         filter_ = "outbound and tcp.DstPort == %s and tcp.PayloadLength > 0" % self.server.server_address[1]
         with Handle(filter=filter_) as handle:
-            text = "Hello world! ZZZZ"
-            new_text = "Hello World!"
-            # Initialize the fake tcp client
-            client = FakeTCPClient(self.server.server_address, text.encode("UTF-8"))
-            client_thread = threading.Thread(target=client.send)
             client_thread.start()
 
             raw_packet, metadata = handle.recv()
+
             if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
                 self.assertEqual(text.encode("UTF-8"), packet.payload)
@@ -423,14 +422,13 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
                 raw_packet, meta = handle.recv()
                 packet = handle.driver.parse_packet(raw_packet)
 
-                #With loopback interface it seems each packet flow is outbound
                 if meta.is_outbound():
                     if packet.dst_port == fake_port:
                         packet.dst_port = srv_port
                     if packet.src_port == srv_port:
                         packet.src_port = fake_port
-
                 packet = handle.driver.update_packet_checksums(packet)
+
                 handle.send((packet.raw, meta))
                 if hasattr(client, "response") and client.response:
                     break
@@ -442,11 +440,9 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         Test injection of a packet with a modified tcp header using shortcutted send
         """
         fake_port = get_free_port()
-        fake_addr = "10.10.10.10"
         srv_port = self.server.server_address[1]
-        srv_addr = self.server.server_address[0]
         text = "Hello World!"
-        client = FakeTCPClient((fake_addr, fake_port), text.encode("UTF-8"))
+        client = FakeTCPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
         f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
@@ -455,17 +451,13 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
             client_thread.start()
             while True:
                 packet = handle.receive()
-                #print(hexlify(packet.raw))
-                #With loopback interface it seems each packet flow is outbound
+
                 if packet.meta.is_outbound():
                     if packet.dst_port == fake_port:
                         packet.dst_port = srv_port
-                        packet.dst_addr = srv_addr
                     if packet.src_port == srv_port:
                         packet.src_port = fake_port
-                        packet.src_addr = fake_addr
-                #print(hexlify(packet.raw))
-                #print(packet)
+
                 handle.send(packet)
                 if hasattr(client, "response") and client.response:
                     break
@@ -537,6 +529,7 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         with Handle(filter="tcp.DstPort == %d and tcp.PayloadLength > 0" % srv_port) as handle:
             client_thread.start()
             handle.send(handle.receive())
+
         client_thread.join(timeout=10)
         self.assertEqual(text.upper(), client.response.decode("UTF-8"))
 
@@ -552,8 +545,8 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         f = "outbound and tcp.DstPort == %s and tcp.PayloadLength > 0" % self.server.server_address[1]
         with Handle(filter=f) as handle:
             client_thread.start()
-
             raw_packet, metadata = handle.recv()
+
             if metadata.is_outbound():
                 packet = handle.driver.parse_packet(raw_packet)
                 self.assertEqual(text.encode("UTF-8"), packet.payload)
@@ -678,8 +671,6 @@ class WinDivertUDPTestCase(unittest.TestCase):
 
             for i in range(2):
                 packet = handle.receive()
-
-                #With loopback interface it seems each packet flow is outbound
                 if packet.meta.is_outbound():
                     if packet.dst_port == fake_port:
                         packet.dst_port = srv_port
@@ -695,6 +686,54 @@ class WinDivertUDPTestCase(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
 
+class WinDivertExternalInterfaceTestCase(unittest.TestCase):
+
+    def setUp(self):
+        os.chdir(driver_dir)
+        # Initialize the fake tcp server
+        self.server = FakeTCPServerIPv4((socket.gethostbyname(socket.gethostname()), 0),
+                                        EchoUpperTCPHandler)
+        WinDivert(os.path.join(driver_dir, "WinDivert.dll")).register()
+
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.start()
+
+    def test_modify_tcp_header_shortcut(self):
+        """
+        Test injection of a packet with a modified tcp header using shortcutted send
+        """
+        fake_port = get_free_port()
+        fake_addr = "10.10.10.10"
+        srv_port = self.server.server_address[1]
+        srv_addr = self.server.server_address[0]
+        text = "Hello World!"
+        client = FakeTCPClient((fake_addr, fake_port), text.encode("UTF-8"))
+        client_thread = threading.Thread(target=client.send)
+
+        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        with Handle(filter=f, priority=1000) as handle:
+            # Initialize the fake tcp client
+            client_thread.start()
+            while True:
+                packet = handle.receive()
+
+                if packet.meta.is_outbound():
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = srv_port
+                        packet.dst_addr = srv_addr
+                    if packet.src_port == srv_port:
+                        packet.src_port = fake_port
+                        packet.src_addr = fake_addr
+
+                handle.send(packet)
+                if hasattr(client, "response") and client.response:
+                    break
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response.decode("UTF-8"))
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
 
 if __name__ == '__main__':
     unittest.main()
