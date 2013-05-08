@@ -32,7 +32,7 @@ class EchoUpperTCPHandler(BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024).strip()
+        self.data = self.request.recv(4096).strip()
         # just send back the same data, but upper-cased
         # print self.data
         self.request.sendall(self.data.upper())
@@ -84,7 +84,7 @@ class FakeTCPClient():
         sock.connect(self.connect_addr)
         try:
             sock.sendall(self.message)
-            self.response = sock.recv(1024)
+            self.response = sock.recv(4096)
         finally:
             sock.close()
 
@@ -99,7 +99,7 @@ class FakeUDPClient():
         sock = socket.socket(socket.AF_INET if not self.ipv6 else socket.AF_INET6, socket.SOCK_DGRAM)
         try:
             sock.sendto(self.message, self.connect_addr)
-            self.response = sock.recv(1024)
+            self.response = sock.recv(4096)
         finally:
             sock.close()
 

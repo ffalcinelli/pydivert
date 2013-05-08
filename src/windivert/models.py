@@ -448,7 +448,8 @@ class CapturedPacket(object):
                                                        self.src_port,
                                                        self.dst_addr,
                                                        self.dst_port))
-        tokens.append(str(self.meta))
+        if self.meta:
+            tokens.append(str(self.meta))
         tokens.extend([str(hdr) for hdr in self.headers])
         tokens.append("Payload: [{}] [HEX: {}]".format(self.payload,
                                                        hexlify(self.payload) if self.payload else ''))

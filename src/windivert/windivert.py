@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from binascii import hexlify
 
 __author__ = 'fabio'
 
@@ -89,7 +90,7 @@ class WinDivert(object):
 
         packet_len = len(raw_packet)
         # Consider everything else not part of headers as payload
-        payload = ctypes.c_void_p(0)
+        # payload = ctypes.c_void_p(0)
         payload_len = ctypes.c_uint(0)
         ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
@@ -103,7 +104,7 @@ class WinDivert(object):
                                           ctypes.byref(icmpv6_hdr),
                                           ctypes.byref(tcp_hdr),
                                           ctypes.byref(udp_hdr),
-                                          ctypes.byref(payload),
+                                          None,
                                           ctypes.byref(payload_len))
         #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
         #headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
@@ -127,7 +128,7 @@ class WinDivert(object):
                 header_len = ctypes.sizeof(header)
             offset += header_len
 
-        return CapturedPacket(payload=ctypes.string_at(payload.value) if payload else '',
+        return CapturedPacket(payload=raw_packet[offset:],
                               raw_packet=raw_packet,
                               headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)],
                               meta=meta)
@@ -178,7 +179,7 @@ class WinDivert(object):
         );
         """
         packet_len = len(packet)
-        buff = ctypes.c_buffer(packet, packet_len)
+        buff = ctypes.create_string_buffer(packet, packet_len)
         self._lib.DivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
         return buff
 
@@ -266,6 +267,8 @@ class Handle(object):
         address = DivertAddress()
         recv_len = ctypes.c_int(0)
         self._lib.DivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
+        print("RECVLEN {}/{}".format(recv_len, len(packet)))
+        print("".join([x for x in packet]))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
@@ -382,20 +385,11 @@ if __name__ == "__main__":
         driver_dir = os.path.join(driver_dir, "amd64")
     os.chdir(driver_dir)
     driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
-    with Handle(driver, filter="tcp.DstPort == 23 or tcp.SrcPort == 13131", priority=1000) as filter1:
+    with Handle(driver, filter="tcp.DstPort == 3128 or tcp.SrcPort == 3128", priority=1000) as filter1:
         dest_address = None
         while True:
             print("-----ROUND-----")
-            packet = filter1.receive()
-
+            raw_packet, meta = filter1.recv()
+            packet = filter1.driver.parse_packet(raw_packet, meta)
             print(packet)
-            if packet.meta.is_outbound():
-                packet.dst_port = 13131
-                dest_address = packet.dst_addr
-                packet.dst_addr = "192.168.1.2"
-            else:
-                packet.src_port = 23
-                packet.src_addr = dest_address
-
-            print(packet)
-            filter1.send(packet)
+            filter1.send(packet.raw_packet, packet.meta)

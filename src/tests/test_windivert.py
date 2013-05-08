@@ -456,6 +456,28 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
             client_thread.join(timeout=10)
             self.assertEqual(text.upper(), client.response)
 
+    def test_pass_through_mtu_size(self):
+        """
+        Test sending a packet bigger than mtu
+        """
+        srv_port = self.server.server_address[1]
+        text = "#"*1501
+        client = FakeTCPClient(("127.0.0.1", srv_port), text)
+        client_thread = threading.Thread(target=client.send)
+
+        f = "tcp.DstPort == {0} or tcp.SrcPort == {0} and tcp.PayloadLength > 0".format(srv_port)
+        with Handle(filter=f, priority=1000) as handle:
+            # Initialize the fake tcp client
+            client_thread.start()
+            while True:
+                packet = handle.receive()
+                print(packet)
+                handle.send(packet)
+                if hasattr(client, "response") and client.response:
+                    break
+            client_thread.join(timeout=10)
+            self.assertEqual(text.upper(), client.response)
+
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
