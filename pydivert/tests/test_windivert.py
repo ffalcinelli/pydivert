@@ -34,7 +34,6 @@ from pydivert.windivert import Handle, WinDivert
 __author__ = 'fabio'
 
 driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib")
-print(driver_dir)
 if platform.architecture()[0] == "32bit":
     driver_dir = os.path.join(driver_dir, "x86")
 else:
