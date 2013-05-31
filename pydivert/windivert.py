@@ -15,10 +15,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import ctypes
 import os
-from .decorators import winerror_on_retcode
-from .winregistry import get_reg_values
-from .models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
-from . import enum
+from pydivert.decorators import winerror_on_retcode
+import enum
+from pydivert.winregistry import get_reg_values
+from pydivert.models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 __author__ = 'fabio'
 PACKET_BUFFER_SIZE = 1500

@@ -18,14 +18,14 @@ __author__ = 'fabio'
 
 from setuptools import setup
 
-setup(name='PyDivert',
+setup(name='pydivert',
       version='0.0.1a',
       description='Python library to divert tcp/udp/icmp packets',
       author='Fabio Falcinelli',
       author_email='fabio.falcinelli@gmail.com',
       url='https://github.com/ffalcinelli/pydivert',
-      packages=['windivert', ],
-      package_dir={'windivert': 'src/windivert'},
+      packages=['pydivert', ],
+      package_dir={'pydivert': 'pydivert'},
       classifiers=[
           'Development Status :: 2 - Pre-Alpha',
           'Environment :: Win32 (MS Windows)',

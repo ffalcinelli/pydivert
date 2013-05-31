@@ -16,21 +16,25 @@
 from binascii import hexlify
 import socket
 import struct
-import windivert
-from windivert.models import addr_to_string, string_to_addr
-from windivert.wininet import inet_pton
 import threading
-from tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, get_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 import unittest
-import os
 import platform
-from windivert.enum import DIVERT_PARAM_QUEUE_LEN, DIVERT_PARAM_QUEUE_TIME
-from windivert.winregistry import get_reg_values
-from windivert.windivert import Handle, WinDivert
+
+import os
+import pydivert
+
+from pydivert.models import addr_to_string, string_to_addr
+from pydivert.wininet import inet_pton
+from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, get_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
+from pydivert.enum import DIVERT_PARAM_QUEUE_LEN, DIVERT_PARAM_QUEUE_TIME
+from pydivert.winregistry import get_reg_values
+from pydivert.windivert import Handle, WinDivert
+
 
 __author__ = 'fabio'
 
-driver_dir = os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, "lib")
+driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib")
+print(driver_dir)
 if platform.architecture()[0] == "32bit":
     driver_dir = os.path.join(driver_dir, "x86")
 else:
@@ -125,7 +129,7 @@ class WinDivertTestCase(unittest.TestCase):
 
     def test_getter_and_setter(self):
         """
-        Test getting and setting params to windivert
+        Test getting and setting params to pydivert
         """
         queue_len = 2048
         queue_time = 64
