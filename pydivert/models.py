@@ -16,33 +16,13 @@
 from binascii import unhexlify, hexlify
 import socket
 import ctypes
-import struct
 
 from pydivert import enum
-from pydivert.wininet import inet_ntop, inet_pton
+from pydivert.enum import Direction
+from pydivert.winutils import string_to_addr, addr_to_string
 
 
 __author__ = 'fabio'
-
-
-def string_to_addr(address_family, value):
-    """
-    Convert a ip string in dotted form into a packed, binary format
-    """
-    if address_family == socket.AF_INET:
-        return struct.unpack("<I", inet_pton(socket.AF_INET, value))[0]
-    else:
-        return struct.unpack("<IIII", inet_pton(socket.AF_INET6, value))
-
-
-def addr_to_string(address_family, value):
-    """
-    Convert a packed, binary format into a ip string in dotted form
-    """
-    if address_family == socket.AF_INET:
-        return inet_ntop(socket.AF_INET, struct.pack("<I", value))
-    else:
-        return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value))
 
 
 def format_structure(instance):
@@ -56,7 +36,6 @@ def format_structure(instance):
         return "".join(out)
     else:
         raise ValueError("Passed argument is not a structure!")
-
 
 class DivertAddress(ctypes.Structure):
     """
@@ -327,10 +306,10 @@ class CapturedMetadata(object):
         self.direction = direction
 
     def is_outbound(self):
-        return self.direction == enum.DIVERT_DIRECTION_OUTBOUND
+        return self.direction == Direction.OUTBOUND
 
     def is_inbound(self):
-        return self.direction == enum.DIVERT_DIRECTION_INBOUND
+        return self.direction == enum.Direction.INBOUND
 
     def is_loopback(self):
         return self.iface[0] == 1
@@ -448,7 +427,7 @@ class CapturedPacket(object):
         return unhexlify(hexed)
 
     def __repr__(self):
-        return self.raw.decode("UTF-8")
+        return hexlify(self.raw)
 
     def __str__(self):
         tokens = list()

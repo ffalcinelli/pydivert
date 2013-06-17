@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# -*- coding: utf-8 -*-
 # Copyright (C) 2013  Fabio Falcinelli
 #
 # This program is free software: you can redistribute it and/or modify
@@ -56,19 +55,6 @@ def addr_to_string(address_family, value):
         return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value))
     else:
         raise ValueError("Unknown address_family: {}".format(address_family))
-
-
-def format_structure(instance):
-    """
-    Return a string representation for the structure
-    """
-    if hasattr(instance, "_fields_"):
-        out = []
-        for field in instance._fields_:
-            out.append("[%s: %s]" % (field[0], getattr(instance, field[0], None)))
-        return "".join(out)
-    else:
-        raise ValueError("Passed argument is not a structure!")
 
 
 class sockaddr(ctypes.Structure):

@@ -16,8 +16,8 @@
 import ctypes
 import os
 from pydivert.decorators import winerror_on_retcode
-import enum
-from pydivert.winregistry import get_reg_values
+from pydivert.enum import Layer
+from pydivert.winutils import get_reg_values
 from pydivert.models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 __author__ = 'fabio'
@@ -38,7 +38,7 @@ class WinDivert(object):
         self._lib = ctypes.CDLL(dll_path)
         self.reg_key = reg_key
 
-    def open_handle(self, filter="true", layer=enum.DIVERT_LAYER_NETWORK, priority=0, flags=0):
+    def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         """
         Return a new handle already opened
         """
@@ -193,6 +193,7 @@ class WinDivert(object):
         """
         An utility method to register the driver the first time
         """
+        #with cd(os.path.dirname(self._lib._name)):
         handle = self.open_handle("false")
         handle.close()
 
@@ -212,7 +213,7 @@ class Handle(object):
     An handle object got from a WinDivert DLL.
     """
 
-    def __init__(self, driver=None, filter="true", layer=enum.DIVERT_LAYER_NETWORK, priority=0, flags=0):
+    def __init__(self, driver=None, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         if not driver:
             #Try to construct by loading from the registry
             self.driver = WinDivert()
@@ -301,9 +302,11 @@ class Handle(object):
             #Maybe this is a poor way to check the type, but it should work
             if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
                 data, dest = args[0]
-            else:
+            elif isinstance(args[0], CapturedPacket):
                 packet = self.driver.update_packet_checksums(args[0])
                 data, dest = packet.raw, packet.meta
+            else:
+                raise ValueError("Not a CapturedPacket or sequence (data, meta): {}".format(args))
         elif len(args) == 2:
             data, dest = args[0], args[1]
         else:

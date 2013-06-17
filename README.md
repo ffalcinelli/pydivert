@@ -6,13 +6,16 @@ PyDivert aims to be a python wrapper for [WinDivert](https://github.com/basil00/
 Platform Support
 ----------------
 
-Right now PyDivert supports those platforms supported by the driver itself
+Right now PyDivert supports  Python 2.7/3.3 and should work on each platform supported by the driver itself.
 
-It should work with Python 2.7/3.3 on Windows releases beyond Vista.
+It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3 interpreters (both are 64bit).
 
-It has been tested on Windows 7 64bit with Python 2.7 and Python 3.3 interpreters (both are 64bit binaries).
+Plans are to support other platforms in future:
 
-Plans are to support divert sockets and `pf` (packet filter) on BSD-like systems (such as OSX and FreeBSD) and similar (e.g. `ip_queue`) for linux.
+* BSD-like systems (such as OSX and FreeBSD) maybe using `pf` (packet filter)
+* Linux probably with `ip_queue`
+
+At the moment only windows is supported.
 
 Warnings
 --------
@@ -27,20 +30,23 @@ Quick Start
 Install Windivert
 -----------------
 
-First of all, you have to install the windivert driver. You can find instruction at https://github.com/basil00/Divert/wiki/WinDivert-Documentation
+First of all, you have to install the windivert driver. You can find instructions inside [WinDivert documentation](https://github.com/basil00/Divert/wiki/WinDivert-Documentation)
 
-Basically, you have to download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate. Follow these instructions https://github.com/basil00/Divert/wiki/WinDivert-Documentation#wiki-driver_signing
+Basically, you have to download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate.
+Follow [these instructions](https://github.com/basil00/Divert/wiki/WinDivert-Documentation#wiki-driver_signing)
+
+As of 1.0.4 version of WinDivert there's no more need to sign the driver if you decide to use one of the binary distributions provided.
 
 Put the `WinDivert.dll`, `WinDivert.sys`, `WinDivert.inf` and `WdfCoInstaller*.dll` into the `lib/<your_python_architecture>` folder.
 
-I'm running a 64bit python interpreter on a 64bit Windows 7 virtual machine, so I've copied my files into `lib/amd64`.
+I'm running a 64bit python interpreter on a 64bit Windows 7 virtual machine, so I've just copied the `amd64` folder from the [WinDivert-1.0.4-WDDK.zip](http://www.reqrypt.org/download/WinDivert-1.0.4-WDDK.zip)
+file inside the `lib` directory of the project.
 
-Anyway, your lib directory tree should be something similar to this
+Anyway, your lib directory tree should should contain at least these
 
 ```
 .
 ├── amd64
-│   ├── readme
 │   ├── WdfCoInstaller01009.dll
 │   ├── WinDivert.dll
 │   ├── WinDivert.inf
@@ -48,7 +54,6 @@ Anyway, your lib directory tree should be something similar to this
 │   └── WinDivert.sys
 ├── readme
 └── x86
-    ├── readme
     ├── WdfCoInstaller01009.dll
     ├── WinDivert.dll
     ├── WinDivert.inf
@@ -83,7 +88,7 @@ WinDivert(os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).register()
 ```
 
 Once installed, you don't have to use anymore the path to your DLL. The position of the `WinDivert.sys` file gets registered into the windows registry
- and if you put beside it the `WinDivert.dll` you can get an handle by constructing a driver with no parameters
+ and if you put the `WinDivert.dll` in same path, you can get an handle by constructing a driver with no parameters
 
 ```python
 handle = WinDivert().open_handle(filter="true")
@@ -92,10 +97,10 @@ handle = WinDivert().open_handle(filter="true")
 Using an Handle instance as a context manager
 ---------------------------------------------
 
-You may access the driver for your python code by using the following example which intercept and resend the telnet traffic:
+You may access the driver from your python code by using the following example which intercept and resend the telnet traffic:
 
 ```python
-driver = WinDivert("C:\PyDivert\WinDivert.dll")
+driver = WinDivert(r"C:\PyDivert\WinDivert.dll")
 with Handle(driver, filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
     while True:
         raw_packet, metadata = handle.recv()
@@ -179,6 +184,7 @@ TODOs
 1. ~~Packet modification and reinjection~~
 2. Support for other platforms, at least OSX and linux
 3. ~~May be a good idea to delegate all the WinDivert methods to Handle instances~~
+4. Clean test code. Tests should be more readable to use as example.
 
 
 License

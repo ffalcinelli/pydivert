@@ -104,14 +104,14 @@ class FakeUDPClient():
             sock.close()
 
 
-def get_free_port(ipv6=False, udp=False):
-    import socket
-
-    s = socket.socket(socket.AF_INET if not ipv6 else socket.AF_INET6,
-                      socket.SOCK_STREAM if not udp else socket.SOCK_DGRAM)
+def random_free_port(family=socket.AF_INET, type=socket.SOCK_STREAM):
+    """
+    Pick a free port in the given range
+    """
+    s = socket.socket(family, type)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        for p in range(1025, 65535):
-            if s.connect_ex(('127.0.0.1' if not ipv6 else '::1', p)) == 0:
-                return p
+        s.bind(("", 0))
+        return s.getsockname()[1]
     finally:
         s.close()

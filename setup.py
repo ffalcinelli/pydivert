@@ -16,16 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __author__ = 'fabio'
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='pydivert',
-      version='0.0.1a',
+      version='0.0.2a',
       description='Python library to divert tcp/udp/icmp packets',
       author='Fabio Falcinelli',
       author_email='fabio.falcinelli@gmail.com',
       url='https://github.com/ffalcinelli/pydivert',
-      packages=['pydivert', ],
-      package_dir={'pydivert': 'pydivert'},
+      packages=find_packages(),
       classifiers=[
           'Development Status :: 2 - Pre-Alpha',
           'Environment :: Win32 (MS Windows)',
