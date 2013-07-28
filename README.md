@@ -1,7 +1,7 @@
 Intro
 =====
 
-PyDivert aims to be a python wrapper for [WinDivert](https://github.com/basil00/Divert) driver and other divert socket mechanisms on OSX and Linux.
+PyDivert aims to be a python binding for [WinDivert](https://github.com/basil00/Divert) driver.
 
 Platform Support
 ----------------
@@ -10,12 +10,6 @@ Right now PyDivert supports  Python 2.7/3.3 and should work on each platform sup
 
 It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3 interpreters (both are 64bit).
 
-Plans are to support other platforms in future:
-
-* BSD-like systems (such as OSX and FreeBSD) maybe using `pf` (packet filter)
-* Linux probably with `ip_queue`
-
-At the moment only windows is supported.
 
 Warnings
 --------
