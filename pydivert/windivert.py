@@ -13,12 +13,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from _ctypes import POINTER
 import ctypes
 import os
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer
 from pydivert.winutils import get_reg_values
-from pydivert.models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header, DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
+from pydivert.models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header
+from pydivert.models import DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 __author__ = 'fabio'
 PACKET_BUFFER_SIZE = 1500
@@ -28,6 +30,45 @@ class WinDivert(object):
     """
     Python interface for WinDivert.dll library.
     """
+    functions_argtypes = {"DivertHelperParsePacket": [ctypes.c_void_p,
+                                                      ctypes.c_uint,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      ctypes.c_void_p,
+                                                      POINTER(ctypes.c_uint)],
+                          "DivertHelperParseIPv4Address": [ctypes.c_char_p,
+                                                           POINTER(ctypes.c_uint32)],
+                          "DivertHelperParseIPv6Address": [ctypes.c_char_p,
+                                                           POINTER(ctypes.ARRAY(ctypes.c_uint16, 8))],
+                          "DivertHelperCalcChecksums": [ctypes.c_void_p,
+                                                        ctypes.c_uint,
+                                                        ctypes.c_uint64],
+                          "DivertOpen": [ctypes.c_char_p,
+                                         ctypes.c_int,
+                                         ctypes.c_int16,
+                                         ctypes.c_uint64],
+                          "DivertRecv": [ctypes.c_uint,
+                                         ctypes.c_void_p,
+                                         ctypes.c_uint,
+                                         ctypes.c_void_p,
+                                         ctypes.c_void_p],
+                          "DivertSend": [ctypes.c_void_p,
+                                         ctypes.c_void_p,
+                                         ctypes.c_uint,
+                                         ctypes.c_void_p,
+                                         ctypes.c_void_p],
+                          "DivertClose": [ctypes.c_void_p],
+                          "DivertGetParam": [ctypes.c_void_p,
+                                             ctypes.c_int,
+                                             POINTER(ctypes.c_uint64)],
+                          "DivertSetParam": [ctypes.c_void_p,
+                                             ctypes.c_int,
+                                             ctypes.c_uint64],
+    }
 
     def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0"):
         if not dll_path:
@@ -35,7 +76,11 @@ class WinDivert(object):
             self.registry = get_reg_values(reg_key)
             self.driver = self.registry["ImagePath"]
             dll_path = ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
-        self._lib = ctypes.CDLL(dll_path)
+
+        self._lib = ctypes.WinDLL(dll_path)
+        for funct, argtypes in self.functions_argtypes.items():
+            setattr(getattr(self._lib, funct), "argtypes", argtypes)
+
         self.reg_key = reg_key
 
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
@@ -93,6 +138,7 @@ class WinDivert(object):
         icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
         tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
         headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
+
         self._lib.DivertHelperParsePacket(raw_packet,
                                           packet_len,
                                           ctypes.byref(ip_hdr),
@@ -151,7 +197,7 @@ class WinDivert(object):
         """
         Parses an IPv6 address.
 
-        The function remapped is DivertHelperParseIPv4Address:
+        The function remapped is DivertHelperParseIPv6Address:
         BOOL DivertHelperParseIPv6Address(
             __in const char *addrStr,
             __out_opt UINT32 *pAddr
@@ -317,7 +363,6 @@ class Handle(object):
         address.SubIfIdx = dest.iface[1]
         address.Direction = dest.direction
         send_len = ctypes.c_int(0)
-
         self._lib.DivertSend(self._handle, data, len(data), ctypes.byref(address), ctypes.byref(send_len))
         return send_len
 
