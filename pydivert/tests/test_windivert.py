@@ -25,12 +25,13 @@ from unittest.test import loader
 import pydivert
 from pydivert.enum import Param
 
-from pydivert.winutils import inet_pton, get_reg_values
+from pydivert.winutils import inet_pton, get_reg_values, del_reg_key
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
 
 __author__ = 'fabio'
+
 
 class BaseTestCase(unittest.TestCase):
     """
@@ -724,8 +725,13 @@ class WinDivertExternalInterfaceTestCase(BaseTestCase):
 if __name__ == '__main__':
     #unittest.main()
     runner = unittest.TextTestRunner()
-    suite = unittest.TestSuite()
-    for version in ("1.0", "1.1"):
+    suite_v10 = unittest.TestSuite()
+    suite_v11 = unittest.TestSuite()
+    for suite in (suite_v10, suite_v11):
+
+        for v in ("1.0", "1.1"):
+            del_reg_key("SYSTEM\\CurrentControlSet\\Services", "WinDivert"+v)
+
         for test_class in [WinDivertTestCase,
                      WinDivertTCPIPv4TestCase,
                      WinDivertTCPIPv6TestCase,
@@ -733,7 +739,9 @@ if __name__ == '__main__':
                      WinDivertTCPDataCaptureTestCase,
                      WinDivertExternalInterfaceTestCase]:
             tests = loader.loadTestsFromTestCase(test_class)
-            for t in tests:
-                t.version = version
+            if suite == suite_v11:
+                for t in tests:
+                    t.version = "1.1"
             suite.addTests(tests)
-    runner.run(suite)
+
+        runner.run(suite)

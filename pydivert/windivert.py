@@ -30,7 +30,8 @@ class WinDivert(object):
     """
     Python interface for WinDivert.dll library.
     """
-    functions_argtypes = {"DivertHelperParsePacket": [ctypes.c_void_p,
+
+    dll_argtypes = {"WinDivertHelperParsePacket": [ctypes.c_void_p,
                                                       ctypes.c_uint,
                                                       ctypes.c_void_p,
                                                       ctypes.c_void_p,
@@ -40,35 +41,60 @@ class WinDivert(object):
                                                       ctypes.c_void_p,
                                                       ctypes.c_void_p,
                                                       POINTER(ctypes.c_uint)],
-                          "DivertHelperParseIPv4Address": [ctypes.c_char_p,
+                          "WinDivertHelperParseIPv4Address": [ctypes.c_char_p,
                                                            POINTER(ctypes.c_uint32)],
-                          "DivertHelperParseIPv6Address": [ctypes.c_char_p,
+                          "WinDivertHelperParseIPv6Address": [ctypes.c_char_p,
                                                            POINTER(ctypes.ARRAY(ctypes.c_uint16, 8))],
-                          "DivertHelperCalcChecksums": [ctypes.c_void_p,
+                          "WinDivertHelperCalcChecksums": [ctypes.c_void_p,
                                                         ctypes.c_uint,
                                                         ctypes.c_uint64],
-                          "DivertOpen": [ctypes.c_char_p,
+                          "WinDivertOpen": [ctypes.c_char_p,
                                          ctypes.c_int,
                                          ctypes.c_int16,
                                          ctypes.c_uint64],
-                          "DivertRecv": [ctypes.c_uint,
+                          "WinDivertRecv": [ctypes.c_uint,
                                          ctypes.c_void_p,
                                          ctypes.c_uint,
                                          ctypes.c_void_p,
                                          ctypes.c_void_p],
-                          "DivertSend": [ctypes.c_void_p,
+                          "WinDivertSend": [ctypes.c_void_p,
                                          ctypes.c_void_p,
                                          ctypes.c_uint,
                                          ctypes.c_void_p,
                                          ctypes.c_void_p],
-                          "DivertClose": [ctypes.c_void_p],
-                          "DivertGetParam": [ctypes.c_void_p,
+                          "WinDivertClose": [ctypes.c_void_p],
+                          "WinDivertGetParam": [ctypes.c_void_p,
                                              ctypes.c_int,
                                              POINTER(ctypes.c_uint64)],
-                          "DivertSetParam": [ctypes.c_void_p,
+                          "WinDivertSetParam": [ctypes.c_void_p,
                                              ctypes.c_int,
                                              ctypes.c_uint64],
     }
+
+    class LegacyDLLWrapper(object):
+        """
+        A wrapper object to seemlessy call the 1.0 api instead of the 1.1
+        """
+        _lib = None
+
+        def __init__(self, dll):
+            self._lib = dll
+
+        def __getattr__(self, item):
+            if item in WinDivert.dll_argtypes.keys():
+                return getattr(self._lib, item[3:])
+            else:
+                return getattr(self._lib, item)
+
+        def __setattr__(self, key, value):
+            if key == "_lib":
+                super(WinDivert.LegacyDLLWrapper, self).__setattr__(key, value)
+                return
+
+            if key in WinDivert.dll_argtypes.keys():
+                return setattr(self._lib, key[3:], value)
+            else:
+                return setattr(self._lib, key, value)
 
     def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0"):
         if not dll_path:
@@ -77,8 +103,12 @@ class WinDivert(object):
             self.driver = self.registry["ImagePath"]
             dll_path = ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
 
-        self._lib = ctypes.WinDLL(dll_path)
-        for funct, argtypes in self.functions_argtypes.items():
+        if reg_key.endswith("1.0"):
+            self._lib = self.LegacyDLLWrapper(ctypes.WinDLL(dll_path))
+        else:
+            self._lib = ctypes.WinDLL(dll_path)
+
+        for funct, argtypes in self.dll_argtypes.items():
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
 
         self.reg_key = reg_key
@@ -139,7 +169,7 @@ class WinDivert(object):
         tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
         headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
 
-        self._lib.DivertHelperParsePacket(raw_packet,
+        self._lib.WinDivertHelperParsePacket(raw_packet,
                                           packet_len,
                                           ctypes.byref(ip_hdr),
                                           ctypes.byref(ipv6_hdr),
@@ -188,7 +218,7 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.c_uint32(0)
-        self._lib.DivertHelperParseIPv4Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv4Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
         return ip_addr.value
 
 
@@ -204,7 +234,7 @@ class WinDivert(object):
         );
         """
         ip_addr = ctypes.ARRAY(ctypes.c_uint16, 8)()
-        self._lib.DivertHelperParseIPv6Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv6Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
         return [x for x in ip_addr]
 
     @winerror_on_retcode
@@ -223,7 +253,7 @@ class WinDivert(object):
         """
         packet_len = len(packet)
         buff = ctypes.create_string_buffer(packet, packet_len)
-        self._lib.DivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
+        self._lib.WinDivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
         return buff
 
     @winerror_on_retcode
@@ -287,7 +317,7 @@ class Handle(object):
             __in UINT64 flags
         );
         """
-        self._handle = self._lib.DivertOpen(self._filter, self._layer, self._priority, self._flags)
+        self._handle = self._lib.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
         return self
 
     @winerror_on_retcode
@@ -310,7 +340,7 @@ class Handle(object):
         packet = ctypes.create_string_buffer(bufsize)
         address = DivertAddress()
         recv_len = ctypes.c_int(0)
-        self._lib.DivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
+        self._lib.WinDivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     @winerror_on_retcode
@@ -363,7 +393,7 @@ class Handle(object):
         address.SubIfIdx = dest.iface[1]
         address.Direction = dest.direction
         send_len = ctypes.c_int(0)
-        self._lib.DivertSend(self._handle, data, len(data), ctypes.byref(address), ctypes.byref(send_len))
+        self._lib.WinDivertSend(self._handle, data, len(data), ctypes.byref(address), ctypes.byref(send_len))
         return send_len
 
     @winerror_on_retcode
@@ -376,7 +406,7 @@ class Handle(object):
             __in HANDLE handle
         );
         """
-        self._lib.DivertClose(self._handle)
+        self._lib.WinDivertClose(self._handle)
         self._handle = None
 
     @property
@@ -395,7 +425,7 @@ class Handle(object):
         );
         """
         value = ctypes.c_uint64(0)
-        self._lib.DivertGetParam(self._handle, name, ctypes.byref(value))
+        self._lib.WinDivertGetParam(self._handle, name, ctypes.byref(value))
         return value.value
 
     def set_param(self, name, value):
@@ -409,7 +439,7 @@ class Handle(object):
             __in UINT64 value
         );
         """
-        self._lib.DivertSetParam(self._handle, name, value)
+        self._lib.WinDivertSetParam(self._handle, name, value)
 
     #Context Manager protocol
     def __enter__(self):
