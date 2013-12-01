@@ -21,6 +21,7 @@ import unittest
 import platform
 
 import os
+from unittest.test import loader
 import pydivert
 from pydivert.enum import Param
 
@@ -31,21 +32,29 @@ from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
 __author__ = 'fabio'
 
-driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib")
-if platform.architecture()[0] == "32bit":
-    driver_dir = os.path.join(driver_dir, "x86")
-else:
-    driver_dir = os.path.join(driver_dir, "amd64")
+class BaseTestCase(unittest.TestCase):
+    """
+    A base test case to take driver version into account
+    """
+    version = "1.0"
+
+    def setUp(self):
+        self.driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", self.version)
+        if platform.architecture()[0] == "32bit":
+            self.driver_dir = os.path.join(self.driver_dir, "x86")
+        else:
+            self.driver_dir = os.path.join(self.driver_dir, "amd64")
+        os.chdir(self.driver_dir)
 
 
-class WinDivertTestCase(unittest.TestCase):
+class WinDivertTestCase(BaseTestCase):
     """
     Tests the driver registration, opening handles and functions not requiring network traffic
     """
 
     def setUp(self):
-        os.chdir(driver_dir)
-        self.dll_path = os.path.join(driver_dir, "WinDivert.dll")
+        super(WinDivertTestCase, self).setUp()
+        self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
     def test_register(self):
         """
@@ -86,7 +95,7 @@ class WinDivertTestCase(unittest.TestCase):
         previously registered
         """
         try:
-            reg_key = "SYSTEM\\CurrentControlSet\\Services\\WinDivert1.0"
+            reg_key = "SYSTEM\\CurrentControlSet\\Services\\WinDivert"+self.version
             if get_reg_values(reg_key):
                 WinDivert(reg_key=reg_key)
         except WindowsError as e:
@@ -160,17 +169,17 @@ class WinDivertTestCase(unittest.TestCase):
         pass
 
 
-class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
+class WinDivertTCPDataCaptureTestCase(BaseTestCase):
     """
     Tests capturing TCP traffic with payload
     """
 
     def setUp(self):
-        os.chdir(driver_dir)
+        super(WinDivertTCPDataCaptureTestCase, self).setUp()
         # Initialize the fake tcp server
         self.server = FakeTCPServerIPv4(("127.0.0.1", 0), EchoUpperTCPHandler)
         filter = "outbound and tcp.DstPort == %d and tcp.PayloadLength > 0" % self.server.server_address[1]
-        self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
+        self.driver = WinDivert(os.path.join(self.driver_dir, "WinDivert.dll"))
         self.handle = self.driver.open_handle(filter=filter)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -357,17 +366,17 @@ class WinDivertTCPDataCaptureTestCase(unittest.TestCase):
         self.server.server_close()
 
 
-class WinDivertTCPIPv4TestCase(unittest.TestCase):
+class WinDivertTCPIPv4TestCase(BaseTestCase):
     """
     Tests on the fly capturing and injecting TCP/IPv4 traffic
     """
 
     def setUp(self):
-        os.chdir(driver_dir)
+        super(WinDivertTCPIPv4TestCase, self).setUp()
         # Initialize the fake tcp server
         self.server = FakeTCPServerIPv4(("127.0.0.1", 0),
                                         EchoUpperTCPHandler)
-        self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
+        self.driver = WinDivert(os.path.join(self.driver_dir, "WinDivert.dll"))
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
@@ -497,16 +506,16 @@ class WinDivertTCPIPv4TestCase(unittest.TestCase):
         self.server.server_close()
 
 
-class WinDivertTCPIPv6TestCase(unittest.TestCase):
+class WinDivertTCPIPv6TestCase(BaseTestCase):
     """
     Tests on the fly capturing and injecting TCP/IPv6 traffic
     """
 
     def setUp(self):
-        os.chdir(driver_dir)
+        super(WinDivertTCPIPv6TestCase, self).setUp()
         # Initialize the fake tcp server
         self.server = FakeTCPServerIPv6(("::1", 0), EchoUpperTCPHandler)
-        WinDivert(os.path.join(driver_dir, "WinDivert.dll")).register()
+        WinDivert(os.path.join(self.driver_dir, "WinDivert.dll")).register()
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
@@ -601,12 +610,13 @@ class WinDivertTCPIPv6TestCase(unittest.TestCase):
         self.server.server_close()
 
 
-class WinDivertUDPTestCase(unittest.TestCase):
+class WinDivertUDPTestCase(BaseTestCase):
+
     def setUp(self):
-        os.chdir(driver_dir)
+        super(WinDivertUDPTestCase, self).setUp()
         # Initialize the fake tcp server
         self.server = FakeUDPServer(("127.0.0.1", 0), EchoUpperUDPHandler)
-        self.driver = WinDivert(os.path.join(driver_dir, "WinDivert.dll"))
+        self.driver = WinDivert(os.path.join(self.driver_dir, "WinDivert.dll"))
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
@@ -662,13 +672,14 @@ class WinDivertUDPTestCase(unittest.TestCase):
         self.server.server_close()
 
 
-class WinDivertExternalInterfaceTestCase(unittest.TestCase):
+class WinDivertExternalInterfaceTestCase(BaseTestCase):
+
     def setUp(self):
-        os.chdir(driver_dir)
+        super(WinDivertExternalInterfaceTestCase, self).setUp()
         # Initialize the fake tcp server
         self.server = FakeTCPServerIPv4((socket.gethostbyname(socket.gethostname()), 0),
                                         EchoUpperTCPHandler)
-        WinDivert(os.path.join(driver_dir, "WinDivert.dll")).register()
+        WinDivert(os.path.join(self.driver_dir, "WinDivert.dll")).register()
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.start()
@@ -710,6 +721,19 @@ class WinDivertExternalInterfaceTestCase(unittest.TestCase):
         self.server.shutdown()
         self.server.server_close()
 
-
 if __name__ == '__main__':
-    unittest.main()
+    #unittest.main()
+    runner = unittest.TextTestRunner()
+    suite = unittest.TestSuite()
+    for version in ("1.0", "1.1"):
+        for test_class in [WinDivertTestCase,
+                     WinDivertTCPIPv4TestCase,
+                     WinDivertTCPIPv6TestCase,
+                     WinDivertUDPTestCase,
+                     WinDivertTCPDataCaptureTestCase,
+                     WinDivertExternalInterfaceTestCase]:
+            tests = loader.loadTestsFromTestCase(test_class)
+            for t in tests:
+                t.version = version
+            suite.addTests(tests)
+    runner.run(suite)
