@@ -33,26 +33,26 @@ __author__ = 'fabio'
 logger = logging.getLogger(__name__)
 
 
-def string_to_addr(address_family, value):
+def string_to_addr(address_family, value, encoding="UTF-8"):
     """
     Convert a ip string in dotted form into a packed, binary format
     """
     if address_family == socket.AF_INET:
-        return struct.unpack("<I", inet_pton(socket.AF_INET, value))[0]
+        return struct.unpack("<I", inet_pton(socket.AF_INET, value, encoding))[0]
     elif address_family == socket.AF_INET6:
-        return struct.unpack("<IIII", inet_pton(socket.AF_INET6, value))
+        return struct.unpack("<IIII", inet_pton(socket.AF_INET6, value, encoding))
     else:
         raise ValueError("Unknown address_family: %s" % address_family)
 
 
-def addr_to_string(address_family, value):
+def addr_to_string(address_family, value, encoding="UTF-8"):
     """
     Convert a packed, binary format into a ip string in dotted form
     """
     if address_family == socket.AF_INET:
-        return inet_ntop(socket.AF_INET, struct.pack("<I", value))
+        return inet_ntop(socket.AF_INET, struct.pack("<I", value), encoding)
     elif address_family == socket.AF_INET6:
-        return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value))
+        return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value), encoding)
     else:
         raise ValueError("Unknown address_family: %s" % address_family)
 
@@ -69,12 +69,12 @@ WSAStringToAddressA = ctypes.windll.ws2_32.WSAStringToAddressA
 WSAAddressToStringA = ctypes.windll.ws2_32.WSAAddressToStringA
 
 
-def inet_pton(address_family, ip_string):
+def inet_pton(address_family, ip_string, encoding="UTF-8"):
     addr = sockaddr()
     addr.sa_family = address_family
     addr_size = ctypes.c_int(ctypes.sizeof(addr))
 
-    if WSAStringToAddressA(ip_string.encode("UTF-8"),
+    if WSAStringToAddressA(ip_string.encode(encoding),
                            address_family,
                            None,
                            ctypes.byref(addr),
@@ -89,7 +89,7 @@ def inet_pton(address_family, ip_string):
     raise socket.error('unknown address family')
 
 
-def inet_ntop(address_family, packed_ip):
+def inet_ntop(address_family, packed_ip, encoding="UTF-8"):
     addr = sockaddr()
     addr.sa_family = address_family
     addr_size = ctypes.c_int(ctypes.sizeof(addr))
@@ -114,7 +114,7 @@ def inet_ntop(address_family, packed_ip):
                            ctypes.byref(ip_string_size)) != 0:
         raise socket.error(ctypes.FormatError())
 
-    return (ip_string[:ip_string_size.value - 1]).decode("UTF-8")
+    return (ip_string[:ip_string_size.value - 1]).decode(encoding)
 
 
 def get_reg_values(key, root_key=winreg.HKEY_LOCAL_MACHINE):

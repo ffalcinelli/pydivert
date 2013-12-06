@@ -96,7 +96,7 @@ class WinDivert(object):
             else:
                 return setattr(self._lib, key, value)
 
-    def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0"):
+    def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0", encoding="UTF-8"):
         if not dll_path:
             #We try to load from registry key
             self.registry = get_reg_values(reg_key)
@@ -112,12 +112,13 @@ class WinDivert(object):
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
 
         self.reg_key = reg_key
+        self.encoding = encoding
 
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         """
         Return a new handle already opened
         """
-        return Handle(self, filter, layer, priority, flags).open()
+        return Handle(self, filter, layer, priority, flags, self.encoding).open()
 
     def get_reference(self):
         """
@@ -205,8 +206,9 @@ class WinDivert(object):
 
         return CapturedPacket(payload=raw_packet[offset:],
                               raw_packet=raw_packet,
-                              headers=[HeaderWrapper(hdr, opt) for hdr, opt in zip(headers, headers_opts)],
-                              meta=meta)
+                              headers=[HeaderWrapper(hdr, opt, self.encoding) for hdr, opt in zip(headers, headers_opts)],
+                              meta=meta,
+                              encoding=self.encoding)
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -223,7 +225,7 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv4_address
         """
         ip_addr = ctypes.c_uint32(0)
-        self._lib.WinDivertHelperParseIPv4Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv4Address(address.encode(self.encoding), ctypes.byref(ip_addr))
         return ip_addr.value
 
 
@@ -242,7 +244,7 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv6_address
         """
         ip_addr = ctypes.ARRAY(ctypes.c_uint16, 8)()
-        self._lib.WinDivertHelperParseIPv6Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv6Address(address.encode(self.encoding), ctypes.byref(ip_addr))
         return [x for x in ip_addr]
 
     @winerror_on_retcode
@@ -300,7 +302,7 @@ class Handle(object):
     An handle object got from a WinDivert DLL.
     """
 
-    def __init__(self, driver=None, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
+    def __init__(self, driver=None, filter="true", layer=Layer.NETWORK, priority=0, flags=0, encoding="UTF-8"):
         if not driver:
             #Try to construct by loading from the registry
             self.driver = WinDivert()
@@ -308,7 +310,8 @@ class Handle(object):
             self.driver = driver
         self._lib = self.driver.get_reference()
         self._handle = None
-        self._filter = filter.encode("UTF-8")
+        self.encoding = encoding
+        self._filter = filter.encode(self.encoding)
         self._layer = layer
         self._priority = priority
         self._flags = flags
