@@ -42,7 +42,7 @@ def string_to_addr(address_family, value):
     elif address_family == socket.AF_INET6:
         return struct.unpack("<IIII", inet_pton(socket.AF_INET6, value))
     else:
-        raise ValueError("Unknown address_family: {}".format(address_family))
+        raise ValueError("Unknown address_family: %s" % address_family)
 
 
 def addr_to_string(address_family, value):
@@ -54,7 +54,7 @@ def addr_to_string(address_family, value):
     elif address_family == socket.AF_INET6:
         return inet_ntop(socket.AF_INET6, struct.pack("<IIII", *value))
     else:
-        raise ValueError("Unknown address_family: {}".format(address_family))
+        raise ValueError("Unknown address_family: %s" % address_family)
 
 
 class sockaddr(ctypes.Structure):
@@ -125,25 +125,24 @@ def get_reg_values(key, root_key=winreg.HKEY_LOCAL_MACHINE):
     count = 0
     result = {}
     try:
-        logger.debug("Reading key {}".format(key))
+        logger.debug("Reading key %s" % key)
         key_handle = winreg.OpenKey(root_key, key)
         while True:
             values = winreg.EnumValue(key_handle, count)
-            logger.debug("Found {}".format(values))
+            logger.debug("Found %s" % str(values))
             count += 1
             result.update({values[0]: values[1]})
     except WindowsError as error:
         if error.errno == errno.EINVAL:
             if logger.isEnabledFor(logging.DEBUG):
-                logger.debug("Returning {} values".format(
-                    len(result)))
+                logger.debug("Returning %d values" % len(result))
             return result
         else:
             logger.error(error)
             raise error
     finally:
         if key_handle:
-            logger.debug("Closing key handle for key {}".format(key))
+            logger.debug("Closing key handle for key %s" % key)
             key_handle.Close()
 
 def del_reg_key(sub_key, key, root_key=winreg.HKEY_LOCAL_MACHINE):
@@ -152,13 +151,13 @@ def del_reg_key(sub_key, key, root_key=winreg.HKEY_LOCAL_MACHINE):
     """
     key_handle = None
     try:
-        logger.debug("Removing key {}".format(key))
+        logger.debug("Removing key %s" % key)
         key_handle = winreg.OpenKey(root_key, sub_key, 0, winreg.KEY_ALL_ACCESS)
         winreg.DeleteValue(key_handle, key)
         #winreg.CloseKey(key_handle)
     except WindowsError as e:
-        logger.error("Got error while deleting key {}: {}".format(key, e))
+        logger.error("Got error while deleting key %s: %s" % (key, e))
     finally:
         if key_handle:
-            logger.debug("Closing key handle for key {}".format(key))
+            logger.debug("Closing key handle for key %s" % key)
             key_handle.Close()

@@ -439,13 +439,13 @@ class CapturedPacket(object):
 
     def __str__(self):
         tokens = list()
-        tokens.append("Packet: %s:%s --> %s:%s".format(self.src_addr,
-                                                       self.src_port,
-                                                       self.dst_addr,
-                                                       self.dst_port))
+        tokens.append("Packet: %s:%s --> %s:%s" % (self.src_addr,
+                                                   self.src_port,
+                                                   self.dst_addr,
+                                                   self.dst_port))
         if self.meta:
             tokens.append(str(self.meta))
         tokens.extend([str(hdr) for hdr in self.headers])
-        tokens.append("Payload: [%s] [HEX: %s]".format(self.payload,
-                                                       hexlify(self.payload) if self.payload else ''))
+        tokens.append("Payload: [%s] [HEX: %s]" % (self.payload,
+                                                   hexlify(self.payload) if self.payload else ''))
         return "\n".join(tokens)

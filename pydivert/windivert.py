@@ -404,7 +404,7 @@ class Handle(object):
                 packet = self.driver.update_packet_checksums(args[0])
                 data, dest = packet.raw, packet.meta
             else:
-                raise ValueError("Not a CapturedPacket or sequence (data, meta): {}".format(args))
+                raise ValueError("Not a CapturedPacket or sequence (data, meta): %s" % str(args))
         elif len(args) == 2:
             data, dest = args[0], args[1]
         else:
