@@ -19,7 +19,7 @@ import os
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer
 from pydivert.winutils import get_reg_values
-from pydivert.models import DivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header
+from pydivert.models import WinDivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header
 from pydivert.models import DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 __author__ = 'fabio'
@@ -132,22 +132,24 @@ class WinDivert(object):
         Args could be a tuple or two different values. In each case the first one is the raw data and the second
         is the meta about the direction and interface to use.
 
-        The function remapped is DivertHelperParsePacket:
-        Parses a raw packet (e.g. from DivertRecv()) into the various packet headers
+        The function remapped is WinDivertHelperParsePacket:
+        Parses a raw packet (e.g. from WinDivertRecv()) into the various packet headers
         and/or payloads that may or may not be present.
 
-        BOOL DivertHelperParsePacket(
+        BOOL WinDivertHelperParsePacket(
             __in PVOID pPacket,
             __in UINT packetLen,
-            __out_opt PDIVERT_IPHDR *ppIpHdr,
-            __out_opt PDIVERT_IPV6HDR *ppIpv6Hdr,
-            __out_opt PDIVERT_ICMPHDR *ppIcmpHdr,
-            __out_opt PDIVERT_ICMPV6HDR *ppIcmpv6Hdr,
-            __out_opt PDIVERT_TCPHDR *ppTcpHdr,
-            __out_opt PDIVERT_UDPHDR *ppUdpHdr,
+            __out_opt PWINDIVERT_IPHDR *ppIpHdr,
+            __out_opt PWINDIVERT_IPV6HDR *ppIpv6Hdr,
+            __out_opt PWINDIVERT_ICMPHDR *ppIcmpHdr,
+            __out_opt PWINDIVERT_ICMPV6HDR *ppIcmpv6Hdr,
+            __out_opt PWINDIVERT_TCPHDR *ppTcpHdr,
+            __out_opt PWINDIVERT_UDPHDR *ppUdpHdr,
             __out_opt PVOID *ppData,
             __out_opt UINT *pDataLen
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_helper_parse_packet
         """
         if len(args) == 1:
             #Maybe this is a poor way to check the type, but it should work
@@ -211,11 +213,14 @@ class WinDivert(object):
         """
         Parses an IPv4 address.
 
-        The function remapped is DivertHelperParseIPv4Address:
-        BOOL DivertHelperParseIPv4Address(
+        The function remapped is WinDivertHelperParseIPv4Address:
+
+        BOOL WinDivertHelperParseIPv4Address(
             __in const char *addrStr,
             __out_opt UINT32 *pAddr
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv4_address
         """
         ip_addr = ctypes.c_uint32(0)
         self._lib.WinDivertHelperParseIPv4Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
@@ -227,11 +232,14 @@ class WinDivert(object):
         """
         Parses an IPv6 address.
 
-        The function remapped is DivertHelperParseIPv6Address:
-        BOOL DivertHelperParseIPv6Address(
+        The function remapped is WinDivertHelperParseIPv6Address:
+
+        BOOL WinDivertHelperParseIPv6Address(
             __in const char *addrStr,
             __out_opt UINT32 *pAddr
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv6_address
         """
         ip_addr = ctypes.ARRAY(ctypes.c_uint16, 8)()
         self._lib.WinDivertHelperParseIPv6Address(address.encode("UTF-8"), ctypes.byref(ip_addr))
@@ -244,12 +252,15 @@ class WinDivert(object):
         Individual checksum calculations may be disabled via the appropriate flag.
         Typically this function should be invoked on a modified packet before it is injected with send().
 
-        The function remapped is DivertHelperCalcChecksums:
-        UINT DivertHelperCalcChecksums(
+        The function remapped is WinDivertHelperCalcChecksums:
+
+        UINT WinDivertHelperCalcChecksums(
             __inout PVOID pPacket,
             __in UINT packetLen,
             __in UINT64 flags
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         packet_len = len(packet)
         buff = ctypes.create_string_buffer(packet, packet_len)
@@ -309,13 +320,16 @@ class Handle(object):
         Unless otherwise specified by flags, any packet that matches the filter will be diverted to the handle.
         Diverted packets can be read by the application with receive().
 
-        The remapped function is DivertOpen:
-        HANDLE DivertOpen(
+        The remapped function is WinDivertOpen:
+
+        HANDLE WinDivertOpen(
             __in const char *filter,
-            __in DIVERT_LAYER layer,
+            __in WINDIVERT_LAYER layer,
             __in INT16 priority,
             __in UINT64 flags
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_open
         """
         self._handle = self._lib.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
         return self
@@ -328,20 +342,25 @@ class Handle(object):
         the direction and interface indexes.
         The received packet is guaranteed to match the filter.
 
-        The remapped function is DivertRecv:
-        BOOL DivertRecv(
+        The remapped function is WinDivertRecv:
+
+        BOOL WinDivertRecv(
             __in HANDLE handle,
             __out PVOID pPacket,
             __in UINT packetLen,
-            __out_opt PDIVERT_ADDRESS pAddr,
+            __out_opt PWINDIVERT_ADDRESS pAddr,
             __out_opt UINT *recvLen
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
         """
         packet = ctypes.create_string_buffer(bufsize)
-        address = DivertAddress()
+        address = WinDivertAddress()
         recv_len = ctypes.c_int(0)
         self._lib.WinDivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
+
+    #TODO: implement WinDivertRecvEx
 
     @winerror_on_retcode
     def receive(self, bufsize=PACKET_BUFFER_SIZE):
@@ -366,13 +385,16 @@ class Handle(object):
         Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.
 
         The remapped function is DivertSend:
-        BOOL DivertSend(
+
+        BOOL WinDivertSend(
             __in HANDLE handle,
             __in PVOID pPacket,
             __in UINT packetLen,
-            __in PDIVERT_ADDRESS pAddr,
+            __in PWINDIVERT_ADDRESS pAddr,
             __out_opt UINT *sendLen
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
         """
         if len(args) == 1:
             #Maybe this is a poor way to check the type, but it should work
@@ -388,7 +410,7 @@ class Handle(object):
         else:
             raise ValueError("Wrong number of arguments passed to send")
 
-        address = DivertAddress()
+        address = WinDivertAddress()
         address.IfIdx = dest.iface[0]
         address.SubIfIdx = dest.iface[1]
         address.Direction = dest.direction
@@ -396,15 +418,20 @@ class Handle(object):
         self._lib.WinDivertSend(self._handle, data, len(data), ctypes.byref(address), ctypes.byref(send_len))
         return send_len
 
+    #TODO: implement WinDivertSendEx
+
     @winerror_on_retcode
     def close(self):
         """
         Closes the handle opened by open().
 
         The remapped function is:
-        BOOL DivertClose(
+
+        BOOL WinDivertClose(
             __in HANDLE handle
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_close
         """
         self._lib.WinDivertClose(self._handle)
         self._handle = None
@@ -418,11 +445,14 @@ class Handle(object):
         Gets a WinDivert parameter. See WinDivert DivertSetParam() for the list of parameters.
 
         The remapped function is DivertGetParam:
-        BOOL DivertGetParam(
+
+        BOOL WinDivertGetParam(
             __in HANDLE handle,
-            __in DIVERT_PARAM param,
+            __in WINDIVERT_PARAM param,
             __out UINT64 *pValue
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_get_param
         """
         value = ctypes.c_uint64(0)
         self._lib.WinDivertGetParam(self._handle, name, ctypes.byref(value))
@@ -433,11 +463,14 @@ class Handle(object):
         Sets a WinDivert parameter.
 
         The remapped function is DivertSetParam:
-        BOOL DivertSetParam(
+
+        BOOL WinDivertSetParam(
             __in HANDLE handle,
-            __in DIVERT_PARAM param,
+            __in WINDIVERT_PARAM param,
             __in UINT64 value
         );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_set_param
         """
         self._lib.WinDivertSetParam(self._handle, name, value)
 

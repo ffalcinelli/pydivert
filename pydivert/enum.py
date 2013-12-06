@@ -27,7 +27,7 @@ Flag = enum(SNIFF=1, DROP=2)
 
 #Divert parameters.
 Param = enum(QUEUE_LEN=0,  # Packet queue length 1<default 512 <8192
-             QUEUE_TIME=1,  # Packet queue time 32 < default 256 < 1024
+             QUEUE_TIME=1,  # Packet queue time 128 < default 512 < 2048
              MAX=1)
 
 #Direction outbound/inbound

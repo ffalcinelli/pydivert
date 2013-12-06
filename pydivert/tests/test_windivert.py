@@ -46,6 +46,7 @@ class BaseTestCase(unittest.TestCase):
         else:
             self.driver_dir = os.path.join(self.driver_dir, "amd64")
         os.chdir(self.driver_dir)
+        self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert"+self.version
 
 
 class WinDivertTestCase(BaseTestCase):
@@ -139,7 +140,11 @@ class WinDivertTestCase(BaseTestCase):
         Tests getting and setting params to WinDivert
         """
         queue_len = 2048
-        queue_time = 64
+        if version == "1.0":
+            queue_time = 64
+        else:
+            queue_time = 128
+
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
             filter0.set_param(Param.QUEUE_LEN, queue_len)
             self.assertEqual(queue_len, filter0.get_param(Param.QUEUE_LEN))
@@ -327,7 +332,7 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
         Tests repr conversion
         """
         packet = self.handle.receive()
-        self.assertEqual(repr(packet), hexlify(packet.raw))
+        self.assertEqual(repr(packet), hexlify(packet.raw).decode("UTF-8"))
         self.handle.send(packet)
 
     def test_modify_address(self):
@@ -727,21 +732,20 @@ if __name__ == '__main__':
     runner = unittest.TextTestRunner()
     suite_v10 = unittest.TestSuite()
     suite_v11 = unittest.TestSuite()
+
     for suite in (suite_v10, suite_v11):
 
-        for v in ("1.0", "1.1"):
-            del_reg_key("SYSTEM\\CurrentControlSet\\Services", "WinDivert"+v)
+        for version in ("1.0", "1.1"):
+            del_reg_key("SYSTEM\\CurrentControlSet\\Services", "WinDivert"+version)
 
-        for test_class in [WinDivertTestCase,
-                     WinDivertTCPIPv4TestCase,
-                     WinDivertTCPIPv6TestCase,
-                     WinDivertUDPTestCase,
-                     WinDivertTCPDataCaptureTestCase,
-                     WinDivertExternalInterfaceTestCase]:
-            tests = loader.loadTestsFromTestCase(test_class)
-            if suite == suite_v11:
+            for test_class in [WinDivertTestCase,
+                         WinDivertTCPIPv4TestCase,
+                         WinDivertTCPIPv6TestCase,
+                         WinDivertUDPTestCase,
+                         WinDivertTCPDataCaptureTestCase,
+                         WinDivertExternalInterfaceTestCase]:
+                tests = loader.loadTestsFromTestCase(test_class)
                 for t in tests:
-                    t.version = "1.1"
-            suite.addTests(tests)
-
+                    t.version = version
+                suite.addTests(tests)
         runner.run(suite)

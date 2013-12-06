@@ -15,3 +15,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 __author__ = 'fabio'
 
+import sys
+
+PY2 = sys.version_info < (3, 0)
