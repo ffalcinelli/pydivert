@@ -1,14 +1,15 @@
-Intro
-=====
+pydivert 
+========
+[![PyPI Version](https://pypip.in/v/pydivert/badge.png)](https://crate.io/packages/pydivert)[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/ffalcinelli/pydivert/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
 
-PyDivert aims to be a python binding for [WinDivert](https://github.com/basil00/Divert) driver.
+A python binding for [WinDivert](https://github.com/basil00/Divert) driver.
 
 Platform Support
 ----------------
 
 Right now PyDivert supports  Python 2.7/3.3 and should work on each platform supported by the driver itself.
 
-It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3 interpreters (both are 64bit).
+It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3 interpreters (both 64bit).
 
 
 Warnings
@@ -176,9 +177,10 @@ TODOs
 -----
 
 1. ~~Packet modification and reinjection~~
-2. Support for other platforms, at least OSX and linux
+2. ~~Support for other platforms, at least OSX and linux~~ Discarded. These are out of scope for this binding.
 3. ~~May be a good idea to delegate all the WinDivert methods to Handle instances~~
-4. Clean test code. Tests should be more readable to use as example.
+4. Clean test code. Tests should be more readable to use as usage example
+5. Implement binding for Asynchronous I/O using WinDivertSendEx and WinDivertRecvEx
 
 
 License

@@ -21,13 +21,13 @@ from setuptools import setup, find_packages
 # with open("README.md") as readme:
 
 setup(name='pydivert',
-      version='0.0.1',
+      version='0.0.2',
       description='Python binding to windivert driver',
       # long_description=readme.read(),
       author='Fabio Falcinelli',
       author_email='fabio.falcinelli@gmail.com',
       url='https://github.com/ffalcinelli/pydivert',
-      download_url='https://github.com/ffalcinelli/pydivert/tarball/0.0.1',
+      download_url='https://github.com/ffalcinelli/pydivert/tarball/0.0.2',
       keywords=['windivert','network','tcp/ip'],
       license="LICENSE",
       packages=find_packages(),
