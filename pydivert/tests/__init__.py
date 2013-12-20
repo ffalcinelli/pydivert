@@ -16,6 +16,7 @@
 
 #SocketServer has been renamed in python3 to socketserver
 import socket
+from pydivert.tests.test_winutils import WinInetTestCase
 
 try:
     from socketserver import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
@@ -81,10 +82,12 @@ class FakeTCPClient():
 
     def send(self):
         sock = socket.socket(socket.AF_INET if not self.ipv6 else socket.AF_INET6, socket.SOCK_STREAM)
-        sock.connect(self.connect_addr)
         try:
+            sock.connect(self.connect_addr)
             sock.sendall(self.message)
             self.response = sock.recv(4096)
+        except Exception as e:
+            pass
         finally:
             sock.close()
 
@@ -115,3 +118,37 @@ def random_free_port(family=socket.AF_INET, type=socket.SOCK_STREAM):
         return s.getsockname()[1]
     finally:
         s.close()
+
+
+def run_test_suites():
+    import unittest
+    from unittest.test import loader
+    from pydivert.winutils import del_reg_key
+    from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase, WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, WinDivertExternalInterfaceTestCase
+    from pydivert.tests import test_winutils
+
+    runner = unittest.TextTestRunner()
+
+    for version in ("1.0", "1.1"):
+        suite = unittest.TestSuite()
+        del_reg_key(r"SYSTEM\CurrentControlSet\Services", "WinDivert" + version)
+
+        for test_class in [WinDivertTestCase,
+                           WinDivertTCPIPv4TestCase,
+                           WinDivertTCPIPv6TestCase,
+                           WinDivertUDPTestCase,
+                           WinDivertTCPDataCaptureTestCase,
+                           WinDivertExternalInterfaceTestCase]:
+            tests = loader.loadTestsFromTestCase(test_class)
+            for t in tests:
+                t.version = version
+            suite.addTests(tests)
+        print("Running test suite for WinDivert %s" % version)
+        runner.run(suite)
+
+    suite = unittest.TestSuite()
+    print("Running remaining tests...")
+    suite.addTests(loader.loadTestsFromTestCase(WinInetTestCase))
+    runner.run(suite)
+
+

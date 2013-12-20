@@ -14,11 +14,38 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import os
+from pydivert.tests import run_test_suites
+
 __author__ = 'fabio'
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Command
 
-# with open("README.md") as readme:
+workdir = os.path.abspath(os.path.dirname(__file__))
+
+
+class RunTests(Command):
+    description = 'Runs the test suite for audit4llc'
+    user_options = []
+    extra_env = {}
+    extra_args = []
+
+    def run(self):
+        for env_name, env_value in self.extra_env.items():
+            os.environ[env_name] = str(env_value)
+        cwd = os.getcwd()
+        try:
+            os.chdir(os.path.join(os.path.join(workdir, "pydivert", "tests")))
+            run_test_suites()
+        finally:
+            os.chdir(cwd)
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
 
 setup(name='pydivert',
       version='0.0.2',
@@ -28,7 +55,7 @@ setup(name='pydivert',
       author_email='fabio.falcinelli@gmail.com',
       url='https://github.com/ffalcinelli/pydivert',
       download_url='https://github.com/ffalcinelli/pydivert/tarball/0.0.2',
-      keywords=['windivert','network','tcp/ip'],
+      keywords=['windivert', 'network', 'tcp/ip'],
       license="LICENSE",
       packages=find_packages(),
       classifiers=[
@@ -49,6 +76,5 @@ setup(name='pydivert',
           'Topic :: System :: Networking :: Monitoring',
           'Topic :: Utilities',
       ],
-      setup_requires=['nose'],
-      test_suite='nose.collector',
+      cmdclass={"test": RunTests},
 )

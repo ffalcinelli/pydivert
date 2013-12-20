@@ -21,11 +21,10 @@ import unittest
 import platform
 
 import os
-from unittest.test import loader
 import pydivert
 from pydivert.enum import Param
 
-from pydivert.winutils import inet_pton, get_reg_values, del_reg_key
+from pydivert.winutils import inet_pton, get_reg_values
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
@@ -46,7 +45,7 @@ class BaseTestCase(unittest.TestCase):
         else:
             self.driver_dir = os.path.join(self.driver_dir, "amd64")
         os.chdir(self.driver_dir)
-        self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert"+self.version
+        self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
 
 
 class WinDivertTestCase(BaseTestCase):
@@ -97,7 +96,7 @@ class WinDivertTestCase(BaseTestCase):
         previously registered
         """
         try:
-            reg_key = "SYSTEM\\CurrentControlSet\\Services\\WinDivert"+self.version
+            reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
             if get_reg_values(reg_key):
                 WinDivert(reg_key=reg_key)
         except WindowsError as e:
@@ -140,7 +139,7 @@ class WinDivertTestCase(BaseTestCase):
         Tests getting and setting params to WinDivert
         """
         queue_len = 2048
-        if version == "1.0":
+        if self.version == "1.0":
             queue_time = 64
         else:
             queue_time = 128
@@ -437,7 +436,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
         client = FakeTCPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
-        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        f = "tcp.DstPort == %d or tcp.SrcPort == %d" % (fake_port, srv_port)
         with Handle(filter=f, priority=1000) as handle:
             # Initialize the fake tcp client
             client_thread.start()
@@ -468,7 +467,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
         client = FakeTCPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
-        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        f = "tcp.DstPort == %d or tcp.SrcPort == %d" % (fake_port, srv_port)
         with Handle(filter=f, priority=1000) as handle:
             # Initialize the fake tcp client
             client_thread.start()
@@ -617,7 +616,6 @@ class WinDivertTCPIPv6TestCase(BaseTestCase):
 
 
 class WinDivertUDPTestCase(BaseTestCase):
-
     def setUp(self):
         super(WinDivertUDPTestCase, self).setUp()
         # Initialize the fake tcp server
@@ -655,7 +653,7 @@ class WinDivertUDPTestCase(BaseTestCase):
         client = FakeUDPClient(("127.0.0.1", fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
-        f = "udp.DstPort == {0} or udp.SrcPort == {1}".format(fake_port, srv_port)
+        f = "udp.DstPort == %d or udp.SrcPort == %d" % (fake_port, srv_port)
         with Handle(filter=f, priority=1000) as handle:
             # Initialize the fake tcp client
             client_thread.start()
@@ -679,7 +677,6 @@ class WinDivertUDPTestCase(BaseTestCase):
 
 
 class WinDivertExternalInterfaceTestCase(BaseTestCase):
-
     def setUp(self):
         super(WinDivertExternalInterfaceTestCase, self).setUp()
         # Initialize the fake tcp server
@@ -702,7 +699,7 @@ class WinDivertExternalInterfaceTestCase(BaseTestCase):
         client = FakeTCPClient((fake_addr, fake_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
-        f = "tcp.DstPort == {0} or tcp.SrcPort == {1}".format(fake_port, srv_port)
+        f = "tcp.DstPort == %d or tcp.SrcPort == %d" % (fake_port, srv_port)
         with Handle(filter=f, priority=1000) as handle:
             # Initialize the fake tcp client
             client_thread.start()
@@ -727,25 +724,3 @@ class WinDivertExternalInterfaceTestCase(BaseTestCase):
         self.server.shutdown()
         self.server.server_close()
 
-if __name__ == '__main__':
-    #unittest.main()
-    runner = unittest.TextTestRunner()
-    suite_v10 = unittest.TestSuite()
-    suite_v11 = unittest.TestSuite()
-
-    for suite in (suite_v10, suite_v11):
-
-        for version in ("1.0", "1.1"):
-            del_reg_key("SYSTEM\\CurrentControlSet\\Services", "WinDivert"+version)
-
-            for test_class in [WinDivertTestCase,
-                         WinDivertTCPIPv4TestCase,
-                         WinDivertTCPIPv6TestCase,
-                         WinDivertUDPTestCase,
-                         WinDivertTCPDataCaptureTestCase,
-                         WinDivertExternalInterfaceTestCase]:
-                tests = loader.loadTestsFromTestCase(test_class)
-                for t in tests:
-                    t.version = version
-                suite.addTests(tests)
-        runner.run(suite)
