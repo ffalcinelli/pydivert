@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from binascii import unhexlify, hexlify
 import socket
-import ctypes
+from ctypes import Structure, c_uint32, c_uint8, c_uint16
 
 from pydivert import enum
 from pydivert.enum import Direction
@@ -27,7 +27,7 @@ __author__ = 'fabio'
 
 def format_structure(instance):
     """
-    Return a string representation for the structure
+    Returns a string representation for the structure
     """
     if hasattr(instance, "_fields_"):
         out = []
@@ -37,7 +37,8 @@ def format_structure(instance):
     else:
         raise ValueError("Passed argument is not a structure!")
 
-class WinDivertAddress(ctypes.Structure):
+
+class WinDivertAddress(Structure):
     """
     Ctypes Structure for WINDIVERT_ADDRESS.
     The WINDIVERT_ADDRESS structure represents the "address" of a captured or injected packet.
@@ -58,15 +59,15 @@ class WinDivertAddress(ctypes.Structure):
                     - WINDIVERT_DIRECTION_OUTBOUND with value 0 for outbound packets.
                     - WINDIVERT_DIRECTION_INBOUND with value 1 for inbound packets.
     """
-    _fields_ = [("IfIdx", ctypes.c_uint32),
-                ("SubIfIdx", ctypes.c_uint32),
-                ("Direction", ctypes.c_uint8)]
+    _fields_ = [("IfIdx", c_uint32),
+                ("SubIfIdx", c_uint32),
+                ("Direction", c_uint8)]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertIpHeader(ctypes.Structure):
+class IpHeader(Structure):
     """
     Ctypes structure for WINDIVERT_IPHDR: IPv4 header definition.
 
@@ -85,23 +86,23 @@ class DivertIpHeader(ctypes.Structure):
         UINT32 DstAddr;
     } WINDIVERT_IPHDR, *PWINDIVERT_IPHDR;
     """
-    _fields_ = [("HdrLength", ctypes.c_uint8, 4),
-                ("Version", ctypes.c_uint8, 4),
-                ("TOS", ctypes.c_uint8),
-                ("Length", ctypes.c_uint16),
-                ("Id", ctypes.c_uint16),
-                ("FragOff0", ctypes.c_uint16),
-                ("TTL", ctypes.c_uint8),
-                ("Protocol", ctypes.c_uint8),
-                ("Checksum", ctypes.c_uint16),
-                ("SrcAddr", ctypes.c_uint32),
-                ("DstAddr", ctypes.c_uint32), ]
+    _fields_ = [("HdrLength", c_uint8, 4),
+                ("Version", c_uint8, 4),
+                ("TOS", c_uint8),
+                ("Length", c_uint16),
+                ("Id", c_uint16),
+                ("FragOff0", c_uint16),
+                ("TTL", c_uint8),
+                ("Protocol", c_uint8),
+                ("Checksum", c_uint16),
+                ("SrcAddr", c_uint32),
+                ("DstAddr", c_uint32), ]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertIpv6Header(ctypes.Structure):
+class Ipv6Header(Structure):
     """
     Ctypes structure for WINDIVERT_IPV6HDR: IPv6 header definition.
 
@@ -122,22 +123,22 @@ class DivertIpv6Header(ctypes.Structure):
         UINT32 DstAddr[4];
     } WINDIVERT_IPV6HDR, *PWINDIVERT_IPV6HDR;
     """
-    _fields_ = [("TrafficClass0", ctypes.c_uint8, 4),
-                ("Version", ctypes.c_uint8, 4),
-                ("FlowLabel0", ctypes.c_uint8, 4),
-                ("TrafficClass1", ctypes.c_uint8, 4),
-                ("FlowLabel1", ctypes.c_uint16, 4),
-                ("Length", ctypes.c_uint16),
-                ("NextHdr", ctypes.c_uint8),
-                ("HopLimit", ctypes.c_uint8),
-                ("SrcAddr", ctypes.c_uint32 * 4),
-                ("DstAddr", ctypes.c_uint32 * 4), ]
+    _fields_ = [("TrafficClass0", c_uint8, 4),
+                ("Version", c_uint8, 4),
+                ("FlowLabel0", c_uint8, 4),
+                ("TrafficClass1", c_uint8, 4),
+                ("FlowLabel1", c_uint16, 4),
+                ("Length", c_uint16),
+                ("NextHdr", c_uint8),
+                ("HopLimit", c_uint8),
+                ("SrcAddr", c_uint32 * 4),
+                ("DstAddr", c_uint32 * 4), ]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertIcmpHeader(ctypes.Structure):
+class IcmpHeader(Structure):
     """
     Ctypes structure for WINDIVERT_ICMPHDR: ICMP header definition.
 
@@ -149,16 +150,16 @@ class DivertIcmpHeader(ctypes.Structure):
         UINT32 Body;
     } WINDIVERT_ICMPHDR, *PWINDIVERT_ICMPHDR;
     """
-    _fields_ = [("Type", ctypes.c_uint8),
-                ("Code", ctypes.c_uint8),
-                ("Checksum", ctypes.c_uint16),
-                ("Body", ctypes.c_uint32)]
+    _fields_ = [("Type", c_uint8),
+                ("Code", c_uint8),
+                ("Checksum", c_uint16),
+                ("Body", c_uint32)]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertIcmpv6Header(ctypes.Structure):
+class Icmpv6Header(Structure):
     """
     Ctypes structure for WINDIVERT_IPV6HDR: ICMPv6 header definition.
 
@@ -170,16 +171,16 @@ class DivertIcmpv6Header(ctypes.Structure):
         UINT32 Body;
     } WINDIVERT_ICMPV6HDR, *PWINDIVERT_ICMPV6HDR;
     """
-    _fields_ = [("Type", ctypes.c_uint8),
-                ("Code", ctypes.c_uint8),
-                ("Checksum", ctypes.c_uint16),
-                ("Body", ctypes.c_uint32)]
+    _fields_ = [("Type", c_uint8),
+                ("Code", c_uint8),
+                ("Checksum", c_uint16),
+                ("Body", c_uint32)]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertTcpHeader(ctypes.Structure):
+class TcpHeader(Structure):
     """
     Ctypes structure for WINDIVERT_TCPHDR: TCP header definition.
 
@@ -203,28 +204,28 @@ class DivertTcpHeader(ctypes.Structure):
         UINT16 UrgPtr;
     } WINDIVERT_TCPHDR, *PWINDIVERT_TCPHDR;
     """
-    _fields_ = [("SrcPort", ctypes.c_uint16),
-                ("DstPort", ctypes.c_uint16),
-                ("SeqNum", ctypes.c_uint32),
-                ("AckNum", ctypes.c_uint32),
-                ("Reserved1", ctypes.c_uint16, 4),
-                ("HdrLength", ctypes.c_uint16, 4),
-                ("Fin", ctypes.c_uint16, 1),
-                ("Syn", ctypes.c_uint16, 1),
-                ("Rst", ctypes.c_uint16, 1),
-                ("Psh", ctypes.c_uint16, 1),
-                ("Ack", ctypes.c_uint16, 1),
-                ("Urg", ctypes.c_uint16, 1),
-                ("Reserved2", ctypes.c_uint16, 2),
-                ("Window", ctypes.c_uint16),
-                ("Checksum", ctypes.c_uint16),
-                ("UrgPtr", ctypes.c_uint16), ]
+    _fields_ = [("SrcPort", c_uint16),
+                ("DstPort", c_uint16),
+                ("SeqNum", c_uint32),
+                ("AckNum", c_uint32),
+                ("Reserved1", c_uint16, 4),
+                ("HdrLength", c_uint16, 4),
+                ("Fin", c_uint16, 1),
+                ("Syn", c_uint16, 1),
+                ("Rst", c_uint16, 1),
+                ("Psh", c_uint16, 1),
+                ("Ack", c_uint16, 1),
+                ("Urg", c_uint16, 1),
+                ("Reserved2", c_uint16, 2),
+                ("Window", c_uint16),
+                ("Checksum", c_uint16),
+                ("UrgPtr", c_uint16), ]
 
     def __str__(self):
         return format_structure(self)
 
 
-class DivertUdpHeader(ctypes.Structure):
+class UdpHeader(Structure):
     """
     Ctypes structure for WINDIVERT_UDPHDR: UDP header definition.
 
@@ -236,21 +237,21 @@ class DivertUdpHeader(ctypes.Structure):
         UINT16 Checksum;
     } WINDIVERT_UDPHDR, *PWINDIVERT_UDPHDR;
     """
-    _fields_ = [("SrcPort", ctypes.c_uint16),
-                ("DstPort", ctypes.c_uint16),
-                ("Length", ctypes.c_uint16),
-                ("Checksum", ctypes.c_uint16)]
+    _fields_ = [("SrcPort", c_uint16),
+                ("DstPort", c_uint16),
+                ("Length", c_uint16),
+                ("Checksum", c_uint16)]
 
     def __str__(self):
         return format_structure(self)
 
 
-headers_map = {"ipv4_hdr": DivertIpHeader,
-               "ipv6_hdr": DivertIpv6Header,
-               "tcp_hdr": DivertTcpHeader,
-               "udp_hdr": DivertUdpHeader,
-               "icmp_hdr": DivertIcmpHeader,
-               "icmpv6_hdr": DivertIcmpv6Header}
+headers_map = {"ipv4_hdr": IpHeader,
+               "ipv6_hdr": Ipv6Header,
+               "tcp_hdr": TcpHeader,
+               "udp_hdr": UdpHeader,
+               "icmp_hdr": IcmpHeader,
+               "icmpv6_hdr": Icmpv6Header}
 
 
 class HeaderWrapper(object):
@@ -345,7 +346,7 @@ class CapturedPacket(object):
         self.headers = [None, None]
         self.headers_opt = [None, None]
         for header in headers:
-            if type(header.hdr) in (DivertIpHeader, DivertIpv6Header):
+            if type(header.hdr) in (IpHeader, Ipv6Header):
                 self.headers[0] = header
             else:
                 self.headers[1] = header

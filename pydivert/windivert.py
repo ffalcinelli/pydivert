@@ -13,17 +13,23 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from _ctypes import POINTER
-import ctypes
+from _ctypes import POINTER, pointer, byref, sizeof
+from ctypes.wintypes import HANDLE
 import os
+from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint16, c_uint64, c_int16, c_int, WinDLL,
+                    create_string_buffer)
+import logging
 from pydivert.decorators import winerror_on_retcode
-from pydivert.enum import Layer
+from pydivert.enum import Layer, RegKeys
 from pydivert.winutils import get_reg_values
-from pydivert.models import WinDivertAddress, DivertIpHeader, DivertIpv6Header, DivertIcmpHeader, DivertIcmpv6Header
-from pydivert.models import DivertTcpHeader, DivertUdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
+from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header
+from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 __author__ = 'fabio'
 PACKET_BUFFER_SIZE = 1500
+
+#TODO: move the logger away... Probably better inside WinDivert class
+logger = logging.getLogger(__name__)
 
 
 class WinDivert(object):
@@ -31,44 +37,44 @@ class WinDivert(object):
     Python interface for WinDivert.dll library.
     """
 
-    dll_argtypes = {"WinDivertHelperParsePacket": [ctypes.c_void_p,
-                                                      ctypes.c_uint,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      ctypes.c_void_p,
-                                                      POINTER(ctypes.c_uint)],
-                          "WinDivertHelperParseIPv4Address": [ctypes.c_char_p,
-                                                           POINTER(ctypes.c_uint32)],
-                          "WinDivertHelperParseIPv6Address": [ctypes.c_char_p,
-                                                           POINTER(ctypes.ARRAY(ctypes.c_uint16, 8))],
-                          "WinDivertHelperCalcChecksums": [ctypes.c_void_p,
-                                                        ctypes.c_uint,
-                                                        ctypes.c_uint64],
-                          "WinDivertOpen": [ctypes.c_char_p,
-                                         ctypes.c_int,
-                                         ctypes.c_int16,
-                                         ctypes.c_uint64],
-                          "WinDivertRecv": [ctypes.c_uint,
-                                         ctypes.c_void_p,
-                                         ctypes.c_uint,
-                                         ctypes.c_void_p,
-                                         ctypes.c_void_p],
-                          "WinDivertSend": [ctypes.c_void_p,
-                                         ctypes.c_void_p,
-                                         ctypes.c_uint,
-                                         ctypes.c_void_p,
-                                         ctypes.c_void_p],
-                          "WinDivertClose": [ctypes.c_void_p],
-                          "WinDivertGetParam": [ctypes.c_void_p,
-                                             ctypes.c_int,
-                                             POINTER(ctypes.c_uint64)],
-                          "WinDivertSetParam": [ctypes.c_void_p,
-                                             ctypes.c_int,
-                                             ctypes.c_uint64],
+    dll_argtypes = {"WinDivertHelperParsePacket": [HANDLE,
+                                                   c_uint,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   c_void_p,
+                                                   POINTER(c_uint)],
+                    "WinDivertHelperParseIPv4Address": [c_char_p,
+                                                        POINTER(c_uint32)],
+                    "WinDivertHelperParseIPv6Address": [c_char_p,
+                                                        POINTER(ARRAY(c_uint16, 8))],
+                    "WinDivertHelperCalcChecksums": [c_void_p,
+                                                     c_uint,
+                                                     c_uint64],
+                    "WinDivertOpen": [c_char_p,
+                                      c_int,
+                                      c_int16,
+                                      c_uint64],
+                    "WinDivertRecv": [c_uint,
+                                      c_void_p,
+                                      c_uint,
+                                      c_void_p,
+                                      c_void_p],
+                    "WinDivertSend": [c_void_p,
+                                      c_void_p,
+                                      c_uint,
+                                      c_void_p,
+                                      c_void_p],
+                    "WinDivertClose": [c_void_p],
+                    "WinDivertGetParam": [c_void_p,
+                                          c_int,
+                                          POINTER(c_uint64)],
+                    "WinDivertSetParam": [c_void_p,
+                                          c_int,
+                                          c_uint64],
     }
 
     class LegacyDLLWrapper(object):
@@ -96,23 +102,39 @@ class WinDivert(object):
             else:
                 return setattr(self._lib, key, value)
 
-    def __init__(self, dll_path=None, reg_key=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0", encoding="UTF-8"):
-        if not dll_path:
-            #We try to load from registry key
-            self.registry = get_reg_values(reg_key)
-            self.driver = self.registry["ImagePath"]
-            dll_path = ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
+    def _dll_from_registry(self):
+        """
+        Tries to construct the dll path assuming the WinDivert.dll
+        is placed inside the same directory of the WinDivert.sys driver
+        """
+        self.registry = get_reg_values(RegKeys.VERSION11)
+        if not self.registry:
+            logger.debug("WinDivert 1.1 not found... Trying 1.0 version")
+            self.registry = get_reg_values(RegKeys.VERSION10)
+            #TODO: raise a nice exception in case we don't find any driver registered
+        self.driver = self.registry["ImagePath"]
+        return ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
 
-        if reg_key.endswith("1.0"):
-            self._lib = self.LegacyDLLWrapper(ctypes.WinDLL(dll_path))
-        else:
-            self._lib = ctypes.WinDLL(dll_path)
+    def _load_dll(self, dll_path):
+        """
+        Loads the WinDivert.dll library
+        """
+        self._lib = WinDLL(dll_path)
+        self.reg_key = RegKeys.VERSION11
+        if not hasattr(self._lib, "WinDivertOpen"):
+            logger.debug("Library does not seem to be of version >= 1.1. Assuming 1.0...")
+            self.reg_key = RegKeys.VERSION10
+            self._lib = self.LegacyDLLWrapper(self._lib)
 
         for funct, argtypes in self.dll_argtypes.items():
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
 
-        self.reg_key = reg_key
+    def __init__(self, dll_path=None, encoding="UTF-8"):
+        if not dll_path:
+            logger.debug("Loading from Windows registry")
+            dll_path = self._dll_from_registry()
         self.encoding = encoding
+        self._load_dll(dll_path)
 
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         """
@@ -166,22 +188,22 @@ class WinDivert(object):
         packet_len = len(raw_packet)
         # Consider everything else not part of headers as payload
         # payload = ctypes.c_void_p(0)
-        payload_len = ctypes.c_uint(0)
-        ip_hdr, ipv6_hdr = ctypes.pointer(DivertIpHeader()), ctypes.pointer(DivertIpv6Header())
-        icmp_hdr, icmpv6_hdr = ctypes.pointer(DivertIcmpHeader()), ctypes.pointer(DivertIcmpv6Header())
-        tcp_hdr, udp_hdr = ctypes.pointer(DivertTcpHeader()), ctypes.pointer(DivertUdpHeader())
+        payload_len = c_uint(0)
+        ip_hdr, ipv6_hdr = pointer(IpHeader()), pointer(Ipv6Header())
+        icmp_hdr, icmpv6_hdr = pointer(IcmpHeader()), pointer(Icmpv6Header())
+        tcp_hdr, udp_hdr = pointer(TcpHeader()), pointer(UdpHeader())
         headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
 
         self._lib.WinDivertHelperParsePacket(raw_packet,
                                           packet_len,
-                                          ctypes.byref(ip_hdr),
-                                          ctypes.byref(ipv6_hdr),
-                                          ctypes.byref(icmp_hdr),
-                                          ctypes.byref(icmpv6_hdr),
-                                          ctypes.byref(tcp_hdr),
-                                          ctypes.byref(udp_hdr),
+                                          byref(ip_hdr),
+                                          byref(ipv6_hdr),
+                                          byref(icmp_hdr),
+                                          byref(icmpv6_hdr),
+                                          byref(tcp_hdr),
+                                          byref(udp_hdr),
                                           None,
-                                          ctypes.byref(payload_len))
+                                          byref(payload_len))
         #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
         #headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
 
@@ -193,7 +215,7 @@ class WinDivert(object):
         for header in headers:
             if hasattr(header, "HdrLength"):
                 header_len = getattr(header, "HdrLength", 0) * 4
-                opt_len = header_len - ctypes.sizeof(header)
+                opt_len = header_len - sizeof(header)
                 if opt_len:
                     opt = raw_packet[offset + header_len - opt_len:offset + header_len]
                     headers_opts.append(opt)
@@ -201,7 +223,7 @@ class WinDivert(object):
                     headers_opts.append('')
             else:
                 headers_opts.append('')
-                header_len = ctypes.sizeof(header)
+                header_len = sizeof(header)
             offset += header_len
 
         return CapturedPacket(payload=raw_packet[offset:],
@@ -224,8 +246,8 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv4_address
         """
-        ip_addr = ctypes.c_uint32(0)
-        self._lib.WinDivertHelperParseIPv4Address(address.encode(self.encoding), ctypes.byref(ip_addr))
+        ip_addr = c_uint32(0)
+        self._lib.WinDivertHelperParseIPv4Address(address.encode(self.encoding), byref(ip_addr))
         return ip_addr.value
 
 
@@ -243,8 +265,8 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv6_address
         """
-        ip_addr = ctypes.ARRAY(ctypes.c_uint16, 8)()
-        self._lib.WinDivertHelperParseIPv6Address(address.encode(self.encoding), ctypes.byref(ip_addr))
+        ip_addr = ARRAY(c_uint16, 8)()
+        self._lib.WinDivertHelperParseIPv6Address(address.encode(self.encoding), byref(ip_addr))
         return [x for x in ip_addr]
 
     @winerror_on_retcode
@@ -265,8 +287,8 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         packet_len = len(packet)
-        buff = ctypes.create_string_buffer(packet, packet_len)
-        self._lib.WinDivertHelperCalcChecksums(ctypes.byref(buff), packet_len, flags)
+        buff = create_string_buffer(packet, packet_len)
+        self._lib.WinDivertHelperCalcChecksums(byref(buff), packet_len, flags)
         return buff
 
     @winerror_on_retcode
@@ -357,10 +379,10 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
         """
-        packet = ctypes.create_string_buffer(bufsize)
+        packet = create_string_buffer(bufsize)
         address = WinDivertAddress()
-        recv_len = ctypes.c_int(0)
-        self._lib.WinDivertRecv(self._handle, packet, bufsize, ctypes.byref(address), ctypes.byref(recv_len))
+        recv_len = c_int(0)
+        self._lib.WinDivertRecv(self._handle, packet, bufsize, byref(address), byref(recv_len))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
     #TODO: implement WinDivertRecvEx
@@ -414,11 +436,10 @@ class Handle(object):
             raise ValueError("Wrong number of arguments passed to send")
 
         address = WinDivertAddress()
-        address.IfIdx = dest.iface[0]
-        address.SubIfIdx = dest.iface[1]
+        address.IfIdx, address.SubIfIdx = dest.iface
         address.Direction = dest.direction
-        send_len = ctypes.c_int(0)
-        self._lib.WinDivertSend(self._handle, data, len(data), ctypes.byref(address), ctypes.byref(send_len))
+        send_len = c_int(0)
+        self._lib.WinDivertSend(self._handle, data, len(data), byref(address), byref(send_len))
         return send_len
 
     #TODO: implement WinDivertSendEx
@@ -457,8 +478,8 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_get_param
         """
-        value = ctypes.c_uint64(0)
-        self._lib.WinDivertGetParam(self._handle, name, ctypes.byref(value))
+        value = c_uint64(0)
+        self._lib.WinDivertGetParam(self._handle, name, byref(value))
         return value.value
 
     def set_param(self, name, value):

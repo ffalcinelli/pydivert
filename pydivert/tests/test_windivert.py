@@ -24,7 +24,7 @@ import os
 import pydivert
 from pydivert.enum import Param
 
-from pydivert.winutils import inet_pton, get_reg_values
+from pydivert.winutils import inet_pton
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
@@ -61,16 +61,20 @@ class WinDivertTestCase(BaseTestCase):
         """
         Tests DLL registration
         """
-        w = WinDivert(self.dll_path)
-        w.register()
-        self.assertTrue(w.is_registered())
+        d = WinDivert(self.dll_path)
+        d.register()
+        self.assertTrue(d.is_registered())
+        self.assertEquals(os.path.abspath(d.get_reference()._name),
+                          os.path.abspath(self.dll_path))
 
     def test_load_ok(self):
         """
         Tests DLL loading with a correct path
         """
         try:
-            WinDivert(self.dll_path)
+            d = WinDivert(self.dll_path)
+            self.assertEquals(os.path.abspath(d.get_reference()._name),
+                              os.path.abspath(self.dll_path))
         except WindowsError as e:
             self.fail("WinDivert() constructor raised %s" % e)
 
@@ -90,17 +94,17 @@ class WinDivertTestCase(BaseTestCase):
         handle.close()
         self.assertFalse(handle.is_opened)
 
-    def test_load_from_registry(self):
-        """
-        Tesst WinDivert loading from registry key. This assumes the driver has been
-        previously registered
-        """
-        try:
-            reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
-            if get_reg_values(reg_key):
-                WinDivert(reg_key=reg_key)
-        except WindowsError as e:
-            self.fail("WinDivert() constructor raised %s" % e)
+    # def test_load_from_registry(self):
+    #     """
+    #     Tesst WinDivert loading from registry key. This assumes the driver has been
+    #     previously registered
+    #     """
+    #     try:
+    #         reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
+    #         if get_reg_values(reg_key):
+    #             WinDivert(reg_key=reg_key)
+    #     except WindowsError as e:
+    #         self.fail("WinDivert() constructor raised %s" % e)
 
     def test_construct_handle(self):
         """
@@ -134,21 +138,27 @@ class WinDivertTestCase(BaseTestCase):
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
             self.assertNotEqual(str(filter0._handle), "-1")
 
-    def test_getter_and_setter(self):
+    def test_queue_time_range(self):
         """
-        Tests getting and setting params to WinDivert
+        Tests setting the minimum value for queue time.
+        From docs: 128 < default 512 < 2048
         """
-        queue_len = 2048
-        if self.version == "1.0":
-            queue_time = 64
-        else:
-            queue_time = 128
-
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
-            filter0.set_param(Param.QUEUE_LEN, queue_len)
-            self.assertEqual(queue_len, filter0.get_param(Param.QUEUE_LEN))
-            filter0.set_param(Param.QUEUE_TIME, queue_time)
-            self.assertEqual(queue_time, filter0.get_param(Param.QUEUE_TIME))
+            #TODO: this range should have a proper default representation
+            for value in (128, 512, 2048):
+                filter0.set_param(Param.QUEUE_TIME, value)
+                self.assertEqual(value, filter0.get_param(Param.QUEUE_TIME))
+
+    def test_queue_len_range(self):
+        """
+        Tests setting the minimum value for queue length.
+        From docs: 1< default 512 <8192
+        """
+        with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
+            #TODO: this range should have a proper default representation
+            for value in (1, 512, 8192):
+                filter0.set_param(Param.QUEUE_LEN, value)
+                self.assertEqual(value, filter0.get_param(Param.QUEUE_LEN))
 
     def test_parse_ipv4_address(self):
         """
