@@ -1,8 +1,10 @@
 pydivert 
 ========
-[![PyPI Version](https://pypip.in/v/pydivert/badge.png)](https://crate.io/packages/pydivert)[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/ffalcinelli/pydivert/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+[![PyPI Version](https://pypip.in/v/pydivert/badge.png)](https://crate.io/packages/pydivert)
 
 A python binding for [WinDivert](https://github.com/basil00/Divert) driver.
+
+Project visitor's statistics: [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/ffalcinelli/pydivert/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
 
 Platform Support
 ----------------
