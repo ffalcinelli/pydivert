@@ -15,8 +15,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #SocketServer has been renamed in python3 to socketserver
+import os
 import socket
+import subprocess
+
 from pydivert.tests.test_winutils import WinInetTestCase
+
 
 try:
     from socketserver import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
@@ -123,15 +127,17 @@ def random_free_port(family=socket.AF_INET, type=socket.SOCK_STREAM):
 def run_test_suites():
     import unittest
     from unittest.test import loader
-    from pydivert.winutils import del_reg_key
     from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase, WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, WinDivertExternalInterfaceTestCase
     from pydivert.tests import test_winutils
 
     runner = unittest.TextTestRunner()
+    suite = unittest.TestSuite()
 
     for version in ("1.0", "1.1"):
-        suite = unittest.TestSuite()
-        del_reg_key(r"SYSTEM\CurrentControlSet\Services", "WinDivert" + version)
+
+        with open(os.devnull, 'wb') as devnull:
+            subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
+            subprocess.call(['sc', 'delete', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
 
         for test_class in [WinDivertTestCase,
                            WinDivertTCPIPv4TestCase,
@@ -143,11 +149,7 @@ def run_test_suites():
             for t in tests:
                 t.version = version
             suite.addTests(tests)
-        print("Running test suite for WinDivert %s" % version)
-        runner.run(suite)
 
-    suite = unittest.TestSuite()
-    print("Running remaining tests...")
     suite.addTests(loader.loadTestsFromTestCase(WinInetTestCase))
     runner.run(suite)
 

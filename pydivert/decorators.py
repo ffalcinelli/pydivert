@@ -13,9 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from contextlib import contextmanager
 import ctypes
-import os
 
 __author__ = 'fabio'
 #0      Success
@@ -37,31 +35,31 @@ def winerror_on_retcode(funct):
 
     return wrapper
 
-# def require_admin_rights(funct):
-#     """
-#     Check if the user has the Administrator access rights to load the driver.
-#     """
-#
-#     def wrapper(instance, *args, **kwargs):
-#         try:
-#             admin = os.getuid() == 0
-#             if not admin:
-#                 raise Exception("Root privileges required")
-#         except AttributeError as e:
-#             admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
-#             if not admin:
-#                 raise ctypes.WinError(code=5, descr=ctypes.FormatError(5))
-#         else:
-#             return funct(instance, *args, **kwargs)
-#
-#     return wrapper
-#
-#
-# @contextmanager
-# def cd(path):
-#     old_dir = os.getcwd()
-#     os.chdir(path)
-#     try:
-#         yield
-#     finally:
-#         os.chdir(old_dir)
+    # def require_admin_rights(funct):
+    #     """
+    #     Check if the user has the Administrator access rights to load the driver.
+    #     """
+    #
+    #     def wrapper(instance, *args, **kwargs):
+    #         try:
+    #             admin = os.getuid() == 0
+    #             if not admin:
+    #                 raise Exception("Root privileges required")
+    #         except AttributeError as e:
+    #             admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    #             if not admin:
+    #                 raise ctypes.WinError(code=5, descr=ctypes.FormatError(5))
+    #         else:
+    #             return funct(instance, *args, **kwargs)
+    #
+    #     return wrapper
+    #
+    #
+    # @contextmanager
+    # def cd(path):
+    #     old_dir = os.getcwd()
+    #     os.chdir(path)
+    #     try:
+    #         yield
+    #     finally:
+    #         os.chdir(old_dir)

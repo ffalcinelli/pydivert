@@ -37,7 +37,12 @@ class BaseTestCase(unittest.TestCase):
     """
     version = "1.0"
 
+    def clean_service(self):
+        os.system("sc stop WinDivert%s" % self.version)
+        os.system("sc delete WinDivert%s" % self.version)
+
     def setUp(self):
+        #self.clean_service()
         self.driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", self.version)
         if platform.architecture()[0] == "32bit":
             self.driver_dir = os.path.join(self.driver_dir, "x86")
@@ -83,6 +88,10 @@ class BaseTestCase(unittest.TestCase):
         self.assertTrue(handle.is_opened)
         handle.close()
         self.assertFalse(handle.is_opened)
+
+    def tearDown(self):
+        #self.clean_service()
+        pass
 
 
 class WinDivertTestCase(BaseTestCase):
@@ -182,7 +191,7 @@ class WinDivertTestCase(BaseTestCase):
         self.assertEqual(struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, address)), tuple(result))
 
     def tearDown(self):
-        pass
+        super(WinDivertTestCase, self).tearDown()
 
 
 class WinDivertTCPDataCaptureTestCase(BaseTestCase):
@@ -385,6 +394,7 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
             pass
         self.server.shutdown()
         self.server.server_close()
+        super(WinDivertTCPDataCaptureTestCase, self).tearDown()
 
 
 class WinDivertTCPIPv4TestCase(BaseTestCase):
@@ -525,6 +535,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
+        super(WinDivertTCPIPv4TestCase, self).tearDown()
 
 
 class WinDivertTCPIPv6TestCase(BaseTestCase):
@@ -629,6 +640,7 @@ class WinDivertTCPIPv6TestCase(BaseTestCase):
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
+        super(WinDivertTCPIPv6TestCase, self).tearDown()
 
 
 class WinDivertUDPTestCase(BaseTestCase):
@@ -690,6 +702,7 @@ class WinDivertUDPTestCase(BaseTestCase):
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
+        super(WinDivertUDPTestCase, self).tearDown()
 
 
 class WinDivertExternalInterfaceTestCase(BaseTestCase):
@@ -739,4 +752,5 @@ class WinDivertExternalInterfaceTestCase(BaseTestCase):
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
+        super(WinDivertExternalInterfaceTestCase, self).tearDown()
 

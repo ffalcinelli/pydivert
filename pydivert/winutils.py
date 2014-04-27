@@ -168,7 +168,6 @@ def del_reg_key(sub_key, key, root_key=winreg.HKEY_LOCAL_MACHINE):
     """
     Given a key name, removes it from the Windows registry
     """
-    key_handle = None
     logger.debug("Removing key %s" % key)
     try:
         key_handle = winreg.OpenKey(root_key, sub_key, 0, winreg.KEY_ALL_ACCESS)
@@ -176,7 +175,7 @@ def del_reg_key(sub_key, key, root_key=winreg.HKEY_LOCAL_MACHINE):
     except WindowsError as e:
         if e.errno != errno.ENOENT:
             logger.error("Got error while deleting key %s: %s" % (key, e))
-    finally:
+    else:
         logger.debug("Closing key handle for key %s" % key)
         key_handle.Close()
 
