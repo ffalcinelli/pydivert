@@ -14,19 +14,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from _ctypes import POINTER, pointer, byref, sizeof
-from ctypes.wintypes import HANDLE
+from ctypes.wintypes import HANDLE, DWORD
 import os
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint16, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer)
 import logging
+
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer, RegKeys
-from pydivert.winutils import get_reg_values
+from pydivert.exception import DriverNotRegisteredException
+from pydivert.winutils import get_reg_values, OVERLAPPED, CreateEvent, GetLastError, GetOverlappedResult
 from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header
 from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
+
 __author__ = 'fabio'
 PACKET_BUFFER_SIZE = 1500
+
+ERROR_IO_PENDING = 997
 
 #TODO: move the logger away... Probably better inside WinDivert class
 logger = logging.getLogger(__name__)
@@ -37,49 +42,24 @@ class WinDivert(object):
     Python interface for WinDivert.dll library.
     """
 
-    dll_argtypes = {"WinDivertHelperParsePacket": [HANDLE,
-                                                   c_uint,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   c_void_p,
-                                                   POINTER(c_uint)],
-                    "WinDivertHelperParseIPv4Address": [c_char_p,
-                                                        POINTER(c_uint32)],
-                    "WinDivertHelperParseIPv6Address": [c_char_p,
-                                                        POINTER(ARRAY(c_uint16, 8))],
-                    "WinDivertHelperCalcChecksums": [c_void_p,
-                                                     c_uint,
-                                                     c_uint64],
-                    "WinDivertOpen": [c_char_p,
-                                      c_int,
-                                      c_int16,
-                                      c_uint64],
-                    "WinDivertRecv": [HANDLE,
-                                      c_void_p,
-                                      c_uint,
-                                      c_void_p,
-                                      c_void_p],
-                    "WinDivertSend": [HANDLE,
-                                      c_void_p,
-                                      c_uint,
-                                      c_void_p,
-                                      c_void_p],
+    dll_argtypes = {"WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p,
+                                                   c_void_p, c_void_p, c_void_p, c_void_p, POINTER(c_uint)],
+                    "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
+                    "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint16, 8))],
+                    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
+                    "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
+                    "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
+                    "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
+                    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
+                    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
                     "WinDivertClose": [HANDLE],
-                    "WinDivertGetParam": [HANDLE,
-                                          c_int,
-                                          POINTER(c_uint64)],
-                    "WinDivertSetParam": [HANDLE,
-                                          c_int,
-                                          c_uint64],
+                    "WinDivertGetParam": [HANDLE, c_int, POINTER(c_uint64)],
+                    "WinDivertSetParam": [HANDLE, c_int, c_uint64],
     }
 
     class LegacyDLLWrapper(object):
         """
-        A wrapper object to seemlessy call the 1.0 api instead of the 1.1
+        A wrapper object to seamlessy call the 1.0 api instead of the 1.1
         """
         _lib = None
 
@@ -102,18 +82,19 @@ class WinDivert(object):
             else:
                 return setattr(self._lib, key, value)
 
-    def _dll_from_registry(self):
+    def _dll_from_registry(self, dll_name="WinDivert.dll"):
         """
         Tries to construct the dll path assuming the WinDivert.dll
         is placed inside the same directory of the WinDivert.sys driver
         """
-        self.registry = get_reg_values(RegKeys.VERSION11)
-        if not self.registry:
+        try:
+            self.registry = get_reg_values(RegKeys.VERSION11)
+        except DriverNotRegisteredException as e:
             logger.debug("WinDivert 1.1 not found... Trying 1.0 version")
             self.registry = get_reg_values(RegKeys.VERSION10)
-            #TODO: raise a nice exception in case we don't find any driver registered
+
         self.driver = self.registry["ImagePath"]
-        return ("%s.%s" % (os.path.splitext(self.driver)[0], "dll"))[4:]
+        return os.path.join(os.path.split(self.driver)[0][4:], dll_name)
 
     def _load_dll(self, dll_path):
         """
@@ -125,6 +106,8 @@ class WinDivert(object):
             logger.debug("Library does not seem to be of version >= 1.1. Assuming 1.0...")
             self.reg_key = RegKeys.VERSION10
             self._lib = self.LegacyDLLWrapper(self._lib)
+            self.dll_argtypes = {k: v for k, v in self.dll_argtypes.items() if
+                                 k not in ("WinDivertSendEx", "WinDivertRecvEx")}
 
         for funct, argtypes in self.dll_argtypes.items():
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
@@ -302,7 +285,7 @@ class WinDivert(object):
     @winerror_on_retcode
     def register(self):
         """
-        An utility method to register the driver the first time
+        An utility method to register the driver the first time.
         """
         #with cd(os.path.dirname(self._lib._name)):
         handle = self.open_handle("false")
@@ -385,7 +368,6 @@ class Handle(object):
         self._lib.WinDivertRecv(self._handle, packet, bufsize, byref(address), byref(recv_len))
         return packet[:recv_len.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
 
-    #TODO: implement WinDivertRecvEx
 
     @winerror_on_retcode
     def receive(self, bufsize=PACKET_BUFFER_SIZE):
@@ -442,7 +424,112 @@ class Handle(object):
         self._lib.WinDivertSend(self._handle, data, len(data), byref(address), byref(send_len))
         return send_len
 
-    #TODO: implement WinDivertSendEx
+    #TODO: not ready method!
+    @winerror_on_retcode
+    def __receive_async(self, bufsize=PACKET_BUFFER_SIZE):
+        """
+        Receives a diverted packet that matched the filter passed to the handle constructor asynchronously.
+
+        The remapped function is WinDivertRecvEx:
+
+        BOOL WinDivertRecvEx(
+            __in HANDLE handle,
+            __out PVOID pPacket,
+            __in UINT packetLen,
+            __in UINT64 flags,
+            __out_opt PWINDIVERT_ADDRESS pAddr,
+            __out_opt UINT *recvLen,
+            __inout_opt LPOVERLAPPED lpOverlapped
+        );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv_ex
+        """
+        overlapped = OVERLAPPED()
+        #lp_overlapped = POINTER(winasync.OVERLAPPED)
+
+        event = CreateEvent(None, True, True, None)
+
+        overlapped.hEvent = event
+        packet = create_string_buffer(bufsize)
+        address = WinDivertAddress()
+        recv_len = c_int(0)
+
+        #def wrapped(instance):
+
+        #TODO: callbacks... Move this in an IOLoop and launch a callback
+        while True:
+            #TODO: maybe is better to introduce a little timing
+            retcode = self._lib.WinDivertRecvEx(self._handle, byref(packet), sizeof(packet), 0, byref(address),
+                                                byref(recv_len),
+                                                byref(overlapped))
+            if not retcode:
+                iolen = DWORD()
+                if (GetLastError() != ERROR_IO_PENDING or
+                        not GetOverlappedResult(self._handle,
+                                                byref(overlapped),
+                                                byref(iolen),
+                                                True)):
+                    continue
+            print("YIELDING")
+            yield (packet[:iolen.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction))
+
+
+            #yield wrapped(self)
+
+    #TODO: not ready method!
+    @winerror_on_retcode
+    def __send_async(self, *args):
+        """
+        Injects a packet into the network stack.
+
+        The remapped function is WinDivertSendEx:
+
+        BOOL WinDivertSendEx(
+            __in HANDLE handle,
+            __in PVOID pPacket,
+            __in UINT packetLen,
+            __in UINT64 flags,
+            __in PWINDIVERT_ADDRESS pAddr,
+            __out_opt UINT *sendLen,
+            __inout_opt LPOVERLAPPED lpOverlapped
+        );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send_ex
+        """
+        if len(args) == 1:
+            #Maybe this is a poor way to check the type, but it should work
+            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
+                data, dest = args[0]
+            elif isinstance(args[0], CapturedPacket):
+                packet = self.driver.update_packet_checksums(args[0])
+                data, dest = packet.raw, packet.meta
+            else:
+                raise ValueError("Not a CapturedPacket or sequence (data, meta): %s" % str(args))
+        elif len(args) == 2:
+            data, dest = args[0], args[1]
+        else:
+            raise ValueError("Wrong number of arguments passed to send")
+
+        address = WinDivertAddress()
+        address.IfIdx, address.SubIfIdx = dest.iface
+        address.Direction = dest.direction
+        send_len = len(data)
+        print(send_len, " - ", data)
+
+        #def wrapped(instance):
+
+        #while True:
+        result = self._lib.WinDivertSendEx(self._handle, data, send_len, 0, byref(address), None, None)
+
+        if not result:
+            if GetLastError() != ERROR_IO_PENDING:
+                print("Not pending")
+
+            else:
+                print("Pending")
+
+
+                #yield wrapped(self)
 
     @winerror_on_retcode
     def close(self):

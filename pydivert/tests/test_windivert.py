@@ -19,11 +19,10 @@ import struct
 import threading
 import unittest
 import platform
-
 import os
+
 import pydivert
 from pydivert.enum import Param
-
 from pydivert.winutils import inet_pton
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
@@ -46,15 +45,6 @@ class BaseTestCase(unittest.TestCase):
             self.driver_dir = os.path.join(self.driver_dir, "amd64")
         os.chdir(self.driver_dir)
         self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
-
-
-class WinDivertTestCase(BaseTestCase):
-    """
-    Tests the driver registration, opening handles and functions not requiring network traffic
-    """
-
-    def setUp(self):
-        super(WinDivertTestCase, self).setUp()
         self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
     def test_register(self):
@@ -94,17 +84,27 @@ class WinDivertTestCase(BaseTestCase):
         handle.close()
         self.assertFalse(handle.is_opened)
 
-    # def test_load_from_registry(self):
-    #     """
-    #     Tesst WinDivert loading from registry key. This assumes the driver has been
-    #     previously registered
-    #     """
-    #     try:
-    #         reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
-    #         if get_reg_values(reg_key):
-    #             WinDivert(reg_key=reg_key)
-    #     except WindowsError as e:
-    #         self.fail("WinDivert() constructor raised %s" % e)
+
+class WinDivertTestCase(BaseTestCase):
+    """
+    Tests the driver registration, opening handles and functions not requiring network traffic
+    """
+
+    def setUp(self):
+        super(WinDivertTestCase, self).setUp()
+        WinDivert(self.dll_path).register()
+        #self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
+
+
+    def test_load_from_registry(self):
+        """
+        Tesst WinDivert loading from registry key. This assumes the driver has been
+        previously registered
+        """
+        try:
+            WinDivert()
+        except WindowsError as e:
+            self.fail("WinDivert() constructor raised %s" % e)
 
     def test_construct_handle(self):
         """
@@ -145,7 +145,8 @@ class WinDivertTestCase(BaseTestCase):
         """
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
             #TODO: this range should have a proper default representation
-            for value in (128, 512, 2048):
+            def_range = (128, 512) if self.version == "1.0" else (128, 512, 2048)
+            for value in def_range:
                 filter0.set_param(Param.QUEUE_TIME, value)
                 self.assertEqual(value, filter0.get_param(Param.QUEUE_TIME))
 
@@ -195,6 +196,8 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
         self.server = FakeTCPServerIPv4(("127.0.0.1", 0), EchoUpperTCPHandler)
         filter = "outbound and tcp.DstPort == %d and tcp.PayloadLength > 0" % self.server.server_address[1]
         self.driver = WinDivert(os.path.join(self.driver_dir, "WinDivert.dll"))
+        self.driver.register()
+
         self.handle = self.driver.open_handle(filter=filter)
 
         self.server_thread = threading.Thread(target=self.server.serve_forever)
@@ -376,7 +379,10 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
         self.assertRaises(ValueError, self.handle.send, "test")
 
     def tearDown(self):
-        self.handle.close()
+        try:
+            self.handle.close()
+        except:
+            pass
         self.server.shutdown()
         self.server.server_close()
 
