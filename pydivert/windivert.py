@@ -19,10 +19,11 @@ import os
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint16, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer)
 import logging
+from time import sleep
 
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer, RegKeys
-from pydivert.exception import DriverNotRegisteredException
+from pydivert.exception import DriverNotRegisteredException, AsyncCallFailedException, MethodUnsupportedException
 from pydivert.winutils import get_reg_values, OVERLAPPED, CreateEvent, GetLastError, GetOverlappedResult
 from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header
 from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
@@ -35,6 +36,44 @@ ERROR_IO_PENDING = 997
 
 #TODO: move the logger away... Probably better inside WinDivert class
 logger = logging.getLogger(__name__)
+
+
+class FuturePacket(object):
+    def __init__(self, handle, callback=None, bufsize=PACKET_BUFFER_SIZE, iodelay=0.02):
+        self.overlapped = OVERLAPPED()
+        self.event = CreateEvent(None, True, True, None)
+        self.overlapped.hEvent = self.event
+        self.handle = handle
+        self.packet = create_string_buffer(bufsize)
+        self.address = WinDivertAddress()
+        self.recv_len = c_int(0)
+        self.complete = False
+        self.callback = callback
+        self.iodelay = iodelay
+
+    def is_complete(self):
+        return self.complete
+
+    def get_result(self):
+        ready = False
+        while not ready:
+            iolen = DWORD()
+            if GetOverlappedResult(self.handle,
+                                   byref(self.overlapped),
+                                   byref(iolen),
+                                   False):
+                #print("%d Executing callback" % GetLastError())
+                if self.callback:
+                    self.callback(self.packet[:iolen.value],
+                                  CapturedMetadata((self.address.IfIdx, self.address.SubIfIdx), self.address.Direction))
+                self.complete = True
+            ready = (GetLastError() != 996)
+            yield self
+            sleep(self.iodelay)
+
+
+    def __str__(self):
+        return "FuturePacket %s (%s)" % (self.address, self.status)
 
 
 class WinDivert(object):
@@ -379,6 +418,29 @@ class Handle(object):
         """
         return self.driver.parse_packet(self.recv(bufsize))
 
+    def __parse_send_args(self, *args):
+        """
+        Utility method to parse arguments passed to send
+        """
+        if len(args) == 1:
+            #Maybe this is a poor way to check the type, but it should work
+            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
+                data, dest = args[0]
+            elif isinstance(args[0], CapturedPacket):
+                packet = self.driver.update_packet_checksums(args[0])
+                data, dest = packet.raw, packet.meta
+            else:
+                raise ValueError("Not a CapturedPacket or sequence (data, meta): %s" % str(args))
+        elif len(args) == 2:
+            data, dest = args[0], args[1]
+        else:
+            raise ValueError("Wrong number of arguments passed to send")
+
+        address = WinDivertAddress()
+        address.IfIdx, address.SubIfIdx = dest.iface
+        address.Direction = dest.direction
+        return data, address
+
     @winerror_on_retcode
     def send(self, *args):
         """
@@ -403,30 +465,13 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
         """
-        if len(args) == 1:
-            #Maybe this is a poor way to check the type, but it should work
-            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
-                data, dest = args[0]
-            elif isinstance(args[0], CapturedPacket):
-                packet = self.driver.update_packet_checksums(args[0])
-                data, dest = packet.raw, packet.meta
-            else:
-                raise ValueError("Not a CapturedPacket or sequence (data, meta): %s" % str(args))
-        elif len(args) == 2:
-            data, dest = args[0], args[1]
-        else:
-            raise ValueError("Wrong number of arguments passed to send")
-
-        address = WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = dest.iface
-        address.Direction = dest.direction
+        data, address = self.__parse_send_args(*args)
         send_len = c_int(0)
         self._lib.WinDivertSend(self._handle, data, len(data), byref(address), byref(send_len))
         return send_len
 
     #TODO: not ready method!
-    @winerror_on_retcode
-    def __receive_async(self, bufsize=PACKET_BUFFER_SIZE):
+    def _receive_async(self, callback=None, bufsize=PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor asynchronously.
 
@@ -444,41 +489,25 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv_ex
         """
-        overlapped = OVERLAPPED()
-        #lp_overlapped = POINTER(winasync.OVERLAPPED)
+        if not hasattr(self._lib, "WinDivertRecvEx"):
+            raise MethodUnsupportedException("Async receive is not supported with this version of WinDivert")
 
-        event = CreateEvent(None, True, True, None)
+        future = FuturePacket(self._handle, callback=callback, bufsize=bufsize)
 
-        overlapped.hEvent = event
-        packet = create_string_buffer(bufsize)
-        address = WinDivertAddress()
-        recv_len = c_int(0)
+        retcode = self._lib.WinDivertRecvEx(self._handle, byref(future.packet), sizeof(future.packet), 0,
+                                            byref(future.address),
+                                            byref(future.recv_len),
+                                            byref(future.overlapped))
+        last_error = GetLastError()
+        if not retcode and last_error == ERROR_IO_PENDING:
+            return future.get_result()
+        else:
+            raise AsyncCallFailedException(
+                "Async receive failed with retcode %d and LastError %d" % (retcode, last_error))
 
-        #def wrapped(instance):
-
-        #TODO: callbacks... Move this in an IOLoop and launch a callback
-        while True:
-            #TODO: maybe is better to introduce a little timing
-            retcode = self._lib.WinDivertRecvEx(self._handle, byref(packet), sizeof(packet), 0, byref(address),
-                                                byref(recv_len),
-                                                byref(overlapped))
-            if not retcode:
-                iolen = DWORD()
-                if (GetLastError() != ERROR_IO_PENDING or
-                        not GetOverlappedResult(self._handle,
-                                                byref(overlapped),
-                                                byref(iolen),
-                                                True)):
-                    continue
-            print("YIELDING")
-            yield (packet[:iolen.value], CapturedMetadata((address.IfIdx, address.SubIfIdx), address.Direction))
-
-
-            #yield wrapped(self)
 
     #TODO: not ready method!
-    @winerror_on_retcode
-    def __send_async(self, *args):
+    def _send_async(self, *args):
         """
         Injects a packet into the network stack.
 
@@ -496,40 +525,21 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send_ex
         """
-        if len(args) == 1:
-            #Maybe this is a poor way to check the type, but it should work
-            if hasattr(args[0], "__iter__") and not hasattr(args[0], "strip"):
-                data, dest = args[0]
-            elif isinstance(args[0], CapturedPacket):
-                packet = self.driver.update_packet_checksums(args[0])
-                data, dest = packet.raw, packet.meta
-            else:
-                raise ValueError("Not a CapturedPacket or sequence (data, meta): %s" % str(args))
-        elif len(args) == 2:
-            data, dest = args[0], args[1]
-        else:
-            raise ValueError("Wrong number of arguments passed to send")
+        if not hasattr(self._lib, "WinDivertSendEx"):
+            raise MethodUnsupportedException("Async send is not supported with this version of WinDivert")
 
-        address = WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = dest.iface
-        address.Direction = dest.direction
+        data, address = self.__parse_send_args(*args)
         send_len = len(data)
-        print(send_len, " - ", data)
+        retcode = self._lib.WinDivertSendEx(self._handle, data, send_len, 0, byref(address), None, None)
 
-        #def wrapped(instance):
-
-        #while True:
-        result = self._lib.WinDivertSendEx(self._handle, data, send_len, 0, byref(address), None, None)
-
-        if not result:
-            if GetLastError() != ERROR_IO_PENDING:
-                print("Not pending")
-
-            else:
-                print("Pending")
+        last_error = GetLastError()
+        if retcode and last_error == ERROR_IO_PENDING:
+            return True
+        else:
+            raise AsyncCallFailedException("Async send failed with retcode %d and LastError %d" % (retcode, last_error))
 
 
-                #yield wrapped(self)
+            #yield wrapped(self)
 
     @winerror_on_retcode
     def close(self):

@@ -23,6 +23,7 @@ import os
 
 import pydivert
 from pydivert.enum import Param
+from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
@@ -33,9 +34,10 @@ __author__ = 'fabio'
 
 class BaseTestCase(unittest.TestCase):
     """
-    A base test case to take driver version into account
+    A base test case to take driver version into account.
+    Tests the basic operations like registering the driver.
     """
-    version = "1.0"
+    version = "1.1"
 
     def clean_service(self):
         os.system("sc stop WinDivert%s" % self.version)
@@ -96,7 +98,7 @@ class BaseTestCase(unittest.TestCase):
 
 class WinDivertTestCase(BaseTestCase):
     """
-    Tests the driver registration, opening handles and functions not requiring network traffic
+    Tests laoding from registry, opening handles and functions not requiring network traffic
     """
 
     def setUp(self):
@@ -754,3 +756,52 @@ class WinDivertExternalInterfaceTestCase(BaseTestCase):
         self.server.server_close()
         super(WinDivertExternalInterfaceTestCase, self).tearDown()
 
+
+class WinDivertAsyncTestCase(BaseTestCase):
+    def setUp(self):
+        super(WinDivertAsyncTestCase, self).setUp()
+        # Initialize the fake tcp server
+        self.server = FakeTCPServerIPv4(("127.0.0.1", 0), EchoUpperTCPHandler)
+        filter = "outbound and tcp.DstPort == %d and tcp.PayloadLength > 0" % self.server.server_address[1]
+        self.driver = WinDivert(os.path.join(self.driver_dir, "WinDivert.dll"))
+        self.driver.register()
+
+        self.handle = self.driver.open_handle(filter=filter)
+
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.start()
+
+        # Initialize the fake tcp client
+        self.text = "Hello World!"
+        self.client = FakeTCPClient(self.server.server_address, self.text.encode("UTF-8"))
+        self.client_thread = threading.Thread(target=self.client.send)
+        self.client_thread.start()
+
+
+    def test_async_pass_through(self):
+        """
+
+        """
+
+        def callback(*args):
+            self.handle._send_async(*args)
+
+        if self.version != "1.0":
+            for future in self.handle._receive_async(callback=callback):
+                if not future.is_complete():
+                    pass
+                else:
+                    break
+            self.client_thread.join(timeout=10)
+            self.assertEqual(self.text.upper(), self.client.response.decode("UTF-8"))
+        else:
+            self.assertRaises(MethodUnsupportedException, self.handle._receive_async, callback=callback)
+
+    def tearDown(self):
+        try:
+            self.handle.close()
+        except:
+            pass
+        self.server.shutdown()
+        self.server.server_close()
+        super(WinDivertAsyncTestCase, self).tearDown()

@@ -18,8 +18,9 @@
 import os
 import socket
 import subprocess
+import sys
 
-from pydivert.tests.test_winutils import WinInetTestCase
+import pydivert
 
 
 try:
@@ -127,13 +128,22 @@ def random_free_port(family=socket.AF_INET, type=socket.SOCK_STREAM):
 def run_test_suites():
     import unittest
     from unittest.test import loader
-    from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase, WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, WinDivertExternalInterfaceTestCase
+    from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase
+    from pydivert.tests.test_windivert import WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, \
+        WinDivertExternalInterfaceTestCase
+    from pydivert.tests.test_windivert import WinDivertAsyncTestCase
+    from pydivert.tests.test_winutils import WinInetTestCase
     from pydivert.tests import test_winutils
 
     runner = unittest.TextTestRunner()
     suite = unittest.TestSuite()
 
     for version in ("1.0", "1.1"):
+        driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", version)
+        if not os.path.exists(driver_dir):
+            sys.stderr.write("Could not find directory %s\n" % driver_dir)
+            sys.stderr.write("Tests for version %s will be skipped...\n" % version)
+            continue
 
         with open(os.devnull, 'wb') as devnull:
             subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
@@ -144,7 +154,8 @@ def run_test_suites():
                            WinDivertTCPIPv6TestCase,
                            WinDivertUDPTestCase,
                            WinDivertTCPDataCaptureTestCase,
-                           WinDivertExternalInterfaceTestCase]:
+                           WinDivertExternalInterfaceTestCase,
+                           WinDivertAsyncTestCase]:
             tests = loader.loadTestsFromTestCase(test_class)
             for t in tests:
                 t.version = version

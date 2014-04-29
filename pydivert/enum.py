@@ -42,3 +42,6 @@ HelperOption = enum(NO_IP_CHECKSUM=1,
 
 RegKeys = enum(VERSION10=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0",
                VERSION11=r"SYSTEM\CurrentControlSet\Services\WinDivert1.1")
+
+DriverVersions = enum(VERSION10=0,
+                      VERSION11=1)
