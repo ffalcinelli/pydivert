@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from contextlib import contextmanager
 import ctypes
+import os
 
 __author__ = 'fabio'
 #0      Success
@@ -55,11 +57,16 @@ def winerror_on_retcode(funct):
     #     return wrapper
     #
     #
-    # @contextmanager
-    # def cd(path):
-    #     old_dir = os.getcwd()
-    #     os.chdir(path)
-    #     try:
-    #         yield
-    #     finally:
-    #         os.chdir(old_dir)
+
+
+@contextmanager
+def cd(path):
+    """
+    A context manager for a temporary change of the working directory
+    """
+    old_dir = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(old_dir)

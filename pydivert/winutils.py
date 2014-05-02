@@ -121,17 +121,6 @@ def inet_ntop(address_family, packed_ip, encoding="UTF-8"):
     return (ip_string[:ip_string_size.value - 1]).decode(encoding)
 
 
-def print_services():
-    k = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Services")
-    count = 0
-    while True:
-        values = winreg.EnumKey(k, count)
-        if values.startswith("Win"):
-            print(values)
-        count += 1
-    winreg.CloseKey(k)
-
-
 def get_reg_values(key, root_key=winreg.HKEY_LOCAL_MACHINE):
     """
     Given a key name, return a dictionary of its values.
@@ -139,7 +128,6 @@ def get_reg_values(key, root_key=winreg.HKEY_LOCAL_MACHINE):
     count = 0
     result = {}
     try:
-        #print_services()
         logger.debug("Reading key %s" % key)
         key_handle = winreg.OpenKey(root_key, key)
     except WindowsError as error:

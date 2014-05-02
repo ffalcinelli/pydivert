@@ -16,12 +16,12 @@
 from _ctypes import POINTER, pointer, byref, sizeof
 from ctypes.wintypes import HANDLE, DWORD
 import os
-from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint16, c_uint64, c_int16, c_int, WinDLL,
-                    create_string_buffer)
+from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
+                    create_string_buffer, c_uint8)
 import logging
 from time import sleep
 
-from pydivert.decorators import winerror_on_retcode
+from pydivert.decorators import winerror_on_retcode, cd
 from pydivert.enum import Layer, RegKeys
 from pydivert.exception import DriverNotRegisteredException, AsyncCallFailedException, MethodUnsupportedException
 from pydivert.winutils import get_reg_values, OVERLAPPED, CreateEvent, GetLastError, GetOverlappedResult
@@ -73,7 +73,7 @@ class FuturePacket(object):
 
 
     def __str__(self):
-        return "FuturePacket %s (%s)" % (self.address, self.status)
+        return "FuturePacket %s (ready: %s)" % (self.address, self.complete)
 
 
 class WinDivert(object):
@@ -84,7 +84,7 @@ class WinDivert(object):
     dll_argtypes = {"WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p,
                                                    c_void_p, c_void_p, c_void_p, c_void_p, POINTER(c_uint)],
                     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
-                    "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint16, 8))],
+                    "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
                     "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
                     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
                     "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
@@ -155,6 +155,7 @@ class WinDivert(object):
         if not dll_path:
             logger.debug("Loading from Windows registry")
             dll_path = self._dll_from_registry()
+        self.dll_path = dll_path
         self.encoding = encoding
         self._load_dll(dll_path)
 
@@ -217,15 +218,15 @@ class WinDivert(object):
         headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
 
         self._lib.WinDivertHelperParsePacket(raw_packet,
-                                          packet_len,
-                                          byref(ip_hdr),
-                                          byref(ipv6_hdr),
-                                          byref(icmp_hdr),
-                                          byref(icmpv6_hdr),
-                                          byref(tcp_hdr),
-                                          byref(udp_hdr),
-                                          None,
-                                          byref(payload_len))
+                                             packet_len,
+                                             byref(ip_hdr),
+                                             byref(ipv6_hdr),
+                                             byref(icmp_hdr),
+                                             byref(icmpv6_hdr),
+                                             byref(tcp_hdr),
+                                             byref(udp_hdr),
+                                             None,
+                                             byref(payload_len))
         #headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
         #headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
 
@@ -250,7 +251,8 @@ class WinDivert(object):
 
         return CapturedPacket(payload=raw_packet[offset:],
                               raw_packet=raw_packet,
-                              headers=[HeaderWrapper(hdr, opt, self.encoding) for hdr, opt in zip(headers, headers_opts)],
+                              headers=[HeaderWrapper(hdr, opt, self.encoding) for hdr, opt in
+                                       zip(headers, headers_opts)],
                               meta=meta,
                               encoding=self.encoding)
 
@@ -287,9 +289,9 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv6_address
         """
-        ip_addr = ARRAY(c_uint16, 8)()
+        ip_addr = ARRAY(c_uint8, 16)()
         self._lib.WinDivertHelperParseIPv6Address(address.encode(self.encoding), byref(ip_addr))
-        return [x for x in ip_addr]
+        return ip_addr
 
     @winerror_on_retcode
     def calc_checksums(self, packet, flags=0):
@@ -326,9 +328,9 @@ class WinDivert(object):
         """
         An utility method to register the driver the first time.
         """
-        #with cd(os.path.dirname(self._lib._name)):
-        handle = self.open_handle("false")
-        handle.close()
+        with cd(os.path.dirname(self.dll_path)):
+            handle = self.open_handle("false")
+            handle.close()
 
     @winerror_on_retcode
     def is_registered(self):

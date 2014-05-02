@@ -24,7 +24,7 @@ import os
 import pydivert
 from pydivert.enum import Param
 from pydivert.exception import MethodUnsupportedException
-from pydivert.winutils import inet_pton
+from pydivert.winutils import inet_pton, inet_ntop
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
@@ -50,7 +50,7 @@ class BaseTestCase(unittest.TestCase):
             self.driver_dir = os.path.join(self.driver_dir, "x86")
         else:
             self.driver_dir = os.path.join(self.driver_dir, "amd64")
-        os.chdir(self.driver_dir)
+        #os.chdir(self.driver_dir)
         self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
         self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
@@ -61,7 +61,7 @@ class BaseTestCase(unittest.TestCase):
         d = WinDivert(self.dll_path)
         d.register()
         self.assertTrue(d.is_registered())
-        self.assertEquals(os.path.abspath(d.get_reference()._name),
+        self.assertEquals(os.path.abspath(d.dll_path),
                           os.path.abspath(self.dll_path))
 
     def test_load_ok(self):
@@ -189,8 +189,9 @@ class WinDivertTestCase(BaseTestCase):
         address = "2607:f0d0:1002:0051:0000:0000:0000:0004"
         driver = WinDivert(self.dll_path)
         driver.register()
-        result = driver.parse_ipv6_address(address)
-        self.assertEqual(struct.unpack("<HHHHHHHH", inet_pton(socket.AF_INET6, address)), tuple(result))
+        result = inet_ntop(socket.AF_INET6, driver.parse_ipv6_address(address))
+        self.assertEqual(inet_pton(socket.AF_INET6, address),
+                         inet_pton(socket.AF_INET6, result))
 
     def tearDown(self):
         super(WinDivertTestCase, self).tearDown()
