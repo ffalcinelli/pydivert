@@ -69,25 +69,43 @@ If all went well, you see a "Test Mode" watermark in the right down corner.
 Registering the driver
 ----------------------
 
-When you're done, the first call you do to `DivertOpen` (then calling to `open` on an `Handle` instance in this python api) will install the driver if not yet up and running
+When you're done, the first call you do to `WinDivertOpen` (then calling to `open` on an `Handle` instance in this python api) will install the driver if not yet up and running
 
 ```python
 handle = WinDivert( os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).open_handle(filter="false")
 handle.close()
 ```
 
-You can use also the provided `register` method which will do just the same thing
+Remember to put the `WinDivert.dll` in the same path the driver (`WinDivert*.sys`) has been deployed.
+
+To avoid problems concerning the current working directory, you can use also the provided `register` method which will do just the same thing as the above statements, but will change and restore the current working directory with the path of `WinDivert.dll`.
 
 ```python
 WinDivert(os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).register()
 ```
 
-Once installed, you don't have to use anymore the path to your DLL. The position of the `WinDivert.sys` file gets registered into the windows registry
- and if you put the `WinDivert.dll` in same path, you can get an handle by constructing a driver with no parameters
+Once installed, you don't have to use anymore the path to your DLL and you can get an handle by constructing a driver with no parameters
 
 ```python
 handle = WinDivert().open_handle(filter="true")
 ```
+
+As a matter of fact, The position of the `WinDivert.sys` file gets registered into the windows registry until a system reboot or an explicit call to
+
+```
+sc stop WinDivert1.1
+```
+
+Note that this behaviour has changed since `WinDivert1.0`. Indeed in this version, you have to call both
+
+```
+sc stop WinDivert1.0
+sc delete WinDivert1.0
+```
+
+to achieve the same result.
+
+So, if you're using driver version 1.1, it's required to register again it every time the service got stopped, for example by a system reboot.
 
 Using an Handle instance as a context manager
 ---------------------------------------------
