@@ -146,6 +146,7 @@ def run_test_suites():
             continue
 
         with open(os.devnull, 'wb') as devnull:
+            print("Preparing test environment for WinDivert version %s" % version)
             subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
             subprocess.call(['sc', 'delete', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
 

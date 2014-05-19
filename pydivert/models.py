@@ -339,7 +339,7 @@ class CapturedPacket(object):
         if len(headers) > 2:
             raise ValueError("No more than 2 headers (tcp/udp/icmp over ip) are supported")
 
-        self.payload = payload
+        self._payload = payload
         self._raw_packet = raw_packet
         self.meta = meta
 
@@ -363,6 +363,21 @@ class CapturedPacket(object):
             if hasattr(header, key):
                 setattr(header, key, value)
                 break
+
+    @property
+    def payload(self):
+        return self._payload
+
+    @payload.setter
+    def payload(self, payload):
+        header = self.headers[0]
+        if self._payload:
+            #recalculate length (current length - (current_payload_length - new_payload_length)))
+            header.Length = socket.ntohs(socket.htons(header.Length) - (len(self._payload) - len(payload)))
+        else:
+            #payload was empty: current_length + new_payload_length
+            header.Length = socket.ntohs(socket.htons(header.Length) + len(payload))
+        self._payload = payload
 
     @property
     def address_family(self):

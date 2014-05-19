@@ -393,7 +393,7 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
     def tearDown(self):
         try:
             self.handle.close()
-        except:
+        except Exception as e:
             pass
         self.server.shutdown()
         self.server.server_close()
@@ -428,6 +428,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
             packet = handle.receive()
             self.assertEqual(packet.tcp_hdr.Syn, 1)
             self.assertEqual(hexlify(packet.tcp_hdr.Options), b"0204ffd70103030801010402")
+        client_thread.join(timeout=10)
 
     def test_modify_tcp_payload(self):
         """
