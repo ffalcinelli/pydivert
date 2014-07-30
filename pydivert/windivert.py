@@ -20,6 +20,7 @@ from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int
                     create_string_buffer, c_uint8)
 import logging
 from time import sleep
+import sys
 
 from pydivert.decorators import winerror_on_retcode, cd
 from pydivert.enum import Layer, RegKeys
@@ -139,6 +140,7 @@ class WinDivert(object):
         """
         Loads the WinDivert.dll library
         """
+        #self._lib = CDLL(dll_path)
         self._lib = WinDLL(dll_path)
         self.reg_key = RegKeys.VERSION11
         if not hasattr(self._lib, "WinDivertOpen"):
@@ -153,8 +155,11 @@ class WinDivert(object):
 
     def __init__(self, dll_path=None, encoding="UTF-8"):
         if not dll_path:
-            logger.debug("Loading from Windows registry")
-            dll_path = self._dll_from_registry()
+            logger.debug("Trying to load dll from interpreter DLLs folder")
+            dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
+            if not os.path.exists(dll_path):
+                logger.debug("Not found. Trying to load from Windows registry")
+                dll_path = self._dll_from_registry()
         self.dll_path = dll_path
         self.encoding = encoding
         self._load_dll(dll_path)

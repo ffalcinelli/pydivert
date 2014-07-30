@@ -1,7 +1,7 @@
 
 Version 0.0.2
     - Support to WinDivert 1.1
-    - AsyncI/O calls are still not supported
+    - AsyncI/O calls are still not officially supported
 
 Version 0.0.1
     - Support to WinDivert1.0

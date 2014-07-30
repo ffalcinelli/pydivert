@@ -15,17 +15,40 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+
+from pydivert.decorators import cd
+from pydivert.install import WinDivertInstaller
 from pydivert.tests import run_test_suites
+
 
 __author__ = 'fabio'
 
 from setuptools import setup, find_packages, Command
+from setuptools.command.install import install
 
 workdir = os.path.abspath(os.path.dirname(__file__))
 
 
+class InstallDriver(install):
+    windivert = {
+        "version": "1.1.5",
+        "compiler": "WDDK",  # MSVC | MINGW
+        "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
+    }
+    description = 'Installs the windivert driver'
+    # user_options = []
+    # extra_env = {}
+    # extra_args = []
+
+    def run(self):
+        windivert_installer = WinDivertInstaller(self.windivert)
+        install.run(self)
+        self.execute(windivert_installer.run, (self.install_lib,),
+                     msg="Running post install task")
+
+
 class RunTests(Command):
-    description = 'Runs the test suite for audit4llc'
+    description = 'Runs the test suite for pydivert'
     user_options = []
     extra_env = {}
     extra_args = []
@@ -33,12 +56,9 @@ class RunTests(Command):
     def run(self):
         for env_name, env_value in self.extra_env.items():
             os.environ[env_name] = str(env_value)
-        cwd = os.getcwd()
-        try:
-            os.chdir(os.path.join(os.path.join(workdir, "pydivert", "tests")))
+
+        with cd(os.path.join(os.path.join(workdir, "pydivert", "tests"))):
             run_test_suites()
-        finally:
-            os.chdir(cwd)
 
     def initialize_options(self):
         pass
@@ -47,14 +67,14 @@ class RunTests(Command):
         pass
 
 
-setup(name='pydivert',
-      version='0.0.2',
-      description='Python binding to windivert driver',
+options = dict(name='pydivert',
+               version='0.0.3',
+               description='Python binding to windivert driver',
       # long_description=readme.read(),
       author='Fabio Falcinelli',
       author_email='fabio.falcinelli@gmail.com',
       url='https://github.com/ffalcinelli/pydivert',
-      download_url='https://github.com/ffalcinelli/pydivert/tarball/0.0.2',
+      download_url='https://github.com/ffalcinelli/pydivert/tarball/%(version)s',
       keywords=['windivert', 'network', 'tcp/ip'],
       license="LICENSE",
       packages=find_packages(),
@@ -76,5 +96,12 @@ setup(name='pydivert',
           'Topic :: System :: Networking :: Monitoring',
           'Topic :: Utilities',
       ],
-      cmdclass={"test": RunTests},
-)
+      install_requires=["requests"],
+      cmdclass={
+          "install": InstallDriver,
+          "test": RunTests
+      }, )
+
+options["download_url"] = options["download_url"] % options
+
+setup(**options)

@@ -125,8 +125,23 @@ def random_free_port(family=socket.AF_INET, type=socket.SOCK_STREAM):
         s.close()
 
 
+def prepare_env(versions=None):
+    """
+    Prepares the environment by stopping and deleting services
+    """
+    print("Preparing test environment for WinDivert.")
+    if not versions:
+        versions = ("1.0", "1.1")
+    for version in versions:
+        with open(os.devnull, 'wb') as devnull:
+            print("Cleaning version %s" % version)
+            subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
+            subprocess.call(['sc', 'delete', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
+
+
 def run_test_suites():
     import unittest
+    import platform
     from unittest.test import loader
     from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase
     from pydivert.tests.test_windivert import WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, \
@@ -137,30 +152,40 @@ def run_test_suites():
 
     runner = unittest.TextTestRunner()
     suite = unittest.TestSuite()
+    dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
 
-    for version in ("1.0", "1.1"):
-        driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", version)
-        if not os.path.exists(driver_dir):
-            sys.stderr.write("Could not find directory %s\n" % driver_dir)
-            sys.stderr.write("Tests for version %s will be skipped...\n" % version)
-            continue
+    if os.path.exists(dll_path):
+        sys.stdout.write("Found WinDivert.dll in python DLLs directory. Testing against it...\n")
+        prepare_env()
+        suite.addTests(loader.loadTestsFromModule(test_windivert))
 
-        with open(os.devnull, 'wb') as devnull:
-            print("Preparing test environment for WinDivert version %s" % version)
-            subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
-            subprocess.call(['sc', 'delete', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
+    else:
+        for version in ("1.0", "1.1"):
+            driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", version)
+            if platform.architecture()[0] == "32bit":
+                driver_dir = os.path.join(driver_dir, "x86")
+            else:
+                driver_dir = os.path.join(driver_dir, "amd64")
 
-        for test_class in [WinDivertTestCase,
-                           WinDivertTCPIPv4TestCase,
-                           WinDivertTCPIPv6TestCase,
-                           WinDivertUDPTestCase,
-                           WinDivertTCPDataCaptureTestCase,
-                           WinDivertExternalInterfaceTestCase,
-                           WinDivertAsyncTestCase]:
-            tests = loader.loadTestsFromTestCase(test_class)
-            for t in tests:
-                t.version = version
-            suite.addTests(tests)
+            if not os.path.exists(driver_dir):
+                sys.stderr.write("Could not find directory %s. Checking in %s directory \n" % driver_dir)
+                sys.stderr.write("Tests for version %s will be skipped...\n" % version)
+                continue
+
+            prepare_env([version])
+
+            for test_class in [WinDivertTestCase,
+                               WinDivertTCPIPv4TestCase,
+                               WinDivertTCPIPv6TestCase,
+                               WinDivertUDPTestCase,
+                               WinDivertTCPDataCaptureTestCase,
+                               WinDivertExternalInterfaceTestCase,
+                               WinDivertAsyncTestCase]:
+                tests = loader.loadTestsFromTestCase(test_class)
+                for t in tests:
+                    t.version = version
+                    t.driver_dir = driver_dir
+                suite.addTests(tests)
 
     suite.addTests(loader.loadTestsFromTestCase(WinInetTestCase))
     runner.run(suite)

@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from contextlib import contextmanager
 import ctypes
+import functools
 import os
 
 __author__ = 'fabio'
@@ -28,6 +29,7 @@ def winerror_on_retcode(funct):
     This decorator throws WinError whenever the return code of last executed command is not 0 or 997
     """
 
+    @functools.wraps(funct)
     def wrapper(instance, *args, **kwargs):
         result = funct(instance, *args, **kwargs)
         retcode = ctypes.GetLastError()
@@ -65,8 +67,8 @@ def cd(path):
     A context manager for a temporary change of the working directory
     """
     old_dir = os.getcwd()
-    os.chdir(path)
     try:
+        os.chdir(path)
         yield
     finally:
         os.chdir(old_dir)

@@ -7,9 +7,9 @@ A python binding for [WinDivert](https://github.com/basil00/Divert) driver.
 Platform Support
 ----------------
 
-Right now PyDivert supports  Python 2.7/3.3 and should work on each platform supported by the driver itself.
+Right now PyDivert supports  Python 2.7/3.3/3.4 and should work on each platform supported by the driver itself.
 
-It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3 interpreters (both 64bit).
+It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3/3.4 interpreters (64bit).
 
 
 Warnings
@@ -22,12 +22,34 @@ Warnings
 Quick Start
 ===========
 
-Install Windivert
------------------
+Install PyDivert
+----------------
 
-First of all, you have to install the windivert driver. You can find instructions inside [WinDivert documentation](https://github.com/basil00/Divert/wiki/WinDivert-Documentation)
+To install `pydivert` simply run
 
-Basically, you have to download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate.
+```
+$ pip install pydivert
+```
+
+or
+
+```
+$ python setup.py install
+```
+
+As of version `0.0.3` the `install` command takes care of [WinDivert](http://reqrypt.org/windivert.html) driver download.
+
+For simplicity, the driver's got installed in your interpreter's DLLs directory. If you're running a 32 bit interpreter
+on a 64bit machine you'll find both `WinDivert32.sys` and `WinDivert64.sys` but only the second one should be loaded.
+
+
+Testing against WinDivert version 1.0.x
+-------------------------------------------------------
+
+The support for WinDivert 1.0.x will be dropped soon, but if you wish to use it, you can test the binding following these
+guidelines.
+
+Basically, download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate.
 Follow [these instructions](https://github.com/basil00/Divert/wiki/WinDivert-Documentation#wiki-driver_signing)
 
 As of 1.0.4 version of WinDivert there's no more need to sign the driver if you decide to use one of the binary distributions provided.
@@ -35,26 +57,57 @@ As of 1.0.4 version of WinDivert there's no more need to sign the driver if you 
 Put the `WinDivert.dll`, `WinDivert.sys`, `WinDivert.inf` and `WdfCoInstaller*.dll` into the `lib/<your_python_architecture>` folder.
 
 I'm running a 64bit python interpreter on a 64bit Windows 7 virtual machine, so I've just copied the `amd64` folder from the [WinDivert-1.0.4-WDDK.zip](http://www.reqrypt.org/download/WinDivert-1.0.4-WDDK.zip)
-file inside the `lib` directory of the project.
+file inside the `lib\1.0` directory of the project.
 
 Anyway, your lib directory tree should should contain at least these
 
 ```
-.
-├── amd64
-│   ├── WdfCoInstaller01009.dll
-│   ├── WinDivert.dll
-│   ├── WinDivert.inf
-│   ├── WinDivert.lib
-│   └── WinDivert.sys
-├── readme
-└── x86
-    ├── WdfCoInstaller01009.dll
-    ├── WinDivert.dll
-    ├── WinDivert.inf
-    ├── WinDivert.lib
-    └── WinDivert.sys
+lib
+├── 1.0
+        ├── amd64
+        │   ├── WdfCoInstaller01009.dll
+        │   ├── WinDivert.dll
+        │   ├── WinDivert.inf
+        │   ├── WinDivert.lib
+        │   └── WinDivert.sys
+        ├── readme
+        └── x86
+            ├── WdfCoInstaller01009.dll
+            ├── WinDivert.dll
+            ├── WinDivert.inf
+            ├── WinDivert.lib
+            └── WinDivert.sys
 ```
+
+### WinDivert Version 1.1.x
+
+Since version `1.1`, the structure is almost identical as the 1.0.x except:
+
+* No more `WinDivert.inf` and `WdfCoInstaller*.dll`
+* `WinDivert.sys` is shipped in two flavours: `WinDivert32.sys` and `WinDivert64.sys` respectively for `x86` and `amd64` architectures.
+* The `WinDivert.dll` is able to detect the `*.sys` file to load for the platform in use
+* Driver has same methods as `1.0`   but names are prefixed with "Win"
+
+So, your directory lib should be something similar to
+
+```
+lib
+├── 1.1
+        ├── amd64
+        │   ├── WinDivert.dll
+        │   ├── WinDivert.lib
+        │   └── WinDivert64.sys
+        ├── readme
+        └── x86
+             ├── WinDivert.dll
+             ├── WinDivert.lib
+             └── WinDivert32.sys
+```
+
+Anyway, sure this way will be dropped in favor to automatic download into python's DLL directory.
+
+Enabling Windows 64bit Test Mode
+--------------------------------
 
 Last step, is to enable the *Test Mode* for Windows 64bit editions
 
@@ -199,6 +252,7 @@ TODOs
 3. ~~May be a good idea to delegate all the WinDivert methods to Handle instances~~
 4. Clean test code. Tests should be more readable to use as usage example
 5. Implement binding for Asynchronous I/O using WinDivertSendEx and WinDivertRecvEx
+6. Drop support for WinDivert 1.0.x
 
 
 License

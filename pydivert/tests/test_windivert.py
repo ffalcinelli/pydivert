@@ -18,14 +18,14 @@ import socket
 import struct
 import threading
 import unittest
-import platform
 import os
+import sys
 
-import pydivert
 from pydivert.enum import Param
 from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton, inet_ntop
-from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
+from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, \
+    EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
 
 
@@ -38,21 +38,19 @@ class BaseTestCase(unittest.TestCase):
     Tests the basic operations like registering the driver.
     """
     version = "1.1"
+    driver_dir = os.path.join(os.path.join(sys.exec_prefix, "DLLs"))
 
     def clean_service(self):
         os.system("sc stop WinDivert%s" % self.version)
         os.system("sc delete WinDivert%s" % self.version)
 
     def setUp(self):
-        #self.clean_service()
-        self.driver_dir = os.path.join(os.path.dirname(pydivert.__file__), os.pardir, "lib", self.version)
-        if platform.architecture()[0] == "32bit":
-            self.driver_dir = os.path.join(self.driver_dir, "x86")
-        else:
-            self.driver_dir = os.path.join(self.driver_dir, "amd64")
-        #os.chdir(self.driver_dir)
         self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
         self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
+
+    def tearDown(self):
+        #self.clean_service()
+        pass
 
     def test_register(self):
         """
@@ -90,10 +88,6 @@ class BaseTestCase(unittest.TestCase):
         self.assertTrue(handle.is_opened)
         handle.close()
         self.assertFalse(handle.is_opened)
-
-    def tearDown(self):
-        #self.clean_service()
-        pass
 
 
 class WinDivertTestCase(BaseTestCase):
