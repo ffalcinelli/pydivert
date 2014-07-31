@@ -14,67 +14,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from _ctypes import POINTER, pointer, byref, sizeof
-from ctypes.wintypes import HANDLE, DWORD
+from ctypes.wintypes import HANDLE
 import os
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer, c_uint8)
 import logging
-from time import sleep
 import sys
 
 from pydivert.decorators import winerror_on_retcode, cd
-from pydivert.enum import Layer, RegKeys
-from pydivert.exception import DriverNotRegisteredException, AsyncCallFailedException, MethodUnsupportedException
-from pydivert.winutils import get_reg_values, OVERLAPPED, CreateEvent, GetLastError, GetOverlappedResult
-from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header
+from pydivert.enum import Layer, RegKeys, Defaults, ErrorCodes
+from pydivert.exception import AsyncCallFailedException, MethodUnsupportedException
+from pydivert.winutils import get_reg_values, GetLastError
+from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header, FuturePacket
 from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 
 
 __author__ = 'fabio'
-PACKET_BUFFER_SIZE = 1500
-
-ERROR_IO_PENDING = 997
 
 #TODO: move the logger away... Probably better inside WinDivert class
 logger = logging.getLogger(__name__)
-
-
-class FuturePacket(object):
-    def __init__(self, handle, callback=None, bufsize=PACKET_BUFFER_SIZE, iodelay=0.02):
-        self.overlapped = OVERLAPPED()
-        self.event = CreateEvent(None, True, True, None)
-        self.overlapped.hEvent = self.event
-        self.handle = handle
-        self.packet = create_string_buffer(bufsize)
-        self.address = WinDivertAddress()
-        self.recv_len = c_int(0)
-        self.complete = False
-        self.callback = callback
-        self.iodelay = iodelay
-
-    def is_complete(self):
-        return self.complete
-
-    def get_result(self):
-        ready = False
-        while not ready:
-            iolen = DWORD()
-            if GetOverlappedResult(self.handle,
-                                   byref(self.overlapped),
-                                   byref(iolen),
-                                   False):
-                #print("%d Executing callback" % GetLastError())
-                if self.callback:
-                    self.callback(self.packet[:iolen.value],
-                                  CapturedMetadata((self.address.IfIdx, self.address.SubIfIdx), self.address.Direction))
-                self.complete = True
-            ready = (GetLastError() != 996)
-            yield self
-            sleep(self.iodelay)
-
-
-    def __str__(self):
-        return "FuturePacket %s (ready: %s)" % (self.address, self.complete)
 
 
 class WinDivert(object):
@@ -122,25 +80,10 @@ class WinDivert(object):
             else:
                 return setattr(self._lib, key, value)
 
-    def _dll_from_registry(self, dll_name="WinDivert.dll"):
-        """
-        Tries to construct the dll path assuming the WinDivert.dll
-        is placed inside the same directory of the WinDivert.sys driver
-        """
-        try:
-            self.registry = get_reg_values(RegKeys.VERSION11)
-        except DriverNotRegisteredException as e:
-            logger.debug("WinDivert 1.1 not found... Trying 1.0 version")
-            self.registry = get_reg_values(RegKeys.VERSION10)
-
-        self.driver = self.registry["ImagePath"]
-        return os.path.join(os.path.split(self.driver)[0][4:], dll_name)
-
     def _load_dll(self, dll_path):
         """
         Loads the WinDivert.dll library
         """
-        #self._lib = CDLL(dll_path)
         self._lib = WinDLL(dll_path)
         self.reg_key = RegKeys.VERSION11
         if not hasattr(self._lib, "WinDivertOpen"):
@@ -158,8 +101,7 @@ class WinDivert(object):
             logger.debug("Trying to load dll from interpreter DLLs folder")
             dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
             if not os.path.exists(dll_path):
-                logger.debug("Not found. Trying to load from Windows registry")
-                dll_path = self._dll_from_registry()
+                raise ValueError("Unable to find WinDivert.dll")
         self.dll_path = dll_path
         self.encoding = encoding
         self._load_dll(dll_path)
@@ -175,6 +117,13 @@ class WinDivert(object):
         Return a reference to the internal CDLL
         """
         return self._lib
+
+    def is_legacy_driver(self):
+        """
+        Returns whether the driver is at the old 1.0.x version
+        :return: True if a 1.0.x version is detected, False otherwise
+        """
+        return self.reg_key == RegKeys.VERSION10
 
     @winerror_on_retcode
     def parse_packet(self, *args):
@@ -389,7 +338,7 @@ class Handle(object):
         return self
 
     @winerror_on_retcode
-    def recv(self, bufsize=PACKET_BUFFER_SIZE):
+    def recv(self, bufsize=Defaults.PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor.
         The return value is a pair (raw_packet, meta) where raw_packet is the data read by the handle, and meta contains
@@ -416,7 +365,7 @@ class Handle(object):
 
 
     @winerror_on_retcode
-    def receive(self, bufsize=PACKET_BUFFER_SIZE):
+    def receive(self, bufsize=Defaults.PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor.
         The return value is an high level packet with right headers and payload parsed
@@ -478,7 +427,7 @@ class Handle(object):
         return send_len
 
     #TODO: not ready method!
-    def _receive_async(self, callback=None, bufsize=PACKET_BUFFER_SIZE):
+    def _receive_async(self, callback=None, bufsize=Defaults.PACKET_BUFFER_SIZE):
         """
         Receives a diverted packet that matched the filter passed to the handle constructor asynchronously.
 
@@ -506,7 +455,7 @@ class Handle(object):
                                             byref(future.recv_len),
                                             byref(future.overlapped))
         last_error = GetLastError()
-        if not retcode and last_error == ERROR_IO_PENDING:
+        if not retcode and last_error == ErrorCodes.ERROR_IO_PENDING:
             return future.get_result()
         else:
             raise AsyncCallFailedException(
@@ -540,7 +489,7 @@ class Handle(object):
         retcode = self._lib.WinDivertSendEx(self._handle, data, send_len, 0, byref(address), None, None)
 
         last_error = GetLastError()
-        if retcode and last_error == ERROR_IO_PENDING:
+        if retcode and last_error == ErrorCodes.ERROR_IO_PENDING:
             return True
         else:
             raise AsyncCallFailedException("Async send failed with retcode %d and LastError %d" % (retcode, last_error))

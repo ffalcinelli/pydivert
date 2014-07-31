@@ -45,3 +45,7 @@ RegKeys = enum(VERSION10=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0",
 
 DriverVersions = enum(VERSION10=0,
                       VERSION11=1)
+
+Defaults = enum(PACKET_BUFFER_SIZE=1500, )
+
+ErrorCodes = enum(ERROR_IO_PENDING=997)

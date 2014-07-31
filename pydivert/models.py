@@ -13,13 +13,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from _ctypes import byref
 from binascii import unhexlify, hexlify
 import socket
-from ctypes import Structure, c_uint32, c_uint8, c_uint16
+from ctypes import Structure, c_uint32, c_uint8, c_uint16, create_string_buffer, c_int
+from ctypes.wintypes import DWORD
+from time import sleep
 
 from pydivert import enum
-from pydivert.enum import Direction
-from pydivert.winutils import string_to_addr, addr_to_string
+from pydivert.enum import Direction, Defaults
+from pydivert.winutils import string_to_addr, addr_to_string, CreateEvent, OVERLAPPED, GetOverlappedResult, GetLastError
 
 
 __author__ = 'fabio'
@@ -467,3 +470,41 @@ class CapturedPacket(object):
         tokens.append("Payload: [%s] [HEX: %s]" % (self.payload,
                                                    hexlify(self.payload) if self.payload else ''))
         return "\n".join(tokens)
+
+
+class FuturePacket(object):
+    def __init__(self, handle, callback=None, bufsize=Defaults.PACKET_BUFFER_SIZE, iodelay=0.02):
+        self.overlapped = OVERLAPPED()
+        self.event = CreateEvent(None, True, True, None)
+        self.overlapped.hEvent = self.event
+        self.handle = handle
+        self.packet = create_string_buffer(bufsize)
+        self.address = WinDivertAddress()
+        self.recv_len = c_int(0)
+        self.complete = False
+        self.callback = callback
+        self.iodelay = iodelay
+
+    def is_complete(self):
+        return self.complete
+
+    def get_result(self):
+        ready = False
+        while not ready:
+            iolen = DWORD()
+            if GetOverlappedResult(self.handle,
+                                   byref(self.overlapped),
+                                   byref(iolen),
+                                   False):
+                # print("%d Executing callback" % GetLastError())
+                if self.callback:
+                    self.callback(self.packet[:iolen.value],
+                                  CapturedMetadata((self.address.IfIdx, self.address.SubIfIdx), self.address.Direction))
+                self.complete = True
+            ready = (GetLastError() != 996)
+            yield self
+            sleep(self.iodelay)
+
+
+    def __str__(self):
+        return "FuturePacket %s (ready: %s)" % (self.address, self.complete)

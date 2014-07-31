@@ -21,12 +21,12 @@ import unittest
 import os
 import sys
 
-from pydivert.enum import Param
+from pydivert.enum import Param, Defaults
 from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton, inet_ntop
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, \
     EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
-from pydivert.windivert import Handle, WinDivert, PACKET_BUFFER_SIZE
+from pydivert.windivert import Handle, WinDivert
 
 
 __author__ = 'fabio'
@@ -37,19 +37,12 @@ class BaseTestCase(unittest.TestCase):
     A base test case to take driver version into account.
     Tests the basic operations like registering the driver.
     """
-    version = "1.1"
     driver_dir = os.path.join(os.path.join(sys.exec_prefix, "DLLs"))
 
-    def clean_service(self):
-        os.system("sc stop WinDivert%s" % self.version)
-        os.system("sc delete WinDivert%s" % self.version)
-
     def setUp(self):
-        self.reg_key = r"SYSTEM\CurrentControlSet\Services\WinDivert" + self.version
         self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
     def tearDown(self):
-        #self.clean_service()
         pass
 
     def test_register(self):
@@ -101,10 +94,10 @@ class WinDivertTestCase(BaseTestCase):
         #self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
 
-    def test_load_from_registry(self):
+    def test_load_already_registered(self):
         """
-        Tesst WinDivert loading from registry key. This assumes the driver has been
-        previously registered
+        Tests WinDivert loading from the default path (DLLs dir inside python's home).
+        This assumes the driver has been previously registered
         """
         try:
             WinDivert()
@@ -150,7 +143,8 @@ class WinDivertTestCase(BaseTestCase):
         """
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
             #TODO: this range should have a proper default representation
-            def_range = (128, 512) if self.version == "1.0" else (128, 512, 2048)
+
+            def_range = (128, 512) if filter0.driver.is_legacy_driver() else (128, 512, 2048)
             for value in def_range:
                 filter0.set_param(Param.QUEUE_TIME, value)
                 self.assertEqual(value, filter0.get_param(Param.QUEUE_TIME))
@@ -515,7 +509,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
         Tests sending a packet bigger than mtu
         """
         srv_port = self.server.server_address[1]
-        text = "#" * (PACKET_BUFFER_SIZE + 1)
+        text = "#" * (Defaults.PACKET_BUFFER_SIZE + 1)
         client = FakeTCPClient(("127.0.0.1", srv_port), text.encode("UTF-8"))
         client_thread = threading.Thread(target=client.send)
 
@@ -782,7 +776,7 @@ class WinDivertAsyncTestCase(BaseTestCase):
         def callback(*args):
             self.handle._send_async(*args)
 
-        if self.version != "1.0":
+        if not self.handle.driver.is_legacy_driver():
             for future in self.handle._receive_async(callback=callback):
                 if not future.is_complete():
                     pass
