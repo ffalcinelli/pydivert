@@ -43,6 +43,22 @@ For simplicity, the driver's got installed in your interpreter's DLLs directory.
 on a 64bit machine you'll find both `WinDivert32.sys` and `WinDivert64.sys` but only the second one should be loaded.
 
 
+Uninstalling PyDivert
+---------------------
+
+Using `pip` you can uninstall the binding with
+ 
+```
+$ pip uninstall pydivert
+```
+
+So far, this does not uninstall the `WinDivert` driver. For convenience the `setup.py` script has two methods:
+
+* `wd_install`: Installs `WinDivert`
+* `wd_uninstall`: Of course, uninstalls `WinDivert`
+
+If you find a way to invoke a post uninstall hook in `pip` please notice me :-)
+
 Testing against WinDivert version 1.0.x
 -------------------------------------------------------
 
@@ -52,59 +68,15 @@ guidelines.
 Basically, download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate.
 Follow [these instructions](https://github.com/basil00/Divert/wiki/WinDivert-Documentation#wiki-driver_signing)
 
+Remove the `WinDivert` driver installed along with the `pydivert` package:
+
+```
+$ python setup.py wd_uninstall
+```
+
 As of 1.0.4 version of WinDivert there's no more need to sign the driver if you decide to use one of the binary distributions provided.
 
-Put the `WinDivert.dll`, `WinDivert.sys`, `WinDivert.inf` and `WdfCoInstaller*.dll` into the `lib/<your_python_architecture>` folder.
-
-I'm running a 64bit python interpreter on a 64bit Windows 7 virtual machine, so I've just copied the `amd64` folder from the [WinDivert-1.0.4-WDDK.zip](http://www.reqrypt.org/download/WinDivert-1.0.4-WDDK.zip)
-file inside the `lib\1.0` directory of the project.
-
-Anyway, your lib directory tree should should contain at least these
-
-```
-lib
-├── 1.0
-        ├── amd64
-        │   ├── WdfCoInstaller01009.dll
-        │   ├── WinDivert.dll
-        │   ├── WinDivert.inf
-        │   ├── WinDivert.lib
-        │   └── WinDivert.sys
-        ├── readme
-        └── x86
-            ├── WdfCoInstaller01009.dll
-            ├── WinDivert.dll
-            ├── WinDivert.inf
-            ├── WinDivert.lib
-            └── WinDivert.sys
-```
-
-### WinDivert Version 1.1.x
-
-Since version `1.1`, the structure is almost identical as the 1.0.x except:
-
-* No more `WinDivert.inf` and `WdfCoInstaller*.dll`
-* `WinDivert.sys` is shipped in two flavours: `WinDivert32.sys` and `WinDivert64.sys` respectively for `x86` and `amd64` architectures.
-* The `WinDivert.dll` is able to detect the `*.sys` file to load for the platform in use
-* Driver has same methods as `1.0`   but names are prefixed with "Win"
-
-So, your directory lib should be something similar to
-
-```
-lib
-├── 1.1
-        ├── amd64
-        │   ├── WinDivert.dll
-        │   ├── WinDivert.lib
-        │   └── WinDivert64.sys
-        ├── readme
-        └── x86
-             ├── WinDivert.dll
-             ├── WinDivert.lib
-             └── WinDivert32.sys
-```
-
-Anyway, sure this way will be dropped in favor to automatic download into python's DLL directory.
+Put the `WinDivert.dll`, `WinDivert.sys`, `WinDivert.inf` and `WdfCoInstaller*.dll` into the `<your_python_home>/DLLs` folder.
 
 Enabling Windows 64bit Test Mode
 --------------------------------
@@ -128,8 +100,6 @@ When you're done, the first call you do to `WinDivertOpen` (then calling to `ope
 handle = WinDivert( os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).open_handle(filter="false")
 handle.close()
 ```
-
-Remember to put the `WinDivert.dll` in the same path the driver (`WinDivert*.sys`) has been deployed.
 
 To avoid problems concerning the current working directory, you can use also the provided `register` method which will do just the same thing as the above statements, but will change and restore the current working directory with the path of `WinDivert.dll`.
 

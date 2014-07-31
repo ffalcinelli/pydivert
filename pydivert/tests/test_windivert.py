@@ -21,6 +21,8 @@ import unittest
 import os
 import sys
 
+from pydivert.decorators import cd
+
 from pydivert.enum import Param, Defaults
 from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton, inet_ntop
@@ -49,8 +51,7 @@ class BaseTestCase(unittest.TestCase):
         """
         Tests DLL registration
         """
-        d = WinDivert(self.dll_path)
-        d.register()
+        d = WinDivert(self.dll_path).register()
         self.assertTrue(d.is_registered())
         self.assertEquals(os.path.abspath(d.dll_path),
                           os.path.abspath(self.dll_path))
@@ -66,22 +67,22 @@ class BaseTestCase(unittest.TestCase):
         except WindowsError as e:
             self.fail("WinDivert() constructor raised %s" % e)
 
+    def test_open_handle(self):
+        """
+        Tests the open_handle method.
+        """
+        with cd(os.path.dirname(self.dll_path)):
+            handle = WinDivert(self.dll_path).open_handle(filter="tcp.DstPort == 23")
+            self.assertIsInstance(handle, Handle)
+            self.assertTrue(handle.is_opened)
+            handle.close()
+            self.assertFalse(handle.is_opened)
+
     def test_load_invalid_path(self):
         """
         Tests DLL loading with an invalid path
         """
         self.assertRaises(WindowsError, WinDivert, "invalid_path")
-
-    def test_open_handle(self):
-        """
-        Tests the open_handle method.
-        """
-        handle = WinDivert(self.dll_path).open_handle(filter="tcp.DstPort == 23", priority=1000)
-        self.assertIsInstance(handle, Handle)
-        self.assertTrue(handle.is_opened)
-        handle.close()
-        self.assertFalse(handle.is_opened)
-
 
 class WinDivertTestCase(BaseTestCase):
     """

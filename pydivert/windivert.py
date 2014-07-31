@@ -82,7 +82,9 @@ class WinDivert(object):
 
     def _load_dll(self, dll_path):
         """
-        Loads the WinDivert.dll library
+        Loads the WinDivert.dll library, configuring it according to its version
+        :param dll_path: The OS path where to load the WinDivert.dll
+        :return:
         """
         self._lib = WinDLL(dll_path)
         self.reg_key = RegKeys.VERSION11
@@ -97,6 +99,12 @@ class WinDivert(object):
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
 
     def __init__(self, dll_path=None, encoding="UTF-8"):
+        """
+        Constructs a new driver instance
+        :param dll_path: The OS path where to load the WinDivert.dll
+        :param encoding: The character encoding to use (defaults to UTF-8)
+        :return:
+        """
         if not dll_path:
             logger.debug("Trying to load dll from interpreter DLLs folder")
             dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
@@ -109,12 +117,18 @@ class WinDivert(object):
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         """
         Return a new handle already opened
+        :param filter: The filter string, composed following the WinDivert filter's syntax
+        :param layer: In which layer should be put (NETWORK|NETWORK_FORWARD)
+        :param priority: Allows to configure a chain of filters, processing the packets in order of priority
+        :param flags: An operational mode in SNIFF, DROP and NO_CHECKSUM
+        :return: An opened Handle instance
         """
         return Handle(self, filter, layer, priority, flags, self.encoding).open()
 
     def get_reference(self):
         """
         Return a reference to the internal CDLL
+        :return: The DLL object
         """
         return self._lib
 
@@ -285,6 +299,7 @@ class WinDivert(object):
         with cd(os.path.dirname(self.dll_path)):
             handle = self.open_handle("false")
             handle.close()
+        return self
 
     @winerror_on_retcode
     def is_registered(self):

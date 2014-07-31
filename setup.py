@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+import site
 
 from pydivert.decorators import cd
 from pydivert.install import WinDivertInstaller
@@ -24,27 +25,60 @@ from pydivert.tests import run_test_suites
 __author__ = 'fabio'
 
 from setuptools import setup, find_packages, Command
-from setuptools.command.install import install
+from setuptools.command.install import install as _install
 
 workdir = os.path.abspath(os.path.dirname(__file__))
 
-
-class InstallDriver(install):
-    windivert = {
+windivert = {
         "version": "1.1.5",
         "compiler": "WDDK",  # MSVC | MINGW
         "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
     }
-    description = 'Installs the windivert driver'
-    # user_options = []
-    # extra_env = {}
-    # extra_args = []
+
+
+class install(_install):
+    description = 'Installs pydivert package and the windivert driver'
 
     def run(self):
-        windivert_installer = WinDivertInstaller(self.windivert)
-        install.run(self)
+        windivert_installer = WinDivertInstaller(windivert)
         self.execute(windivert_installer.run, (self.install_lib,),
-                     msg="Running post install task")
+                     msg="Running WinDivert install task")
+
+
+class InstallDriver(Command):
+    description = 'Installs the windivert driver'
+    user_options = []
+    extra_env = {}
+    extra_args = []
+
+    def run(self):
+        windivert_installer = WinDivertInstaller(windivert)
+        self.execute(windivert_installer.run, (site.getsitepackages()[0],),
+                     msg="Running WinDivert uninstall task")
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+
+class UninstallDriver(Command):
+    description = 'Uninstalls the windivert driver'
+    user_options = []
+    extra_env = {}
+    extra_args = []
+
+    def run(self):
+        windivert_installer = WinDivertInstaller(windivert)
+        self.execute(windivert_installer.uninstall, [],
+                     msg="Running WinDivert uninstall task")
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
 
 
 class RunTests(Command):
@@ -98,7 +132,9 @@ options = dict(name='pydivert',
       ],
       install_requires=["requests"],
       cmdclass={
-          "install": InstallDriver,
+          "install": install,
+          "wd_uninstall": UninstallDriver,
+          "wd_install": InstallDriver,
           "test": RunTests
       }, )
 
