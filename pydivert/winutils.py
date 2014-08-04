@@ -18,13 +18,13 @@
 # https://gist.github.com/nnemkin/4966028
 # Native inet_pton and inet_ntop implementation for Python on Windows (with ctypes).
 from _ctypes import sizeof, FormatError, byref, POINTER
-from ctypes import Structure, Union, c_short, c_byte, c_ushort, c_ulong, windll, c_int, string_at, create_string_buffer, \
-    memmove, c_void_p, c_char_p
+from ctypes import Structure, Union, c_short, c_byte, c_ushort, c_ulong, windll, c_int, string_at, create_string_buffer
+from ctypes import memmove, c_void_p, c_char_p
 from ctypes.wintypes import DWORD, ULONG, HANDLE, BOOL
 import logging
 import socket
 import struct
-#_winreg has been renamed in python3 to winreg
+# _winreg has been renamed in python3 to winreg
 import errno
 from pydivert.exception import DriverNotRegisteredException
 

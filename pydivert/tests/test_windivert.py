@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013  Fabio Falcinelli
+# Copyright (C) 2014  Fabio Falcinelli
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@ import os
 import sys
 
 from pydivert.decorators import cd
-
 from pydivert.enum import Param, Defaults
 from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton, inet_ntop

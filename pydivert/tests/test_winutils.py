@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013  Fabio Falcinelli
+# Copyright (C) 2014  Fabio Falcinelli
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import socket
 import unittest
+
 from pydivert.winutils import addr_to_string, string_to_addr
+
 
 __author__ = 'fabio'
 

@@ -130,7 +130,7 @@ options = dict(name='pydivert',
           'Topic :: System :: Networking :: Monitoring',
           'Topic :: Utilities',
       ],
-      install_requires=["requests"],
+      install_requires=["requests>=2.3.0"],
       cmdclass={
           "install": install,
           "wd_uninstall": UninstallDriver,

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013  Fabio Falcinelli
+# Copyright (C) 2014  Fabio Falcinelli
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,9 @@ import os
 import socket
 import subprocess
 import sys
+import functools
+
+from mock import patch, MagicMock
 
 
 try:
@@ -27,6 +30,33 @@ except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 
 __author__ = 'fabio'
+
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+
+
+def mock_requests_download(tarball="WinDivert-1.1.5-WDDK.zip", chunk_size=1):
+    def inner_decorator(funct, *args, **kwargs):
+        @functools.wraps(funct)
+        def wrapped(*args, **kwargs):
+            def return_fake_tarball(*args, **kwargs):
+                mock_response = MagicMock()
+
+                def get_zip(n=kwargs.get("chunk_size", 1)):
+                    with open(os.path.join(FIXTURES_DIR, tarball), "rb") as fd:
+                        data = fd.read(n)
+                        while data:
+                            yield data
+                            data = fd.read(n)
+
+                mock_response.iter_content.return_value = iter(get_zip())
+                return mock_response
+
+            with patch("requests.get", return_fake_tarball):
+                return funct(*args, **kwargs)
+
+        return wrapped
+
+    return inner_decorator
 
 
 class EchoUpperTCPHandler(BaseRequestHandler):
@@ -140,12 +170,7 @@ def prepare_env(versions=None):
 def run_test_suites():
     import unittest
     from unittest.test import loader
-    from pydivert.tests.test_windivert import WinDivertTestCase, WinDivertTCPIPv4TestCase, WinDivertTCPIPv6TestCase
-    from pydivert.tests.test_windivert import WinDivertUDPTestCase, WinDivertTCPDataCaptureTestCase, \
-        WinDivertExternalInterfaceTestCase
-    from pydivert.tests.test_windivert import WinDivertAsyncTestCase
-    from pydivert.tests.test_winutils import WinInetTestCase
-    from pydivert.tests import test_winutils
+    from pydivert.tests import test_winutils, test_installer, test_windivert
 
     runner = unittest.TextTestRunner()
     suite = unittest.TestSuite()
@@ -156,7 +181,8 @@ def run_test_suites():
         prepare_env()
         suite.addTests(loader.loadTestsFromModule(test_windivert))
 
-    suite.addTests(loader.loadTestsFromTestCase(WinInetTestCase))
+    suite.addTests(loader.loadTestsFromModule(test_winutils))
+    suite.addTests(loader.loadTestsFromModule(test_installer))
     runner.run(suite)
 
 

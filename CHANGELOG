@@ -1,3 +1,9 @@
+Versin 0.0.3
+    - Auto installation of WinDivert driver at version 1.1.5
+    - Some refactoring, regrouping constants into "enum" module
+    - Tests: no more testing both 1.1 and 1.0 versions, only the driver actually installed in python's DLLs dir will be
+      tested
+    - More tests to provide better coverage
 
 Version 0.0.2
     - Support to WinDivert 1.1
