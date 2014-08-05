@@ -41,6 +41,7 @@ class install(_install):
 
     def run(self):
         windivert_installer = WinDivertInstaller(windivert)
+        _install.run(self)
         self.execute(windivert_installer.run, (self.install_lib,),
                      msg="Running WinDivert install task")
 
