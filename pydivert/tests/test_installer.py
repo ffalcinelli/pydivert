@@ -16,12 +16,13 @@
 import os
 import shutil
 import unittest
+from time import sleep
 
 from mock import patch
 
 from pydivert.decorators import cd
 from pydivert.install import WinDivertInstaller
-from pydivert.tests import FIXTURES_DIR, mock_requests_download
+from pydivert.tests import FIXTURES_DIR, mock_urllib_download
 from pydivert.tests.test_windivert import BaseTestCase
 
 
@@ -30,6 +31,7 @@ __author__ = 'Fabio'
 
 class InstallerBaseTestCase(unittest.TestCase):
     def setUp(self):
+        sleep(1)
         self.work_dir = os.path.join(FIXTURES_DIR, "work_dir")
         # self.installer = WinDivertInstaller()
         if not os.path.exists(self.work_dir):
@@ -49,7 +51,7 @@ class InstallerBaseTestCase(unittest.TestCase):
 
 
 class InstallerClassTestCase(InstallerBaseTestCase):
-    @mock_requests_download()
+    @mock_urllib_download()
     def test_download(self):
         """
         Tests the download of a package through WinDivertInstaller class
@@ -75,12 +77,12 @@ class InstallerClassTestCase(InstallerBaseTestCase):
 
 class InstallerInstanceTestCase(InstallerBaseTestCase):
     def setUp(self):
-        super().setUp()
+        super(InstallerInstanceTestCase, self).setUp()
         self.installer = WinDivertInstaller(options=self.options, inst_dir=self.work_dir)
 
     def tearDown(self):
         self.installer.uninstall()
-        super().tearDown()
+        super(InstallerInstanceTestCase, self).tearDown()
 
     def test_uninstall(self):
         """
@@ -107,10 +109,10 @@ class InstallerInstanceTestCase(InstallerBaseTestCase):
                                                 "windivert64"))
                 self.assertNotIn(ext.lower(), (".sys", ".dll"))
 
-    @mock_requests_download()
+    @mock_urllib_download()
     def test_install(self):
         """
-        Tests the installation of the driver. Requests is mocked to avoid a real http get
+        Tests the installation of the driver. Downloader is mocked to avoid a real http get
         :return:
         """
         with patch.object(self.installer, "check_driver_path", lambda *args, **kwargs: None):
@@ -125,7 +127,7 @@ class InstallerInstanceTestCase(InstallerBaseTestCase):
 
 class DriverRegistrationTestCase(BaseTestCase):
     def setUp(self):
-        super().setUp()
+        super(DriverRegistrationTestCase, self).setUp()
         self.options = {
             "version": "1.1.5",
             "compiler": "WDDK",  # MSVC | MINGW

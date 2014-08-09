@@ -19,12 +19,17 @@ import sys
 import shutil
 import subprocess
 
-import requests
+try:
+    import urllib2 as urlib
+except ImportError:
+    import urllib.request as urlib
 
 from pydivert import python_isa, system_isa
 from pydivert.decorators import cd
 from pydivert.windivert import WinDivert
 
+# TODO: this is used just for test purposes... Should be removed.
+downloader = urlib.urlopen
 
 __author__ = 'fabio'
 
@@ -50,12 +55,10 @@ class WinDivertInstaller:
         """
         sys.stdout.write("Downloading %s...\n" % url)
         local_filename = url.split('/')[-1]
-        response = requests.get(url, stream=True)
+        response = downloader(url)
         with open(local_filename, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-                    f.flush()
+            f.write(response.read())
+            f.flush()
         return local_filename
 
     @classmethod

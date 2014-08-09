@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #SocketServer has been renamed in python3 to socketserver
+from contextlib import contextmanager
 import os
 import socket
 import subprocess
@@ -34,29 +35,33 @@ __author__ = 'fabio'
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
-def mock_requests_download(tarball="WinDivert-1.1.5-WDDK.zip", chunk_size=1):
+def mock_urllib_download(tarball="WinDivert-1.1.5-WDDK.zip", chunk_size=1):
     def inner_decorator(funct, *args, **kwargs):
         @functools.wraps(funct)
         def wrapped(*args, **kwargs):
             def return_fake_tarball(*args, **kwargs):
-                mock_response = MagicMock()
+                return open(os.path.join(FIXTURES_DIR, tarball), "rb")
 
-                def get_zip(n=kwargs.get("chunk_size", 1)):
-                    with open(os.path.join(FIXTURES_DIR, tarball), "rb") as fd:
-                        data = fd.read(n)
-                        while data:
-                            yield data
-                            data = fd.read(n)
-
-                mock_response.iter_content.return_value = iter(get_zip())
-                return mock_response
-
-            with patch("requests.get", return_fake_tarball):
+            with patch("pydivert.install.downloader", return_fake_tarball):
                 return funct(*args, **kwargs)
 
         return wrapped
 
     return inner_decorator
+
+
+@contextmanager
+def hush(fd):
+    """
+    A context manager to redirect to devnull all the writes to the given file descriptor
+    """
+    old_fd = getattr(sys, fd)
+    try:
+        magic_mock = MagicMock()
+        magic_mock.write = lambda *args, **kwargs: None
+        setattr(sys, fd, magic_mock)
+    finally:
+        setattr(sys, fd, old_fd)
 
 
 class EchoUpperTCPHandler(BaseRequestHandler):

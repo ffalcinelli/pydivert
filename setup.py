@@ -103,7 +103,7 @@ class RunTests(Command):
 
 
 options = dict(name='pydivert',
-               version='0.0.3',
+               version='0.0.4',
                description='Python binding to windivert driver',
       # long_description=readme.read(),
       author='Fabio Falcinelli',
@@ -131,7 +131,7 @@ options = dict(name='pydivert',
           'Topic :: System :: Networking :: Monitoring',
           'Topic :: Utilities',
       ],
-      install_requires=["requests>=2.3.0"],
+      # install_requires=["requests>=2.3.0"],
       cmdclass={
           "install": install,
           "wd_uninstall": UninstallDriver,
