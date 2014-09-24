@@ -29,7 +29,7 @@ from pydivert.decorators import cd
 from pydivert.windivert import WinDivert
 
 # TODO: this is used just for test purposes... Should be removed.
-downloader = urlib.urlopen
+http_lib = urlib
 
 __author__ = 'fabio'
 
@@ -47,6 +47,13 @@ class WinDivertInstaller:
         self.inst_dir = inst_dir
 
     @classmethod
+    def _downloader(cls, url):
+        """
+        Helps with the tests...
+        """
+        return http_lib.urlopen(url)
+
+    @classmethod
     def download(cls, url):
         """
         Downloads the tarball at the given URL
@@ -55,7 +62,18 @@ class WinDivertInstaller:
         """
         sys.stdout.write("Downloading %s...\n" % url)
         local_filename = url.split('/')[-1]
-        response = downloader(url)
+
+        # http_proxy = os.environ.get("http_proxy", None)
+        # https_proxy = os.environ.get("https_proxy", None)
+        # if http_proxy or https_proxy:
+        # proxy = http_lib.ProxyHandler({
+        #         'http': http_proxy,
+        #         'https': https_proxy
+        #     })
+        #     http_lib.build_opener(proxy)
+        #     http_lib.install_opener(http_lib.build_opener(proxy))
+        response = cls._downloader(url)
+
         with open(local_filename, 'wb') as f:
             f.write(response.read())
             f.flush()

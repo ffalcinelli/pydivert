@@ -21,7 +21,7 @@ from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int
 import logging
 import sys
 
-from pydivert.decorators import winerror_on_retcode, cd
+from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer, RegKeys, Defaults, ErrorCodes
 from pydivert.exception import AsyncCallFailedException, MethodUnsupportedException
 from pydivert.winutils import get_reg_values, GetLastError
@@ -296,9 +296,8 @@ class WinDivert(object):
         """
         An utility method to register the driver the first time.
         """
-        with cd(os.path.dirname(self.dll_path)):
-            handle = self.open_handle("false")
-            handle.close()
+        # with cd(os.path.dirname(self.dll_path)):
+        self.open_handle("false").close()
         return self
 
     @winerror_on_retcode

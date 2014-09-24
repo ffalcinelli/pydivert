@@ -21,7 +21,6 @@ import unittest
 import os
 import sys
 
-from pydivert.decorators import cd
 from pydivert.enum import Param, Defaults
 from pydivert.exception import MethodUnsupportedException
 from pydivert.winutils import inet_pton, inet_ntop
@@ -70,12 +69,12 @@ class BaseTestCase(unittest.TestCase):
         """
         Tests the open_handle method.
         """
-        with cd(os.path.dirname(self.dll_path)):
-            handle = WinDivert(self.dll_path).open_handle(filter="tcp.DstPort == 23")
-            self.assertIsInstance(handle, Handle)
-            self.assertTrue(handle.is_opened)
-            handle.close()
-            self.assertFalse(handle.is_opened)
+        # with cd(os.path.dirname(self.dll_path)):
+        handle = WinDivert(self.dll_path).open_handle(filter="tcp.DstPort == 23")
+        self.assertIsInstance(handle, Handle)
+        self.assertTrue(handle.is_opened)
+        handle.close()
+        self.assertFalse(handle.is_opened)
 
     def test_load_invalid_path(self):
         """
@@ -175,11 +174,18 @@ class WinDivertTestCase(BaseTestCase):
         Tests parsing of an ipv4 address into a network byte value
         """
         address = "2607:f0d0:1002:0051:0000:0000:0000:0004"
-        driver = WinDivert(self.dll_path)
-        driver.register()
+        driver = WinDivert(self.dll_path).register()
         result = inet_ntop(socket.AF_INET6, driver.parse_ipv6_address(address))
         self.assertEqual(inet_pton(socket.AF_INET6, address),
                          inet_pton(socket.AF_INET6, result))
+
+    def test_parse_packet_raise_exc(self):
+        """
+        Tests the parsing packet function to raise an exception when invoked with wrong number of arguments
+        """
+        driver = WinDivert(self.dll_path).register()
+        self.assertRaises(ValueError, driver.parse_packet, "", "", "")
+
 
     def tearDown(self):
         super(WinDivertTestCase, self).tearDown()
