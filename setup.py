@@ -19,7 +19,6 @@ import site
 
 from pydivert.decorators import cd
 from pydivert.install import WinDivertInstaller
-from pydivert.tests import run_test_suites
 
 
 __author__ = 'fabio'
@@ -89,6 +88,8 @@ class RunTests(Command):
     extra_args = []
 
     def run(self):
+        from pydivert.tests import run_test_suites
+
         for env_name, env_value in self.extra_env.items():
             os.environ[env_name] = str(env_value)
 
