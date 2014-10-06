@@ -30,9 +30,9 @@ workdir = os.path.abspath(os.path.dirname(__file__))
 
 windivert = {
     "version": "1.1.6",
-        "compiler": "WDDK",  # MSVC | MINGW
-        "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
-    }
+    "compiler": "WDDK",  # MSVC | MINGW
+    "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
+}
 
 
 class install(_install):
@@ -104,41 +104,43 @@ class RunTests(Command):
 
 
 options = dict(name='pydivert',
-               version='0.0.5',
+               version='0.0.6',
                description='Python binding to windivert driver',
-      # long_description=readme.read(),
-      author='Fabio Falcinelli',
-      author_email='fabio.falcinelli@gmail.com',
-      url='https://github.com/ffalcinelli/pydivert',
-      download_url='https://github.com/ffalcinelli/pydivert/tarball/%(version)s',
-      keywords=['windivert', 'network', 'tcp/ip'],
-      license="LICENSE",
-      packages=find_packages(),
-      classifiers=[
-          'Development Status :: 2 - Pre-Alpha',
-          'Environment :: Win32 (MS Windows)',
-          'Intended Audience :: Developers',
-          'Intended Audience :: System Administrators',
-          'Intended Audience :: Telecommunications Industry',
-          'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
-          'Operating System :: Microsoft :: Windows :: Windows Vista',
-          'Operating System :: Microsoft :: Windows :: Windows Server 2008',
-          'Operating System :: Microsoft :: Windows :: Windows 7',
-          'Programming Language :: Python',
-          'Programming Language :: Python :: 2.7',
-          'Programming Language :: Python :: 3.3',
-          'Topic :: Software Development :: Libraries :: Python Modules',
-          'Topic :: System :: Networking :: Firewalls',
-          'Topic :: System :: Networking :: Monitoring',
-          'Topic :: Utilities',
-      ],
-      # install_requires=["requests>=2.3.0"],
-      cmdclass={
-          "install": install,
-          "wd_uninstall": UninstallDriver,
-          "wd_install": InstallDriver,
-          "test": RunTests
-      }, )
+               # long_description=readme.read(),
+               author='Fabio Falcinelli',
+               author_email='fabio.falcinelli@gmail.com',
+               url='https://github.com/ffalcinelli/pydivert',
+               download_url='https://github.com/ffalcinelli/pydivert/tarball/%(version)s',
+               keywords=['windivert', 'network', 'tcp/ip'],
+               license="LICENSE",
+               packages=find_packages(),
+               classifiers=[
+                   'Development Status :: 2 - Pre-Alpha',
+                   'Environment :: Win32 (MS Windows)',
+                   'Intended Audience :: Developers',
+                   'Intended Audience :: System Administrators',
+                   'Intended Audience :: Telecommunications Industry',
+                   'License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)',
+                   'Operating System :: Microsoft :: Windows :: Windows Vista',
+                   'Operating System :: Microsoft :: Windows :: Windows Server 2008',
+                   'Operating System :: Microsoft :: Windows :: Windows 7',
+                   'Programming Language :: Python',
+                   'Programming Language :: Python :: 2.7',
+                   'Programming Language :: Python :: 3.3',
+                   'Topic :: Software Development :: Libraries :: Python Modules',
+                   'Topic :: System :: Networking :: Firewalls',
+                   'Topic :: System :: Networking :: Monitoring',
+                   'Topic :: Utilities',
+               ],
+               extras_require={
+                   "testing": ["mock>=1.0.1"]
+               },
+               cmdclass={
+                   "install": install,
+                   "wd_uninstall": UninstallDriver,
+                   "wd_install": InstallDriver,
+                   "test": RunTests
+               }, )
 
 options["download_url"] = options["download_url"] % options
 
