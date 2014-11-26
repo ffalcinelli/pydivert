@@ -29,7 +29,7 @@ from setuptools.command.install import install as _install
 workdir = os.path.abspath(os.path.dirname(__file__))
 
 windivert = {
-    "version": "1.1.6",
+    "version": "1.1.7",
     "compiler": "WDDK",  # MSVC | MINGW
     "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
 }
@@ -104,7 +104,7 @@ class RunTests(Command):
 
 
 options = dict(name='pydivert',
-               version='0.0.6',
+               version='0.0.7',
                description='Python binding to windivert driver',
                # long_description=readme.read(),
                author='Fabio Falcinelli',
