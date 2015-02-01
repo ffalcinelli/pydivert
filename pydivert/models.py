@@ -400,6 +400,26 @@ class CapturedPacket(object):
         self._set_in_headers("SrcPort", socket.ntohs(value))
 
     @property
+    def seq_num(self):
+        header, seq_num = self._get_from_headers("SeqNum")
+        if seq_num:
+            return socket.htons(seq_num)
+
+    @seq_num.setter
+    def seq_num(self, value):
+        self._set_in_headers("SeqNum", socket.ntohs(value))
+
+    @property
+    def ack_num(self):
+        header, ack_num = self._get_from_headers("AckNum")
+        if ack_num:
+            return socket.htons(ack_num)
+
+    @ack_num.setter
+    def ack_num(self, value):
+        self._set_in_headers("AckNum", socket.ntohs(value))
+
+    @property
     def dst_port(self):
         header, dst_port = self._get_from_headers("DstPort")
         if dst_port:
