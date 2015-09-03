@@ -152,6 +152,10 @@ class WinDivertInstaller:
             sys_file = os.path.join(workdir, self.pkg_name, system_isa, "WinDivert%d.sys" % (
                 64 if system_isa == "amd64" else 32))
 
+            if not os.path.exists(self.inst_dir):
+                sys.stdout.write("Creating driver install directory %s" % self.inst_dir)
+                os.makedirs(self.inst_dir)
+
             for f in (dll_file, sys_file):
                 sys.stdout.write("Copying %s to %s\n" % (f, self.inst_dir))
                 shutil.copy(f, self.inst_dir)
