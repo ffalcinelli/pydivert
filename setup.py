@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014  Fabio Falcinelli
+# Copyright (C) 2016  Fabio Falcinelli
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
+# it under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# GNU Lesser General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
+# You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import site
@@ -29,7 +29,7 @@ from setuptools.command.install import install as _install
 workdir = os.path.abspath(os.path.dirname(__file__))
 
 windivert = {
-    "version": "1.1.7",
+    "version": "1.1.8",
     "compiler": "WDDK",  # MSVC | MINGW
     "url": "https://github.com/basil00/Divert/releases/download/v%(version)s/WinDivert-%(version)s-%(compiler)s.zip"
 }
@@ -104,7 +104,7 @@ class RunTests(Command):
 
 
 options = dict(name='pydivert',
-               version='0.0.7',
+               version='0.0.8',
                description='Python binding to windivert driver',
                # long_description=readme.read(),
                author='Fabio Falcinelli',
