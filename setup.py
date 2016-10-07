@@ -68,11 +68,8 @@ setup(
         ],
         # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380
         # Ubuntu Trusty and other still ship with setuptools < 17.1
-        ':python_version == "2.7"': [
+        ':python_version == "2.7" or python_version == "3.3"': [
             "win_inet_pton >= 1.0.1"  # available on 3.4+
-        ],
-        ':python_version == "3.3"': [
-            "win_inet_pton >= 1.0.1"  # available on 3.4+
-        ],
+        ]
     }
 )
