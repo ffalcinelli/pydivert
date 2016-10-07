@@ -13,17 +13,17 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from binascii import hexlify
+import os
 import socket
 import threading
 import unittest
-import os
+from binascii import hexlify
 
+import pytest
 from pydivert.enum import Param, Defaults
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, \
     EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
 from pydivert.windivert import Handle, WinDivert, DEFAULT_DLL_PATH
-
 
 __author__ = 'fabio'
 
@@ -70,7 +70,9 @@ class BaseTestCase(unittest.TestCase):
         """
         Tests DLL loading with an invalid path
         """
-        self.assertRaises(ValueError, WinDivert, "invalid_path")
+        with pytest.raises(ValueError):
+            WinDivert("invalid_path")
+
 
 class WinDivertTestCase(BaseTestCase):
     """
@@ -80,8 +82,7 @@ class WinDivertTestCase(BaseTestCase):
     def setUp(self):
         super(WinDivertTestCase, self).setUp()
         WinDivert().register()
-        #self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
-
+        # self.dll_path = os.path.join(self.driver_dir, "WinDivert.dll")
 
     def test_load_already_registered(self):
         """
@@ -115,7 +116,7 @@ class WinDivertTestCase(BaseTestCase):
         Tests constructing an handle from a WinDivert instance
         """
         handle = Handle(filter="tcp.DstPort == 23", priority=1000)
-        #The handle is not opened so we expect an error
+        # The handle is not opened so we expect an error
         self.assertRaises(WindowsError, handle.close)
 
     def test_context_manager(self):
@@ -131,7 +132,7 @@ class WinDivertTestCase(BaseTestCase):
         From docs: 128 < default 512 < 2048
         """
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
-            #TODO: this range should have a proper default representation
+            # TODO: this range should have a proper default representation
 
             def_range = (128, 512, 2048)
             for value in def_range:
@@ -144,7 +145,7 @@ class WinDivertTestCase(BaseTestCase):
         From docs: 1< default 512 <8192
         """
         with Handle(filter="tcp.DstPort == 23", priority=1000) as filter0:
-            #TODO: this range should have a proper default representation
+            # TODO: this range should have a proper default representation
             for value in (1, 512, 8192):
                 filter0.set_param(Param.QUEUE_LEN, value)
                 assert value == filter0.get_param(Param.QUEUE_LEN)
@@ -154,7 +155,8 @@ class WinDivertTestCase(BaseTestCase):
         Tests the parsing packet function to raise an exception when invoked with wrong number of arguments
         """
         driver = WinDivert().register()
-        self.assertRaises(ValueError, driver.parse_packet, "", "", "")
+        with pytest.raises(ValueError):
+            driver.parse_packet("", "", "")
 
 
 class WinDivertTCPDataCaptureTestCase(BaseTestCase):
@@ -303,7 +305,7 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
         Tests string conversions
         """
         packet = self.handle.receive()
-        assert str(packet.tcp_hdr)in str(packet)
+        assert str(packet.tcp_hdr) in str(packet)
         assert str(packet.ipv4_hdr) in str(packet)
         assert packet.tcp_hdr.raw.decode() == repr(packet.tcp_hdr)
         self.handle.send(packet)
@@ -345,7 +347,8 @@ class WinDivertTCPDataCaptureTestCase(BaseTestCase):
         Tests send with wrong number of arguments
         """
         packet = self.handle.receive()
-        self.assertRaises(ValueError, self.handle.send, "test")
+        with pytest.raises(ValueError):
+            self.handle.send("test")
 
     def tearDown(self):
         try:
@@ -473,6 +476,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
             client_thread.join(timeout=10)
             assert text.upper() == client.response.decode()
 
+    @pytest.mark.skip(reason=".recv() is not guaranteed to get all content, this test is flaky")
     def test_pass_through_mtu_size(self):
         """
         Tests sending a packet bigger than mtu
@@ -735,7 +739,6 @@ class WinDivertAsyncTestCase(BaseTestCase):
         self.client = FakeTCPClient(self.server.server_address, self.text.encode("UTF-8"))
         self.client_thread = threading.Thread(target=self.client.send)
         self.client_thread.start()
-
 
     def test_async_pass_through(self):
         """
