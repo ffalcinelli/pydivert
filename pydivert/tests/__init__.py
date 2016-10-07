@@ -20,7 +20,6 @@ import os
 import socket
 import subprocess
 import sys
-import functools
 
 from mock import patch, MagicMock
 
@@ -31,24 +30,6 @@ except ImportError:
     from SocketServer import ThreadingMixIn, TCPServer, UDPServer, BaseRequestHandler
 
 __author__ = 'fabio'
-
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
-
-
-def mock_urllib_download(tarball="WinDivert-1.1.5-WDDK.zip", chunk_size=1):
-    def inner_decorator(funct, *args, **kwargs):
-        @functools.wraps(funct)
-        def wrapped(*args, **kwargs):
-            def return_fake_tarball(*args, **kwargs):
-                return open(os.path.join(FIXTURES_DIR, tarball), "rb")
-
-            with patch("pydivert.install.WinDivertInstaller._downloader", return_fake_tarball):
-                # with patch("http_lib.urlopen", return_fake_tarball):
-                return funct(*args, **kwargs)
-
-        return wrapped
-
-    return inner_decorator
 
 
 @contextmanager
@@ -176,7 +157,7 @@ def prepare_env(versions=None):
 def run_test_suites():
     import unittest
     from unittest.test import loader
-    from pydivert.tests import test_winutils, test_installer, test_windivert, test_models
+    from pydivert.tests import test_winutils, test_windivert, test_models
 
     runner = unittest.TextTestRunner()
     suite = unittest.TestSuite()
@@ -188,7 +169,6 @@ def run_test_suites():
         suite.addTests(loader.loadTestsFromModule(test_windivert))
 
     suite.addTests(loader.loadTestsFromModule(test_winutils))
-    suite.addTests(loader.loadTestsFromModule(test_installer))
     suite.addTests(loader.loadTestsFromModule(test_models))
     runner.run(suite)
 
