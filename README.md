@@ -1,13 +1,18 @@
 pydivert 
 ========
-[![PyPI Version](https://pypip.in/v/pydivert/badge.png)](https://crate.io/packages/pydivert)
 
-A python binding for [WinDivert](https://github.com/basil00/Divert) driver.
+[![AppVeyor Status](https://img.shields.io/appveyor/ci/ffalcinelli/pydivert/master.svg)](https://ci.appveyor.com/project/ffalcinelli/pydivert)
+[![Code Coverage](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/master.svg)](https://ci.appveyor.com/project/ffalcinelli/pydivert)
+[![PyPI Version](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
+[![Python Versions](https://img.shields.io/pypi/pyversions/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
+
+
+Python Bindings for [WinDivert](https://github.com/basil00/Divert).
 
 Platform Support
 ----------------
 
-Right now PyDivert supports  Python 2.7/3.3/3.4 and should work on each platform supported by the driver itself.
+Right now PyDivert supports Python 2.7/3.3/3.4 and should work on each platform supported by the driver itself.
 
 It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3/3.4 interpreters (64bit).
 
