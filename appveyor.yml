@@ -1,0 +1,18 @@
+environment:
+  matrix:
+    - python: 27
+    - python: 27-x64
+    - python: 35
+    - python: 35-x64
+
+install:
+  - "SET PATH=C:\\Python%PYTHON%;c:\\Python%PYTHON%\\scripts;%PATH%"
+  - "python -m pip install --disable-pip-version-check -U pip"
+  - "pip install -e .[test]"
+
+build: false
+
+test_script:
+  - py.test pydivert --capture=no -v --cov pydivert
+  - python -u setup.py bdist_wheel
+  - ps: Get-ChildItem dist\*.whl | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name }

@@ -60,6 +60,9 @@ setup(
         "test": [
             "mock>=1.0.1",
             "pytest>=3.0.3",
+            "pytest-cov>=2.2.1",
+            "pytest-timeout>=1.0.0, <2",
+            "pytest-faulthandler>=1.3.0, <2",
             "wheel>=0.29",
         ],
         # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380

@@ -40,12 +40,6 @@ HelperOption = enum(NO_IP_CHECKSUM=1,
                     NO_TCP_CHECKSUM=8,
                     NO_UDP_CHECKSUM=16)
 
-RegKeys = enum(VERSION10=r"SYSTEM\CurrentControlSet\Services\WinDivert1.0",
-               VERSION11=r"SYSTEM\CurrentControlSet\Services\WinDivert1.1")
-
-DriverVersions = enum(VERSION10=0,
-                      VERSION11=1)
-
 Defaults = enum(PACKET_BUFFER_SIZE=1500, )
 
 ErrorCodes = enum(ERROR_IO_PENDING=997)
