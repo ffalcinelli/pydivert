@@ -6,3 +6,7 @@ logs
 coverage
 *~
 .idea
+dist/
+.cache/
+venv/
+.coverage

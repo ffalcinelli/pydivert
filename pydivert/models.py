@@ -266,9 +266,8 @@ class HeaderWrapper(object):
     header, except the "Options" one.
     """
 
-    def __init__(self, hdr, opts='', encoding="UTF-8"):
+    def __init__(self, hdr, opts=''):
         self.hdr, self.opts = hdr, opts
-        self.encoding = encoding
 
         for name, clazz in headers_map.items():
             if isinstance(hdr, clazz):
@@ -301,7 +300,7 @@ class HeaderWrapper(object):
         return hexed
 
     def __repr__(self):
-        return self.raw.decode(self.encoding)
+        return self.raw.decode()
 
     def __str__(self):
         return "%s Header: %s [Options: %s]" % (self.type.title(),
@@ -338,7 +337,7 @@ class CapturedPacket(object):
     Gathers several network layers of data
     """
 
-    def __init__(self, headers, payload=None, raw_packet=None, meta=None, encoding="UTF-8"):
+    def __init__(self, headers, payload=None, raw_packet=None, meta=None):
         if len(headers) > 2:
             raise ValueError("No more than 2 headers (tcp/udp/icmp over ip) are supported")
 
@@ -353,7 +352,6 @@ class CapturedPacket(object):
                 self.headers[0] = header
             else:
                 self.headers[1] = header
-        self.encoding = encoding
 
     def _get_from_headers(self, key):
         for header in self.headers:
@@ -433,21 +431,21 @@ class CapturedPacket(object):
     def src_addr(self):
         header, src_addr = self._get_from_headers("SrcAddr")
         if src_addr:
-            return addr_to_string(self.address_family, src_addr, self.encoding)
+            return addr_to_string(self.address_family, src_addr)
 
     @src_addr.setter
     def src_addr(self, value):
-        self._set_in_headers("SrcAddr", string_to_addr(self.address_family, value, self.encoding))
+        self._set_in_headers("SrcAddr", string_to_addr(self.address_family, value))
 
     @property
     def dst_addr(self):
         header, dst_addr = self._get_from_headers("DstAddr")
         if dst_addr:
-            return addr_to_string(self.address_family, dst_addr, self.encoding)
+            return addr_to_string(self.address_family, dst_addr)
 
     @dst_addr.setter
     def dst_addr(self, value):
-        self._set_in_headers("DstAddr", string_to_addr(self.address_family, value, self.encoding))
+        self._set_in_headers("DstAddr", string_to_addr(self.address_family, value))
 
     def __getattr__(self, item):
         clazz = headers_map.get(item, None)
@@ -476,7 +474,7 @@ class CapturedPacket(object):
         return unhexlify(hexed)
 
     def __repr__(self):
-        return hexlify(self.raw).decode(self.encoding)
+        return hexlify(self.raw).decode()
 
     def __str__(self):
         tokens = list()
