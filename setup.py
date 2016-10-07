@@ -17,10 +17,9 @@
 import os
 
 import pydivert
+from setuptools import setup, find_packages
 
 __author__ = 'fabio'
-
-from setuptools import setup, find_packages
 
 workdir = os.path.abspath(os.path.dirname(__file__))
 
@@ -58,6 +57,19 @@ setup(
         'Topic :: Utilities',
     ],
     extras_require={
-        "testing": ["mock>=1.0.1"]
+        "test": [
+            "mock>=1.0.1",
+            "pytest>=3.0.3",
+            "pytest-cov>=2.2.1",
+            "pytest-timeout>=1.0.0, <2",
+            "pytest-faulthandler>=1.3.0, <2",
+            "codecov>=2.0.5",
+            "wheel>=0.29",
+        ],
+        # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380
+        # Ubuntu Trusty and other still ship with setuptools < 17.1
+        ':python_version == "2.7" or python_version == "3.3"': [
+            "win_inet_pton >= 1.0.1"  # available on 3.4+
+        ]
     }
 )
