@@ -63,6 +63,7 @@ setup(
             "pytest-cov>=2.2.1",
             "pytest-timeout>=1.0.0, <2",
             "pytest-faulthandler>=1.3.0, <2",
+            "codecov>=2.0.5",
             "wheel>=0.29",
         ],
         # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380

@@ -15,4 +15,5 @@ build: false
 test_script:
   - py.test pydivert --capture=no -v --cov pydivert
   - python -u setup.py bdist_wheel
+  - codecov
   - ps: Get-ChildItem dist\*.whl | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name }
