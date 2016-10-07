@@ -13,13 +13,17 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+pydivert bundles the WinDivert binaries from
+https://github.com/basil00/Divert/releases/download/v1.1.8/WinDivert-1.1.8-WDDK.zip
+"""
 from _ctypes import POINTER, pointer, byref, sizeof
 from ctypes.wintypes import HANDLE
 import os
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer, c_uint8)
 import logging
-import sys
+import platform
 
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer, RegKeys, Defaults, ErrorCodes
@@ -33,6 +37,13 @@ __author__ = 'fabio'
 
 #TODO: move the logger away... Probably better inside WinDivert class
 logger = logging.getLogger(__name__)
+
+here = os.path.abspath(os.path.dirname(__file__))
+
+if platform.architecture()[0] == "64bit":
+    DEFAULT_DLL_PATH = os.path.join(here, "WinDivert64.dll")
+else:
+    DEFAULT_DLL_PATH = os.path.join(here, "WinDivert32.dll")
 
 
 class WinDivert(object):
@@ -80,13 +91,11 @@ class WinDivert(object):
             else:
                 return setattr(self._lib, key, value)
 
-    def _load_dll(self, dll_path):
+    def _load_dll(self):
         """
         Loads the WinDivert.dll library, configuring it according to its version
-        :param dll_path: The OS path where to load the WinDivert.dll
-        :return:
         """
-        self._lib = WinDLL(dll_path)
+        self._lib = WinDLL(self.dll_path)
         self.reg_key = RegKeys.VERSION11
         if not hasattr(self._lib, "WinDivertOpen"):
             logger.debug("Library does not seem to be of version >= 1.1. Assuming 1.0...")
@@ -105,14 +114,13 @@ class WinDivert(object):
         :param encoding: The character encoding to use (defaults to UTF-8)
         :return:
         """
-        if not dll_path:
-            logger.debug("Trying to load dll from interpreter DLLs folder")
-            dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
-            if not os.path.exists(dll_path):
-                raise ValueError("Unable to find WinDivert.dll")
+        if dll_path is None:
+            dll_path = DEFAULT_DLL_PATH
+        if not os.path.exists(dll_path):
+            raise ValueError("Unable to find {}".format(dll_path))
         self.dll_path = dll_path
         self.encoding = encoding
-        self._load_dll(dll_path)
+        self._load_dll()
 
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         """

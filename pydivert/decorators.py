@@ -59,16 +59,3 @@ def winerror_on_retcode(funct):
     #     return wrapper
     #
     #
-
-
-@contextmanager
-def cd(path):
-    """
-    A context manager for a temporary change of the working directory
-    """
-    old_dir = os.getcwd()
-    try:
-        os.chdir(path)
-        yield
-    finally:
-        os.chdir(old_dir)
