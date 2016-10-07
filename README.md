@@ -37,10 +37,7 @@ or
 $ python setup.py install
 ```
 
-As of version `0.0.3` the `install` command takes care of [WinDivert](http://reqrypt.org/windivert.html) driver download.
-
-For simplicity, the driver's got installed in your interpreter's DLLs directory. If you're running a 32 bit interpreter
-on a 64bit machine you'll find both `WinDivert32.sys` and `WinDivert64.sys` but only the second one should be loaded.
+As of version `0.1` the [WinDivert](http://reqrypt.org/windivert.html) driver download is no more needed, while the latest version 1.1.8 is bundled to pydivert itself.
 
 
 Uninstalling PyDivert
@@ -52,44 +49,11 @@ Using `pip` you can uninstall the binding with
 $ pip uninstall pydivert
 ```
 
-So far, this does not uninstall the `WinDivert` driver. For convenience the `setup.py` script has two methods:
-
-* `wd_install`: Installs `WinDivert`
-* `wd_uninstall`: Of course, uninstalls `WinDivert`
-
-If you find a way to invoke a post uninstall hook in `pip` please notice me :-)
-
-Testing against WinDivert version 1.0.x
+WinDivert version 1.0.x
 -------------------------------------------------------
 
-The support for WinDivert 1.0.x will be dropped soon, but if you wish to use it, you can test the binding following these
-guidelines.
+The support for WinDivert 1.0.x has been dropped.
 
-Basically, download the driver (version 1.0 at the moment of writing this) and sign it with a test certificate.
-Follow [these instructions](https://github.com/basil00/Divert/wiki/WinDivert-Documentation#wiki-driver_signing)
-
-Remove the `WinDivert` driver installed along with the `pydivert` package:
-
-```
-$ python setup.py wd_uninstall
-```
-
-As of 1.0.4 version of WinDivert there's no more need to sign the driver if you decide to use one of the binary distributions provided.
-
-Put the `WinDivert.dll`, `WinDivert.sys`, `WinDivert.inf` and `WdfCoInstaller*.dll` into the `<your_python_home>/DLLs` folder.
-
-Enabling Windows 64bit Test Mode
---------------------------------
-
-Last step, is to enable the *Test Mode* for Windows 64bit editions
-
-```
-bcdedit.exe -set TESTSIGNING ON
-```
-
-Run `bcdedit.exe` without any parameter and check the output to see the change had actually effect. Reboot.
-
-If all went well, you see a "Test Mode" watermark in the right down corner.
 
 Registering the driver
 ----------------------
@@ -101,34 +65,11 @@ handle = WinDivert( os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).open_handl
 handle.close()
 ```
 
-To avoid problems concerning the current working directory, you can use also the provided `register` method which will do just the same thing as the above statements, but will change and restore the current working directory with the path of `WinDivert.dll`.
-
-```python
-WinDivert(os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).register()
-```
-
 Once installed, you don't have to use anymore the path to your DLL and you can get an handle by constructing a driver with no parameters
 
 ```python
 handle = WinDivert().open_handle(filter="true")
 ```
-
-As a matter of fact, The position of the `WinDivert.sys` file gets registered into the windows registry until a system reboot or an explicit call to
-
-```
-sc stop WinDivert1.1
-```
-
-Note that this behaviour has changed since `WinDivert1.0`. Indeed in this version, you have to call both
-
-```
-sc stop WinDivert1.0
-sc delete WinDivert1.0
-```
-
-to achieve the same result.
-
-So, if you're using driver version 1.1, it's required to register again it every time the service got stopped, for example by a system reboot.
 
 Using an Handle instance as a context manager
 ---------------------------------------------
@@ -222,7 +163,7 @@ TODOs
 3. ~~May be a good idea to delegate all the WinDivert methods to Handle instances~~
 4. Clean test code. Tests should be more readable to use as usage example
 5. Implement binding for Asynchronous I/O using WinDivertSendEx and WinDivertRecvEx
-6. Drop support for WinDivert 1.0.x
+6. ~~Drop support for WinDivert 1.0.x~~
 
 
 License

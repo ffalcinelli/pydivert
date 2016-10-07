@@ -110,6 +110,8 @@ class WinDivert(object):
         Returns whether the driver is at the old 1.0.x version
         :return: True if a 1.0.x version is detected, False otherwise
         """
+        import warnings
+        warnings.warn('Method is_legacy_driver will be removed in future releases', DeprecationWarning, stacklevel=2)
         return False
 
     @winerror_on_retcode
