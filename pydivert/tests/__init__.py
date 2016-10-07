@@ -152,24 +152,3 @@ def prepare_env(versions=None):
             sys.stdout.write("Stopping version %s\n" % version)
             subprocess.call(['sc', 'stop', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
             subprocess.call(['sc', 'delete', 'WinDivert%s' % version], stdout=devnull, stderr=devnull)
-
-
-def run_test_suites():
-    import unittest
-    from unittest.test import loader
-    from pydivert.tests import test_winutils, test_windivert, test_models
-
-    runner = unittest.TextTestRunner()
-    suite = unittest.TestSuite()
-    dll_path = os.path.join(os.path.join(sys.exec_prefix, "DLLs", "WinDivert.dll"))
-
-    if os.path.exists(dll_path):
-        sys.stdout.write("Found WinDivert.dll in python DLLs directory. Testing against it...\n")
-        prepare_env()
-        suite.addTests(loader.loadTestsFromModule(test_windivert))
-
-    suite.addTests(loader.loadTestsFromModule(test_winutils))
-    suite.addTests(loader.loadTestsFromModule(test_models))
-    runner.run(suite)
-
-

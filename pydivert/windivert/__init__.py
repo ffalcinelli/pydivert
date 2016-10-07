@@ -17,21 +17,21 @@
 pydivert bundles the WinDivert binaries from
 https://github.com/basil00/Divert/releases/download/v1.1.8/WinDivert-1.1.8-WDDK.zip
 """
-from _ctypes import POINTER, pointer, byref, sizeof
-from ctypes.wintypes import HANDLE
+import logging
 import os
+import platform
+import subprocess
+from _ctypes import POINTER, pointer, byref, sizeof
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer, c_uint8)
-import logging
-import platform
+from ctypes.wintypes import HANDLE
 
 from pydivert.decorators import winerror_on_retcode
-from pydivert.enum import Layer, RegKeys, Defaults, ErrorCodes
+from pydivert.enum import Layer, Defaults, ErrorCodes
 from pydivert.exception import AsyncCallFailedException, MethodUnsupportedException
-from pydivert.winutils import get_reg_values, GetLastError
-from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header, FuturePacket
 from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
-
+from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header, FuturePacket
+from pydivert.winutils import GetLastError
 
 __author__ = 'fabio'
 
@@ -66,52 +66,18 @@ class WinDivert(object):
                     "WinDivertSetParam": [HANDLE, c_int, c_uint64],
     }
 
-    class LegacyDLLWrapper(object):
-        """
-        A wrapper object to seamlessy call the 1.0 api instead of the 1.1
-        """
-        _lib = None
-
-        def __init__(self, dll):
-            self._lib = dll
-
-        def __getattr__(self, item):
-            if item in WinDivert.dll_argtypes.keys():
-                return getattr(self._lib, item[3:])
-            else:
-                return getattr(self._lib, item)
-
-        def __setattr__(self, key, value):
-            if key == "_lib":
-                super(WinDivert.LegacyDLLWrapper, self).__setattr__(key, value)
-                return
-
-            if key in WinDivert.dll_argtypes.keys():
-                return setattr(self._lib, key[3:], value)
-            else:
-                return setattr(self._lib, key, value)
-
     def _load_dll(self):
         """
         Loads the WinDivert.dll library, configuring it according to its version
         """
         self._lib = WinDLL(self.dll_path)
-        self.reg_key = RegKeys.VERSION11
-        if not hasattr(self._lib, "WinDivertOpen"):
-            logger.debug("Library does not seem to be of version >= 1.1. Assuming 1.0...")
-            self.reg_key = RegKeys.VERSION10
-            self._lib = self.LegacyDLLWrapper(self._lib)
-            self.dll_argtypes = {k: v for k, v in self.dll_argtypes.items() if
-                                 k not in ("WinDivertSendEx", "WinDivertRecvEx")}
-
         for funct, argtypes in self.dll_argtypes.items():
             setattr(getattr(self._lib, funct), "argtypes", argtypes)
 
-    def __init__(self, dll_path=None, encoding="UTF-8"):
+    def __init__(self, dll_path=None):
         """
         Constructs a new driver instance
         :param dll_path: The OS path where to load the WinDivert.dll
-        :param encoding: The character encoding to use (defaults to UTF-8)
         :return:
         """
         if dll_path is None:
@@ -119,7 +85,6 @@ class WinDivert(object):
         if not os.path.exists(dll_path):
             raise ValueError("Unable to find {}".format(dll_path))
         self.dll_path = dll_path
-        self.encoding = encoding
         self._load_dll()
 
     def open_handle(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
@@ -131,7 +96,7 @@ class WinDivert(object):
         :param flags: An operational mode in SNIFF, DROP and NO_CHECKSUM
         :return: An opened Handle instance
         """
-        return Handle(self, filter, layer, priority, flags, self.encoding).open()
+        return Handle(self, filter, layer, priority, flags).open()
 
     def get_reference(self):
         """
@@ -145,7 +110,7 @@ class WinDivert(object):
         Returns whether the driver is at the old 1.0.x version
         :return: True if a 1.0.x version is detected, False otherwise
         """
-        return self.reg_key == RegKeys.VERSION10
+        return False
 
     @winerror_on_retcode
     def parse_packet(self, *args):
@@ -225,12 +190,13 @@ class WinDivert(object):
                 header_len = sizeof(header)
             offset += header_len
 
-        return CapturedPacket(payload=raw_packet[offset:],
-                              raw_packet=raw_packet,
-                              headers=[HeaderWrapper(hdr, opt, self.encoding) for hdr, opt in
-                                       zip(headers, headers_opts)],
-                              meta=meta,
-                              encoding=self.encoding)
+        return CapturedPacket(
+            payload=raw_packet[offset:],
+            raw_packet=raw_packet,
+            headers=[HeaderWrapper(hdr, opt) for hdr, opt in
+                zip(headers, headers_opts)],
+            meta=meta
+        )
 
     @winerror_on_retcode
     def parse_ipv4_address(self, address):
@@ -247,7 +213,7 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv4_address
         """
         ip_addr = c_uint32(0)
-        self._lib.WinDivertHelperParseIPv4Address(address.encode(self.encoding), byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv4Address(address.encode(), byref(ip_addr))
         return ip_addr.value
 
 
@@ -266,7 +232,7 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_help_parse_ipv6_address
         """
         ip_addr = ARRAY(c_uint8, 16)()
-        self._lib.WinDivertHelperParseIPv6Address(address.encode(self.encoding), byref(ip_addr))
+        self._lib.WinDivertHelperParseIPv6Address(address.encode(), byref(ip_addr))
         return ip_addr
 
     @winerror_on_retcode
@@ -313,7 +279,7 @@ class WinDivert(object):
         """
         Check if an entry exist in windows registry
         """
-        return hasattr(self, "registry") or get_reg_values(self.reg_key)
+        return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
     def __str__(self):
         return "%s" % self._lib
@@ -324,7 +290,7 @@ class Handle(object):
     An handle object got from a WinDivert DLL.
     """
 
-    def __init__(self, driver=None, filter="true", layer=Layer.NETWORK, priority=0, flags=0, encoding="UTF-8"):
+    def __init__(self, driver=None, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
         if not driver:
             #Try to construct by loading from the registry
             self.driver = WinDivert()
@@ -332,8 +298,7 @@ class Handle(object):
             self.driver = driver
         self._lib = self.driver.get_reference()
         self._handle = None
-        self.encoding = encoding
-        self._filter = filter.encode(self.encoding)
+        self._filter = filter.encode()
         self._layer = layer
         self._priority = priority
         self._flags = flags
