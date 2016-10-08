@@ -59,6 +59,7 @@ setup(
     extras_require={
         "test": [
             "mock>=1.0.1",
+            "hypothesis>=3.5.3",
             "pytest>=3.0.3",
             "pytest-cov>=2.2.1",
             "pytest-timeout>=1.0.0, <2",

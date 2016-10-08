@@ -17,17 +17,19 @@
 pydivert bundles the WinDivert binaries from
 https://github.com/basil00/Divert/releases/download/v1.1.8/WinDivert-1.1.8-WDDK.zip
 """
+import functools
 import os
 import platform
 import sys
-from ctypes import POINTER
-from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
-                    c_uint8)
+from ctypes import (
+    POINTER, GetLastError, WinError, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
+    c_uint8
+)
 from ctypes.wintypes import HANDLE
 
-ERROR_IO_PENDING = 997
+from .structs import WinDivertAddress
 
-__author__ = 'fabio'
+ERROR_IO_PENDING = 997
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -44,11 +46,11 @@ def raise_on_error(f):
     """
 
     @functools.wraps(f)
-    def wrapper(instance, *args, **kwargs):
-        result = f(instance, *args, **kwargs)
-        retcode = ctypes.GetLastError()
+    def wrapper(*args, **kwargs):
+        result = f(*args, **kwargs)
+        retcode = GetLastError()
         if retcode and retcode != ERROR_IO_PENDING:
-            raise ctypes.WinError(code=retcode)
+            raise WinError(code=retcode)
         return result
 
     return wrapper

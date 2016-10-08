@@ -13,39 +13,59 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from enum import Enum
-
-__author__ = 'fabio'
+from enum import IntEnum
 
 
 # Divert layers.
-class Layer(Enum):
+class Layer(IntEnum):
     NETWORK = 0
     NETWORK_FORWARD = 1
 
 
 # Divert Flag.
-class Flag(Enum):
+class Flag(IntEnum):
     SNIFF = 1
     DROP = 2
 
 
 # Divert parameters.
-class Param(Enum):
+class Param(IntEnum):
     QUEUE_LEN = 0  # Packet queue length 1 <default 512 < 8192
     QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
 
 
 # Direction outbound/inbound
-class Direction(Enum):
+class Direction(IntEnum):
     OUTBOUND = 0
     INBOUND = 1
 
 
 # Checksums
-class CalcChecksumsOption(Enum):
+class CalcChecksumsOption(IntEnum):
     NO_IP_CHECKSUM = 1
     NO_ICMP_CHECKSUM = 2
     NO_ICMPV6_CHECKSUM = 4
     NO_TCP_CHECKSUM = 8
     NO_UDP_CHECKSUM = 16
+
+
+class Protocol(IntEnum):
+    HOPOPT = 0
+    ICMP = 1
+    TCP = 6
+    UDP = 17
+    ROUTING = 43
+    FRAGMENT = 44
+    AH = 51
+    ICMPV6 = 58
+    NONE = 59
+    DSTOPTS = 60
+
+
+IPV6_EXT_HEADERS = {
+    Protocol.HOPOPT,
+    Protocol.ROUTING,
+    Protocol.FRAGMENT,
+    Protocol.DSTOPTS,
+    Protocol.AH,
+}

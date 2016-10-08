@@ -1,13 +1,12 @@
 import subprocess
-from ctypes import pointer, create_string_buffer, byref, sizeof, c_uint64, c_uint
+from ctypes import create_string_buffer, byref, c_uint64, c_uint
 
 from pydivert import windivert_dll
-from pydivert.consts import Layer
-from pydivert.models import WinDivertAddress, PacketMetadata, Packet, IpHeader, Ipv6Header, \
-    IcmpHeader, Icmpv6Header, UdpHeader, TcpHeader, HeaderWrapper
-
+from pydivert.consts import Layer, Direction
+from pydivert.packet import Packet
 
 DEFAULT_PACKET_BUFFER_SIZE = 1500
+
 
 class WinDivert(object):
     """
@@ -21,7 +20,15 @@ class WinDivert(object):
         self._priority = priority
         self._flags = flags
 
-    # Context Manager protocol
+    def __repr__(self):
+        return '<WinDivert state="{}" filter="{}" layer="{}" priority="{}" flags="{}" />'.format(
+            "open" if self._handle is not None else "closed",
+            self._filter.decode(),
+            self._layer,
+            self._priority,
+            self._flags
+        )
+
     def __enter__(self):
         self.open()
         return self
@@ -33,8 +40,7 @@ class WinDivert(object):
         return self
 
     def __next__(self):
-        while True:
-            yield self.receive()
+        return self.recv()
 
     @classmethod
     def register(cls):
@@ -113,19 +119,14 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
         """
         packet = create_string_buffer(bufsize)
-        address = WinDivertAddress()
+        address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet, bufsize, byref(address), byref(recv_len))
-        return packet[:recv_len.value], PacketMetadata((address.IfIdx, address.SubIfIdx), address.Direction)
-
-    def receive(self, bufsize=DEFAULT_PACKET_BUFFER_SIZE):
-        """
-        Receives a diverted packet that matched the filter passed to the handle constructor.
-        The return value is an high level packet with right headers and payload parsed
-        The received packet is guaranteed to match the filter.
-        This is the low level way to access the driver.
-        """
-        return self.parse_packet(*self.recv(bufsize))
+        return Packet(
+            packet[:recv_len.value],
+            (address.IfIdx, address.SubIfIdx),
+            Direction(address.Direction)
+        )
 
     def send(self, packet):
         """
@@ -195,84 +196,6 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_set_param
         """
         return windivert_dll.WinDivertSetParam(self._handle, name, value)
-
-    @staticmethod
-    def parse_packet(raw_packet, meta=None):
-        """
-        Parses a raw packet into a higher level object.
-        Args could be a tuple or two different values. In each case the first one is the raw data and the second
-        is the meta about the direction and interface to use.
-
-        The function remapped is WinDivertHelperParsePacket:
-        Parses a raw packet (e.g. from WinDivertRecv()) into the various packet headers
-        and/or payloads that may or may not be present.
-
-        BOOL WinDivertHelperParsePacket(
-            __in PVOID pPacket,
-            __in UINT packetLen,
-            __out_opt PWINDIVERT_IPHDR *ppIpHdr,
-            __out_opt PWINDIVERT_IPV6HDR *ppIpv6Hdr,
-            __out_opt PWINDIVERT_ICMPHDR *ppIcmpHdr,
-            __out_opt PWINDIVERT_ICMPV6HDR *ppIcmpv6Hdr,
-            __out_opt PWINDIVERT_TCPHDR *ppTcpHdr,
-            __out_opt PWINDIVERT_UDPHDR *ppUdpHdr,
-            __out_opt PVOID *ppData,
-            __out_opt UINT *pDataLen
-        );
-
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_helper_parse_packet
-        """
-        # FIXME: Move into models
-        packet_len = len(raw_packet)
-        # Consider everything else not part of headers as payload
-        # payload = ctypes.c_void_p(0)
-        payload_len = c_uint(0)
-        ip_hdr, ipv6_hdr = pointer(IpHeader()), pointer(Ipv6Header())
-        icmp_hdr, icmpv6_hdr = pointer(IcmpHeader()), pointer(Icmpv6Header())
-        tcp_hdr, udp_hdr = pointer(TcpHeader()), pointer(UdpHeader())
-        headers = (ip_hdr, ipv6_hdr, icmp_hdr, icmpv6_hdr, tcp_hdr, udp_hdr)
-
-        windivert_dll.WinDivertHelperParsePacket(
-            raw_packet,
-            packet_len,
-            byref(ip_hdr),
-            byref(ipv6_hdr),
-            byref(icmp_hdr),
-            byref(icmpv6_hdr),
-            byref(tcp_hdr),
-            byref(udp_hdr),
-            None,
-            byref(payload_len)
-        )
-        # headers_len = sum(ctypes.sizeof(hdr.contents) for hdr in headers if hdr)
-        # headers_len = sum((getattr(hdr.contents, "HdrLength", 0) * 4) for hdr in headers if hdr)
-
-        # clean headers, consider just those that are not None (!=NULL)
-        headers = [hdr.contents for hdr in headers if hdr]
-
-        headers_opts = []
-        offset = 0
-        for header in headers:
-            if hasattr(header, "HdrLength"):
-                header_len = getattr(header, "HdrLength", 0) * 4
-                opt_len = header_len - sizeof(header)
-                if opt_len:
-                    opt = raw_packet[offset + header_len - opt_len:offset + header_len]
-                    headers_opts.append(opt)
-                else:
-                    headers_opts.append('')
-            else:
-                headers_opts.append('')
-                header_len = sizeof(header)
-            offset += header_len
-
-        return Packet(
-            payload=raw_packet[offset:],
-            raw_packet=raw_packet,
-            headers=[HeaderWrapper(hdr, opt) for hdr, opt in
-                zip(headers, headers_opts)],
-            meta=meta
-        )
 
     @staticmethod
     def update_packet_checksums(packet):
