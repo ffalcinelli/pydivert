@@ -13,32 +13,23 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import ctypes
-from binascii import unhexlify, hexlify
 import socket
-from ctypes import Structure, c_uint32, c_uint8, c_uint16, create_string_buffer, c_int
-from ctypes.wintypes import DWORD
-from time import sleep
+from binascii import unhexlify, hexlify
+from ctypes import Structure as _Structure
+from ctypes import c_uint32, c_uint8, c_uint16
 
-from pydivert import enum
-from pydivert.enum import Direction, Defaults
-from pydivert.winutils import string_to_addr, addr_to_string, CreateEvent, OVERLAPPED, GetOverlappedResult
-
+from pydivert.consts import Direction
+from pydivert.winutils import string_to_addr, addr_to_string
 
 __author__ = 'fabio'
 
 
-def format_structure(instance):
-    """
-    Returns a string representation for the structure
-    """
-    if hasattr(instance, "_fields_"):
+class Structure(_Structure):
+    def __str__(self):
         out = []
-        for field in instance._fields_:
-            out.append("[%s: %s]" % (field[0], getattr(instance, field[0], None)))
+        for field in self._fields_:
+            out.append("[%s: %s]" % (field[0], getattr(self, field[0], None)))
         return "".join(out)
-    else:
-        raise ValueError("Passed argument is not a structure!")
 
 
 class WinDivertAddress(Structure):
@@ -63,12 +54,11 @@ class WinDivertAddress(Structure):
                     - WINDIVERT_DIRECTION_OUTBOUND with value 0 for outbound packets.
                     - WINDIVERT_DIRECTION_INBOUND with value 1 for inbound packets.
     """
-    _fields_ = [("IfIdx", c_uint32),
-                ("SubIfIdx", c_uint32),
-                ("Direction", c_uint8)]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("IfIdx", c_uint32),
+        ("SubIfIdx", c_uint32),
+        ("Direction", c_uint8),
+    ]
 
 
 class IpHeader(Structure):
@@ -90,20 +80,19 @@ class IpHeader(Structure):
         UINT32 DstAddr;
     } WINDIVERT_IPHDR, *PWINDIVERT_IPHDR;
     """
-    _fields_ = [("HdrLength", c_uint8, 4),
-                ("Version", c_uint8, 4),
-                ("TOS", c_uint8),
-                ("Length", c_uint16),
-                ("Id", c_uint16),
-                ("FragOff0", c_uint16),
-                ("TTL", c_uint8),
-                ("Protocol", c_uint8),
-                ("Checksum", c_uint16),
-                ("SrcAddr", c_uint32),
-                ("DstAddr", c_uint32), ]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("HdrLength", c_uint8, 4),
+        ("Version", c_uint8, 4),
+        ("TOS", c_uint8),
+        ("Length", c_uint16),
+        ("Id", c_uint16),
+        ("FragOff0", c_uint16),
+        ("TTL", c_uint8),
+        ("Protocol", c_uint8),
+        ("Checksum", c_uint16),
+        ("SrcAddr", c_uint32),
+        ("DstAddr", c_uint32),
+    ]
 
 
 class Ipv6Header(Structure):
@@ -127,19 +116,18 @@ class Ipv6Header(Structure):
         UINT32 DstAddr[4];
     } WINDIVERT_IPV6HDR, *PWINDIVERT_IPV6HDR;
     """
-    _fields_ = [("TrafficClass0", c_uint8, 4),
-                ("Version", c_uint8, 4),
-                ("FlowLabel0", c_uint8, 4),
-                ("TrafficClass1", c_uint8, 4),
-                ("FlowLabel1", c_uint16, 4),
-                ("Length", c_uint16),
-                ("NextHdr", c_uint8),
-                ("HopLimit", c_uint8),
-                ("SrcAddr", c_uint32 * 4),
-                ("DstAddr", c_uint32 * 4), ]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("TrafficClass0", c_uint8, 4),
+        ("Version", c_uint8, 4),
+        ("FlowLabel0", c_uint8, 4),
+        ("TrafficClass1", c_uint8, 4),
+        ("FlowLabel1", c_uint16, 4),
+        ("Length", c_uint16),
+        ("NextHdr", c_uint8),
+        ("HopLimit", c_uint8),
+        ("SrcAddr", c_uint32 * 4),
+        ("DstAddr", c_uint32 * 4),
+    ]
 
 
 class IcmpHeader(Structure):
@@ -154,13 +142,12 @@ class IcmpHeader(Structure):
         UINT32 Body;
     } WINDIVERT_ICMPHDR, *PWINDIVERT_ICMPHDR;
     """
-    _fields_ = [("Type", c_uint8),
-                ("Code", c_uint8),
-                ("Checksum", c_uint16),
-                ("Body", c_uint32)]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("Type", c_uint8),
+        ("Code", c_uint8),
+        ("Checksum", c_uint16),
+        ("Body", c_uint32)
+    ]
 
 
 class Icmpv6Header(Structure):
@@ -175,13 +162,12 @@ class Icmpv6Header(Structure):
         UINT32 Body;
     } WINDIVERT_ICMPV6HDR, *PWINDIVERT_ICMPV6HDR;
     """
-    _fields_ = [("Type", c_uint8),
-                ("Code", c_uint8),
-                ("Checksum", c_uint16),
-                ("Body", c_uint32)]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("Type", c_uint8),
+        ("Code", c_uint8),
+        ("Checksum", c_uint16),
+        ("Body", c_uint32)
+    ]
 
 
 class TcpHeader(Structure):
@@ -208,25 +194,24 @@ class TcpHeader(Structure):
         UINT16 UrgPtr;
     } WINDIVERT_TCPHDR, *PWINDIVERT_TCPHDR;
     """
-    _fields_ = [("SrcPort", c_uint16),
-                ("DstPort", c_uint16),
-                ("SeqNum", c_uint32),
-                ("AckNum", c_uint32),
-                ("Reserved1", c_uint16, 4),
-                ("HdrLength", c_uint16, 4),
-                ("Fin", c_uint16, 1),
-                ("Syn", c_uint16, 1),
-                ("Rst", c_uint16, 1),
-                ("Psh", c_uint16, 1),
-                ("Ack", c_uint16, 1),
-                ("Urg", c_uint16, 1),
-                ("Reserved2", c_uint16, 2),
-                ("Window", c_uint16),
-                ("Checksum", c_uint16),
-                ("UrgPtr", c_uint16), ]
-
-    def __str__(self):
-        return format_structure(self)
+    _fields_ = [
+        ("SrcPort", c_uint16),
+        ("DstPort", c_uint16),
+        ("SeqNum", c_uint32),
+        ("AckNum", c_uint32),
+        ("Reserved1", c_uint16, 4),
+        ("HdrLength", c_uint16, 4),
+        ("Fin", c_uint16, 1),
+        ("Syn", c_uint16, 1),
+        ("Rst", c_uint16, 1),
+        ("Psh", c_uint16, 1),
+        ("Ack", c_uint16, 1),
+        ("Urg", c_uint16, 1),
+        ("Reserved2", c_uint16, 2),
+        ("Window", c_uint16),
+        ("Checksum", c_uint16),
+        ("UrgPtr", c_uint16),
+    ]
 
 
 class UdpHeader(Structure):
@@ -241,21 +226,22 @@ class UdpHeader(Structure):
         UINT16 Checksum;
     } WINDIVERT_UDPHDR, *PWINDIVERT_UDPHDR;
     """
-    _fields_ = [("SrcPort", c_uint16),
-                ("DstPort", c_uint16),
-                ("Length", c_uint16),
-                ("Checksum", c_uint16)]
+    _fields_ = [
+        ("SrcPort", c_uint16),
+        ("DstPort", c_uint16),
+        ("Length", c_uint16),
+        ("Checksum", c_uint16)
+    ]
 
-    def __str__(self):
-        return format_structure(self)
 
-
-headers_map = {"ipv4_hdr": IpHeader,
-               "ipv6_hdr": Ipv6Header,
-               "tcp_hdr": TcpHeader,
-               "udp_hdr": UdpHeader,
-               "icmp_hdr": IcmpHeader,
-               "icmpv6_hdr": Icmpv6Header}
+headers_map = {
+    "ipv4_hdr": IpHeader,
+    "ipv6_hdr": Ipv6Header,
+    "tcp_hdr": TcpHeader,
+    "udp_hdr": UdpHeader,
+    "icmp_hdr": IcmpHeader,
+    "icmpv6_hdr": Icmpv6Header
+}
 
 
 class HeaderWrapper(object):
@@ -304,12 +290,14 @@ class HeaderWrapper(object):
         return self.raw.decode()
 
     def __str__(self):
-        return "%s Header: %s [Options: %s]" % (self.type.title(),
-                                                self.hdr,
-                                                hexlify(self.opts) if self.opts else '')
+        return "%s Header: %s [Options: %s]" % (
+            self.type.title(),
+            self.hdr,
+            hexlify(self.opts) if self.opts else ''
+        )
 
 
-class CapturedMetadata(object):
+class PacketMetadata(object):
     """
     Captured metadata on interface and flow direction
     """
@@ -318,22 +306,27 @@ class CapturedMetadata(object):
         self.iface = iface
         self.direction = direction
 
+    @property
     def is_outbound(self):
         return self.direction == Direction.OUTBOUND
 
+    @property
     def is_inbound(self):
-        return self.direction == enum.Direction.INBOUND
+        return self.direction == Direction.INBOUND
 
+    @property
     def is_loopback(self):
         return self.iface[0] == 1
 
     def __str__(self):
-        return "Interface: (Index: %s, SubIndex %s) Flow: %s" % (self.iface[0],
-                                                                 self.iface[1],
-                                                                 "outbound" if self.direction != 1 else "inbound")
+        return "Interface: (Index: %s, SubIndex %s) Flow: %s" % (
+            self.iface[0],
+            self.iface[1],
+            "outbound" if self.is_outbound else "inbound"
+        )
 
 
-class CapturedPacket(object):
+class Packet(object):
     """
     Gathers several network layers of data
     """
@@ -455,7 +448,7 @@ class CapturedPacket(object):
                 if isinstance(header.hdr, clazz):
                     return header
         else:
-            return super(CapturedPacket, self).__getattribute__(item)
+            return super(Packet, self).__getattribute__(item)
 
     def __setattr__(self, key, value):
         clazz = headers_map.get(key, None)
@@ -465,7 +458,7 @@ class CapturedPacket(object):
             else:
                 self.headers[1].hdr = value
         else:
-            super(CapturedPacket, self).__setattr__(key, value)
+            super(Packet, self).__setattr__(key, value)
 
     @property
     def raw(self):
@@ -479,50 +472,17 @@ class CapturedPacket(object):
 
     def __str__(self):
         tokens = list()
-        tokens.append("Packet: %s:%s --> %s:%s" % (self.src_addr,
-                                                   self.src_port,
-                                                   self.dst_addr,
-                                                   self.dst_port))
+        tokens.append("Packet: %s:%s --> %s:%s" % (
+            self.src_addr,
+            self.src_port,
+            self.dst_addr,
+            self.dst_port
+        ))
         if self.meta:
             tokens.append(str(self.meta))
         tokens.extend([str(hdr) for hdr in self.headers])
-        tokens.append("Payload: [%s] [HEX: %s]" % (self.payload,
-                                                   hexlify(self.payload) if self.payload else ''))
+        tokens.append("Payload: [%s] [HEX: %s]" % (
+            self.payload,
+            hexlify(self.payload) if self.payload else ''
+        ))
         return "\n".join(tokens)
-
-
-class FuturePacket(object):
-    def __init__(self, handle, callback=None, bufsize=Defaults.PACKET_BUFFER_SIZE, iodelay=0.02):
-        self.overlapped = OVERLAPPED()
-        self.event = CreateEvent(None, True, True, None)
-        self.overlapped.hEvent = self.event
-        self.handle = handle
-        self.packet = create_string_buffer(bufsize)
-        self.address = WinDivertAddress()
-        self.recv_len = c_int(0)
-        self.complete = False
-        self.callback = callback
-        self.iodelay = iodelay
-
-    def is_complete(self):
-        return self.complete
-
-    def get_result(self):
-        ready = False
-        while not ready:
-            iolen = DWORD()
-            if GetOverlappedResult(self.handle,
-                                   ctypes.byref(self.overlapped),
-                                   ctypes.byref(iolen),
-                                   False):
-                # print("%d Executing callback" % GetLastError())
-                if self.callback:
-                    self.callback(self.packet[:iolen.value],
-                                  CapturedMetadata((self.address.IfIdx, self.address.SubIfIdx), self.address.Direction))
-                self.complete = True
-            ready = (ctypes.GetLastError() != 996)
-            yield self
-            sleep(self.iodelay)
-
-    def __str__(self):
-        return "FuturePacket %s (ready: %s)" % (self.address, self.complete)

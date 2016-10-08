@@ -20,10 +20,10 @@ import unittest
 from binascii import hexlify
 
 import pytest
-from pydivert.enum import Param, Defaults
+from pydivert.consts import Param
 from pydivert.tests import FakeTCPServerIPv4, EchoUpperTCPHandler, FakeTCPClient, random_free_port, FakeUDPServer, \
     EchoUpperUDPHandler, FakeUDPClient, FakeTCPServerIPv6
-from pydivert.windivert import Handle, WinDivert, DEFAULT_DLL_PATH
+from pydivert.windivert import WinDivert
 
 __author__ = 'fabio'
 
@@ -43,7 +43,6 @@ class BaseTestCase(unittest.TestCase):
         """
         d = WinDivert().register()
         assert d.is_registered()
-        assert os.path.abspath(d.dll_path) == DEFAULT_DLL_PATH
 
     def test_load_ok(self):
         """
@@ -482,7 +481,7 @@ class WinDivertTCPIPv4TestCase(BaseTestCase):
         Tests sending a packet bigger than mtu
         """
         srv_port = self.server.server_address[1]
-        text = b"#" * (Defaults.PACKET_BUFFER_SIZE + 1)
+        text = b"#" * (DEFAULT_PACKET_BUFFER_SIZE + 1)
         client = FakeTCPClient(("127.0.0.1", srv_port), text)
         client_thread = threading.Thread(target=client.send)
 

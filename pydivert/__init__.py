@@ -13,5 +13,23 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import sys as _sys
+
+from .consts import Layer, Flag, Param, Direction, CalcChecksumsOption
+from .models import Packet, PacketMetadata
+from .windivert import WinDivert
+
 __author__ = 'fabio'
-__version__ = '1.0.2'
+__version__ = '2.0.0'
+
+if _sys.version_info < (3, 4):
+    # add socket.inet_pton on Python < 3.4
+    import win_inet_pton
+
+    assert win_inet_pton
+
+__all__ = [
+    "Layer", "Flag", "Param", "Direction", "CalcChecksumsOption",
+    "Packet", "PacketMetadata",
+    "WinDivert",
+]
