@@ -31,7 +31,7 @@ setup(
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
-    download_url='https://github.com/ffalcinelli/pydivert/tarball/{}'.format(pydivert.__version__),
+    download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(pydivert.__version__),
     keywords=['windivert', 'network', 'tcp/ip'],
     license="LICENSE",
     packages=find_packages(),
