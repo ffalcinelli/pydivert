@@ -5,11 +5,11 @@ import pytest
 from hypothesis import given, example
 from hypothesis.strategies import binary
 from pydivert import util
-from pydivert.consts import Protocol
+from pydivert.consts import Protocol, Direction
 
 
 def p(raw):
-    return pydivert.Packet(raw, (0, 0), pydivert.Direction.OUTBOUND)
+    return pydivert.Packet(raw, (0, 0), Direction.OUTBOUND)
 
 
 ipv4_hdr = util.fromhex("45200028fa8d40002906368b345ad4f0c0a856a4")
@@ -275,12 +275,12 @@ def test_icmp_modify():
 
 
 def test_meta():
-    p = pydivert.Packet(b"", (1, 1), pydivert.Direction.OUTBOUND)
+    p = pydivert.Packet(b"", (1, 1), Direction.OUTBOUND)
     assert p.is_outbound
     assert not p.is_inbound
     assert p.is_loopback
 
-    p2 = pydivert.Packet(b"", (2, 2), pydivert.Direction.INBOUND)
+    p2 = pydivert.Packet(b"", (2, 2), Direction.INBOUND)
     assert not p2.is_outbound
     assert p2.is_inbound
     assert not p2.is_loopback
