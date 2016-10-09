@@ -13,9 +13,11 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import ctypes
 import socket
 import struct
 
+from pydivert import windivert_dll
 from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol
 from pydivert.util import cached_property, indexbytes
 
@@ -60,10 +62,22 @@ class Packet(object):
 
     @property
     def is_loopback(self):
+        """
+        Returns:
+            True, if the packet is on the loopback interface.
+            False, otherwise.
+        """
         return self.interface[0] == 1
 
     @cached_property
     def address_family(self):
+        """
+        Returns:
+            The packet address family:
+                socket.AF_INET, if IPv4
+                socket.AF_INET6, if IPv6
+                None, otherwise.
+        """
         if len(self.raw) >= 20:
             v = indexbytes(self.raw, 0) >> 4
             if v == 4:
@@ -74,9 +88,11 @@ class Packet(object):
     @cached_property
     def protocol(self):
         """
-        Returns a (ipproto, proto_start) tuple.
-        ipproto is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
-        proto_start denotes the beginning of the protocol data.
+        Returns:
+            A (ipproto, proto_start) tuple.
+            ipproto is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
+            proto_start denotes the beginning of the protocol data.
+            If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.address_family == socket.AF_INET:
             proto = indexbytes(self.raw, 9)
@@ -118,6 +134,11 @@ class Packet(object):
 
     @property
     def src_addr(self):
+        """
+        Returns:
+            The source address, if the packet is valid IP or IPv6.
+            None, otherwise.
+        """
         try:
             if self.address_family == socket.AF_INET:
                 return socket.inet_ntop(socket.AF_INET, self.raw[12:16])
@@ -129,6 +150,11 @@ class Packet(object):
 
     @property
     def dst_addr(self):
+        """
+        Returns:
+            The destination address, if the packet is valid IP or IPv6.
+            None, otherwise.
+        """
         try:
             if self.address_family == socket.AF_INET:
                 return socket.inet_ntop(socket.AF_INET, self.raw[16:20])
@@ -158,12 +184,22 @@ class Packet(object):
 
     @property
     def src_port(self):
+        """
+        Returns:
+            The source port, if the packet is valid TCP or UDP.
+            None, otherwise.
+        """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.TCP, Protocol.UDP}:
             return struct.unpack_from("!H", self.raw, proto_start)[0]
 
     @property
     def dst_port(self):
+        """
+        Returns:
+            The destination port, if the packet is valid TCP or UDP.
+            None, otherwise.
+        """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.TCP, Protocol.UDP}:
             return struct.unpack_from("!H", self.raw, proto_start + 2)[0]
@@ -186,13 +222,58 @@ class Packet(object):
 
     @property
     def payload(self):
+        """
+        Returns:
+            The payload, if the packet is valid TCP or UDP.
+            None, otherwise.
+        """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.TCP:
-            header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
-            return self.raw[proto_start + header_len:]
+            tcp_header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
+            payload_start = proto_start + tcp_header_len
+            return self.raw[payload_start:]
         elif ipproto == Protocol.UDP:
             return self.raw[proto_start + 8:]
 
     @payload.setter
     def payload(self, val):
-        raise NotImplementedError()
+        ipproto, proto_start = self.protocol
+        if ipproto == Protocol.TCP:
+            tcp_header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
+            self.raw = self.raw[:proto_start + tcp_header_len] + val
+        elif ipproto == Protocol.UDP:
+            self.raw = (
+                self.raw[:proto_start + 4]  # ip header + ports
+                + struct.pack("!H", len(val) + 8)  # udp length field
+                + b"\x00\x00"  # checksum
+                + val  # content
+            )
+        else:
+            raise ValueError("Unknown protocol")
+
+        self._update_ip_packet_len()
+
+    def recalculate_checksums(self, flags=0):
+        """
+        (Re)calculates the checksum for any IPv4/ICMP/ICMPv6/TCP/UDP checksum present in the given packet.
+        Individual checksum calculations may be disabled via the appropriate flag.
+        Typically this function should be invoked on a modified packet before it is injected with WinDivert.send().
+        Returns the number of checksums calculated.
+
+        See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
+        """
+        buff = ctypes.create_string_buffer(self.raw)
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff), len(self.raw), flags)
+        self.raw = buff.raw
+        return num
+
+    def _update_ip_packet_len(self):
+        """
+        Update the packet length field in the IP header
+        """
+        if self.address_family == socket.AF_INET:
+            self.raw = self.raw[:2] + struct.pack("!H", len(self.raw)) + self.raw[4:]
+        elif self.address_family == socket.AF_INET6:
+            self.raw = self.raw[:4] + struct.pack("!H", len(self.raw)) + self.raw[6:]
+        else:  # pragma: no cover
+            raise RuntimeError("unknown address family")  # should never be called

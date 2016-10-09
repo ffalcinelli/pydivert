@@ -24,9 +24,9 @@ __version__ = '2.0.0'
 
 if _sys.version_info < (3, 4):
     # add socket.inet_pton on Python < 3.4
-    import win_inet_pton
+    import win_inet_pton as _win_inet_pton
 
-    assert win_inet_pton
+    assert _win_inet_pton
 
 __all__ = [
     "Layer", "Flag", "Param", "Direction", "CalcChecksumsOption", "Protocol",

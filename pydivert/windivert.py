@@ -155,7 +155,7 @@ class WinDivert(object):
         else:
             data, meta = packet
 
-        address = WinDivertAddress()
+        address = windivert_dll.WinDivertAddress()
         address.IfIdx, address.SubIfIdx = meta.iface
         address.Direction = meta.direction
 
@@ -196,36 +196,3 @@ class WinDivert(object):
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_set_param
         """
         return windivert_dll.WinDivertSetParam(self._handle, name, value)
-
-    @staticmethod
-    def update_packet_checksums(packet):
-        """
-        An utility shortcut method to update the checksums into an higher level packet
-        """
-        # FIXME: The method name sounds like it would update an existing packet, but it actually returns a new one.
-        # FIXME: Move into models
-        raw = WinDivert.calc_checksums(packet.raw)
-        return WinDivert.parse_packet(raw, packet.meta)
-
-    @staticmethod
-    def calc_checksums(packet, flags=0):
-        """
-        (Re)calculates the checksum for any IPv4/ICMP/ICMPv6/TCP/UDP checksum present in the given packet.
-        Individual checksum calculations may be disabled via the appropriate flag.
-        Typically this function should be invoked on a modified packet before it is injected with send().
-
-        The function remapped is WinDivertHelperCalcChecksums:
-
-        UINT WinDivertHelperCalcChecksums(
-            __inout PVOID pPacket,
-            __in UINT packetLen,
-            __in UINT64 flags
-        );
-
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
-        """
-        # FIXME: Move into models
-        packet_len = len(packet)
-        buff = create_string_buffer(packet, packet_len)
-        windivert_dll.WinDivertHelperCalcChecksums(byref(buff), packet_len, flags)
-        return buff
