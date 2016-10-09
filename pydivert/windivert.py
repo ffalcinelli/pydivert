@@ -45,7 +45,7 @@ class WinDivert(object):
     @classmethod
     def register(cls):
         """
-        An utility method to register the driver the first time.
+        An utility method to register the service the first time.
         It is usually not required to call this function, as WinDivert will register itself when opening a handle.
         """
         with cls("false"):
@@ -54,7 +54,7 @@ class WinDivert(object):
     @staticmethod
     def is_registered():
         """
-        Check if an entry exist in windows registry.
+        Check if the WinDivert service is currently installed on the system.
         """
         return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
@@ -112,10 +112,8 @@ class WinDivert(object):
 
     def recv(self, bufsize=DEFAULT_PACKET_BUFFER_SIZE):
         """
-        Receives a diverted packet that matched the filter passed to the handle constructor.
-        The return value is a pair (raw_packet, meta) where raw_packet is the data read by the handle, and meta contains
-        the direction and interface indexes.
-        The received packet is guaranteed to match the filter.
+        Receives a diverted packet that matched the filter.
+        The return value is a pydivert.Packet.
 
         The remapped function is WinDivertRecv:
 
@@ -139,12 +137,13 @@ class WinDivert(object):
             Direction(address.Direction)
         )
 
-    def send(self, packet):
+    def send(self, packet, recalculate_checksum=True):
         """
-        Injects a packet into the network stack. Recalculates the checksum before sending.
+        Injects a packet into the network stack.
+        Recalculates the checksum before sending unless recalculate_checksum=False is passed.
         The return value is the number of bytes actually sent.
 
-        The injected packet may be one received from receive(), or a modified version, or a completely new packet.
+        The injected packet may be one received from recv(), or a modified version, or a completely new packet.
         Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.
 
         The remapped function is DivertSend:
@@ -159,7 +158,8 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
         """
-        packet.recalculate_checksums()
+        if recalculate_checksum:
+            packet.recalculate_checksums()
 
         address = windivert_dll.WinDivertAddress()
         address.IfIdx, address.SubIfIdx = packet.interface
@@ -171,7 +171,7 @@ class WinDivert(object):
 
     def get_param(self, name):
         """
-        Gets a WinDivert parameter. See WinDivert DivertSetParam() for the list of parameters.
+        Get a WinDivert parameter. See pydivert.Param for the list of parameters.
 
         The remapped function is DivertGetParam:
 
@@ -189,7 +189,7 @@ class WinDivert(object):
 
     def set_param(self, name, value):
         """
-        Sets a WinDivert parameter.
+        Set a WinDivert parameter. See pydivert.Param for the list of parameters.
 
         The remapped function is DivertSetParam:
 

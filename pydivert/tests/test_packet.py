@@ -5,6 +5,7 @@ import pytest
 from hypothesis import given, example
 from hypothesis.strategies import binary
 from pydivert import util
+from pydivert.consts import Protocol
 
 
 def p(raw):
@@ -31,7 +32,7 @@ def test_ipv6_tcp():
                        "d3a383038300d0a4163636570743a202a2f2a0d0a0d0a")
     x = p(raw)
     assert x.address_family == socket.AF_INET6
-    assert x.protocol[0] == pydivert.Protocol.TCP
+    assert x.protocol[0] == Protocol.TCP
     assert x.src_addr == "fc00:2:0:2::1"
     assert x.dst_addr == "fc00:2:0:1::1"
     assert x.src_port == 43424
@@ -58,7 +59,7 @@ def test_ipv4_udp():
                        "807696e2d61646472046172706100000c0001")
     x = p(raw)
     assert x.address_family == socket.AF_INET
-    assert x.protocol[0] == pydivert.Protocol.UDP
+    assert x.protocol[0] == Protocol.UDP
     assert x.src_addr == "192.168.43.9"
     assert x.dst_addr == "192.168.43.1"
     assert x.src_port == 51677
@@ -79,7 +80,7 @@ def test_icmp_ping():
                        "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
     x = p(raw)
     assert x.address_family == socket.AF_INET
-    assert x.protocol[0] == pydivert.Protocol.ICMP
+    assert x.protocol[0] == Protocol.ICMP
     assert x.src_addr == "192.168.43.9"
     assert x.dst_addr == "8.8.8.8"
     assert x.src_port is None
@@ -102,7 +103,7 @@ def test_icmpv6_unreachable():
                        "470a040000f9c8e7369d250b00")
     x = p(raw)
     assert x.address_family == socket.AF_INET6
-    assert x.protocol[0] == pydivert.Protocol.ICMPV6
+    assert x.protocol[0] == Protocol.ICMPV6
     assert x.src_addr == "3ffe:501:410:0:2c0:dfff:fe47:33e"
     assert x.dst_addr == "3ffe:507:0:1:200:86ff:fe05:80da"
     assert x.src_port is None
@@ -123,7 +124,7 @@ def test_ipv4_tcp_modify():
     raw = util.fromhex("45000051476040008006f005c0a856a936f274fdd84201bb0876cfd0c19f9320501800ff8dba0000170303002400000"
                        "00000000c2f53831a37ed3c3a632f47440594cab95283b558bf82cb7784344c3314")
     x = p(raw)
-    assert x.protocol[0] == pydivert.Protocol.TCP
+    assert x.protocol[0] == Protocol.TCP
 
     # src_addr
     x.src_addr = "1.2.3.4"
@@ -179,7 +180,7 @@ def test_ipv6_udp_modify():
     raw = util.fromhex("60000000002711403ffe050700000001020086fffe0580da3ffe0501481900000000000000000042095d0035002746b"
                        "700060100000100000000000003777777057961686f6f03636f6d00000f0001")
     x = p(raw)
-    assert x.protocol[0] == pydivert.Protocol.UDP
+    assert x.protocol[0] == Protocol.UDP
 
     # src_addr
     x.src_addr = "::1"
@@ -229,7 +230,7 @@ def test_icmp_modify():
     raw = util.fromhex("4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
                        "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
     x = p(raw)
-    assert x.protocol[0] == pydivert.Protocol.ICMP
+    assert x.protocol[0] == Protocol.ICMP
 
     # src_addr
     x.src_addr = "1.2.3.4"
@@ -346,9 +347,9 @@ def test_ipv6_extension_headers():
                        "b6c6d6e6f70717273747576776162636465666768696a6b6c6d6e6f70717273747576776162636465666768696a6b6c"
                        "6d6e6f70717273747576776162636465666768696a6b6c6d6e6f70717273747576776162636465666768696a6b6c6d6"
                        "e6f70717273747576776162636465666768696a6b6c6d6e")
-    assert p(raw).protocol[0] == pydivert.Protocol.ICMPV6
+    assert p(raw).protocol[0] == Protocol.ICMPV6
 
     # HOPOPTS
     raw = util.fromhex("600000000020000100000000000000000000000000000000ff0200000000000000000000000000013a0005020000000"
                        "082007ac103e8000000000000000000000000000000000000")
-    assert p(raw).protocol[0] == pydivert.Protocol.ICMPV6
+    assert p(raw).protocol[0] == Protocol.ICMPV6

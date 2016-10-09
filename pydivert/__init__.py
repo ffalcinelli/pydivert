@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys as _sys
 
-from .consts import Layer, Flag, Param, Direction, CalcChecksumsOption, Protocol
+from .consts import Layer, Flag, Param, Direction, CalcChecksumsOption
 from .packet import Packet
 from .windivert import WinDivert
 
@@ -29,7 +29,7 @@ if _sys.version_info < (3, 4):
     assert _win_inet_pton
 
 __all__ = [
-    "Layer", "Flag", "Param", "Direction", "CalcChecksumsOption", "Protocol",
+    "Layer", "Flag", "Param", "Direction", "CalcChecksumsOption",
     "Packet",
     "WinDivert",
 ]

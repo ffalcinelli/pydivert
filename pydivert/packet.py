@@ -49,9 +49,8 @@ def tcp_flag(name, bit):
         pass  # .__doc__ is readonly on Python 2.
     else:
         flag.__doc__ = """
-            Returns:
-                The TCP {} flag, if the packet is valid TCP.
-                None, otherwise.
+            The TCP {} flag, if the packet is valid TCP.
+            None, otherwise.
             """.format(name.upper())
 
     return flag
@@ -129,11 +128,10 @@ class Packet(object):
     @cached_property
     def address_family(self):
         """
-        Returns:
-            The packet address family:
-                socket.AF_INET, if IPv4
-                socket.AF_INET6, if IPv6
-                None, otherwise.
+        The packet address family:
+            socket.AF_INET, if IPv4
+            socket.AF_INET6, if IPv6
+            None, otherwise.
         """
         if len(self.raw) >= 20:
             v = indexbytes(self.raw, 0) >> 4
@@ -161,11 +159,10 @@ class Packet(object):
     @cached_property
     def protocol(self):
         """
-        Returns:
-            A (ipproto, proto_start) tuple.
-            ipproto is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
-            proto_start denotes the beginning of the protocol data.
-            If the packet does not match our expectations, both ipproto and proto_start are None.
+        A (ipproto, proto_start) tuple.
+        ipproto is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
+        proto_start denotes the beginning of the protocol data.
+        If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.is_ipv4:
             proto = indexbytes(self.raw, 9)
@@ -233,9 +230,8 @@ class Packet(object):
     @property
     def src_addr(self):
         """
-        Returns:
-            The source address, if the packet is valid IP or IPv6.
-            None, otherwise.
+        The source address, if the packet is valid IP or IPv6.
+        None, otherwise.
         """
         try:
             if self.is_ipv4:
@@ -249,9 +245,8 @@ class Packet(object):
     @property
     def dst_addr(self):
         """
-        Returns:
-            The destination address, if the packet is valid IP or IPv6.
-            None, otherwise.
+        The destination address, if the packet is valid IP or IPv6.
+        None, otherwise.
         """
         try:
             if self.is_ipv4:
@@ -283,9 +278,8 @@ class Packet(object):
     @property
     def src_port(self):
         """
-        Returns:
-            The source port, if the packet is valid TCP or UDP.
-            None, otherwise.
+        The source port, if the packet is valid TCP or UDP.
+        None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.TCP, Protocol.UDP}:
@@ -294,9 +288,8 @@ class Packet(object):
     @property
     def dst_port(self):
         """
-        Returns:
-            The destination port, if the packet is valid TCP or UDP.
-            None, otherwise.
+        The destination port, if the packet is valid TCP or UDP.
+        None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.TCP, Protocol.UDP}:
@@ -352,9 +345,8 @@ class Packet(object):
     @property
     def payload(self):
         """
-        Returns:
-            The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
-            None, otherwise.
+        The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
+        None, otherwise.
         """
         if self._payload_start:
             return self.raw[self._payload_start:]
@@ -393,9 +385,8 @@ class Packet(object):
     @property
     def icmp_type(self):
         """
-        Returns:
-            The ICMP type, if the packet is valid ICMP or ICMPv6.
-            None, otherwise.
+        The ICMP type, if the packet is valid ICMP or ICMPv6.
+        None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
@@ -404,9 +395,8 @@ class Packet(object):
     @property
     def icmp_code(self):
         """
-        Returns:
-            The ICMP type, if the packet is valid ICMP or ICMPv6.
-            None, otherwise.
+        The ICMP type, if the packet is valid ICMP or ICMPv6.
+        None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
