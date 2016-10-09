@@ -17,26 +17,22 @@
 pydivert bundles the WinDivert binaries from
 https://github.com/basil00/Divert/releases/download/v1.1.8/WinDivert-1.1.8-WDDK.zip
 """
-import logging
+import ctypes
 import os
 import platform
 import subprocess
-from _ctypes import POINTER, pointer, byref, sizeof
+from ctypes import POINTER, pointer, byref, sizeof
 from ctypes import (c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
                     create_string_buffer, c_uint8)
 from ctypes.wintypes import HANDLE
 
 from pydivert.decorators import winerror_on_retcode
 from pydivert.enum import Layer, Defaults, ErrorCodes
-from pydivert.exception import AsyncCallFailedException, MethodUnsupportedException
+from pydivert.exception import AsyncCallFailedException
 from pydivert.models import TcpHeader, UdpHeader, CapturedPacket, CapturedMetadata, HeaderWrapper
 from pydivert.models import WinDivertAddress, IpHeader, Ipv6Header, IcmpHeader, Icmpv6Header, FuturePacket
-from pydivert.winutils import GetLastError
 
 __author__ = 'fabio'
-
-#TODO: move the logger away... Probably better inside WinDivert class
-logger = logging.getLogger(__name__)
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -434,16 +430,13 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv_ex
         """
-        if not hasattr(self._lib, "WinDivertRecvEx"):
-            raise MethodUnsupportedException("Async receive is not supported with this version of WinDivert")
-
         future = FuturePacket(self._handle, callback=callback, bufsize=bufsize)
 
         retcode = self._lib.WinDivertRecvEx(self._handle, byref(future.packet), sizeof(future.packet), 0,
                                             byref(future.address),
                                             byref(future.recv_len),
                                             byref(future.overlapped))
-        last_error = GetLastError()
+        last_error = ctypes.GetLastError()
         if not retcode and last_error == ErrorCodes.ERROR_IO_PENDING:
             return future.get_result()
         else:
@@ -470,14 +463,11 @@ class Handle(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send_ex
         """
-        if not hasattr(self._lib, "WinDivertSendEx"):
-            raise MethodUnsupportedException("Async send is not supported with this version of WinDivert")
-
         data, address = self.__parse_send_args(*args)
         send_len = len(data)
         retcode = self._lib.WinDivertSendEx(self._handle, data, send_len, 0, byref(address), None, None)
 
-        last_error = GetLastError()
+        last_error = ctypes.GetLastError()
         if retcode and last_error == ErrorCodes.ERROR_IO_PENDING:
             return True
         else:

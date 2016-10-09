@@ -16,11 +16,6 @@
 __author__ = 'fabio'
 
 
-class MethodUnsupportedException(Exception):
-    def __init__(self, message="The method is not supported in this driver version"):
-        super(MethodUnsupportedException, self).__init__(self, message)
-
-
 class AsyncCallFailedException(Exception):
     def __init__(self, message="AsyncCall could not be run"):
         super(AsyncCallFailedException, self).__init__(self, message)

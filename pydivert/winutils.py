@@ -17,15 +17,16 @@
 import logging
 import socket
 import struct
-
-try:
-    import win_inet_pton
-except ImportError:
-    pass
-from _ctypes import POINTER
-from ctypes import Structure, Union, windll
+import sys
+from ctypes import Structure, Union, windll, POINTER
 from ctypes import c_void_p, c_char_p
 from ctypes.wintypes import DWORD, ULONG, HANDLE, BOOL
+
+if sys.version_info < (3, 4):
+    import win_inet_pton
+
+    assert win_inet_pton
+
 
 __author__ = 'fabio'
 logger = logging.getLogger(__name__)
@@ -81,14 +82,6 @@ class OVERLAPPED(Structure):
 
     _anonymous_ = ("u",)
 
-
-CloseHandle = windll.kernel32.CloseHandle
-CloseHandle.restype = BOOL
-CloseHandle.argtypes = [HANDLE]
-
-GetLastError = windll.kernel32.GetLastError
-GetLastError.restype = DWORD
-GetLastError.argtypes = []
 
 GetOverlappedResult = windll.kernel32.GetOverlappedResult
 GetOverlappedResult.restype = BOOL
