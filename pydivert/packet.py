@@ -31,14 +31,14 @@ class Packet(object):
     def __repr__(self):
         direction = Direction(self.direction).name.lower()
         protocol = self.protocol[0]
-        try:
-            protocol = Protocol(protocol).name.lower()
-        except ValueError:
-            pass
         if protocol in {Protocol.ICMP, Protocol.ICMPV6}:
             extra = '\n    type="{}" code="{}"'.format(self.icmp_type, self.icmp_code)
         else:
             extra = ''
+        try:
+            protocol = Protocol(protocol).name.lower()
+        except ValueError:
+            pass
         return '<Packet \n' \
                '    direction="{}"\n' \
                '    interface="{}" subinterface="{}"\n' \
@@ -273,7 +273,7 @@ class Packet(object):
         """
         buff = ctypes.create_string_buffer(self.raw)
         num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff), len(self.raw), flags)
-        self.raw = buff.raw
+        self.raw = buff.raw[:len(self.raw)]  # slice to cut off the null byte added by create_string_buffer
         return num
 
     def _update_ip_packet_len(self):
@@ -283,7 +283,7 @@ class Packet(object):
         if self.address_family == socket.AF_INET:
             self.raw = self.raw[:2] + struct.pack("!H", len(self.raw)) + self.raw[4:]
         elif self.address_family == socket.AF_INET6:
-            self.raw = self.raw[:4] + struct.pack("!H", len(self.raw)) + self.raw[6:]
+            self.raw = self.raw[:4] + struct.pack("!H", len(self.raw) - 40) + self.raw[6:]
         else:  # pragma: no cover
             raise RuntimeError("Unknown address family")  # should never be called
 
