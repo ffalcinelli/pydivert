@@ -16,22 +16,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 
-import pydivert
 from setuptools import setup, find_packages
 
 __author__ = 'fabio'
 
 workdir = os.path.abspath(os.path.dirname(__file__))
 
+# https://packaging.python.org/single_source_version/
+with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
+    __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
+
 setup(
     name='pydivert',
-    version=pydivert.__version__,
+    version=__version__,
     description='Python binding to windivert driver',
     # long_description=readme.read(),
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
-    download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(pydivert.__version__),
+    download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(__version__),
     keywords=['windivert', 'network', 'tcp/ip'],
     license="LICENSE",
     packages=find_packages(),

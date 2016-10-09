@@ -1,6 +1,7 @@
 import subprocess
 from ctypes import create_string_buffer, byref, c_uint64, c_uint
 
+import sys
 from pydivert import windivert_dll
 from pydivert.consts import Layer, Direction
 from pydivert.packet import Packet
@@ -41,6 +42,9 @@ class WinDivert(object):
 
     def __next__(self):
         return self.recv()
+
+    if sys.version_info < (3,0):
+        next = __next__
 
     @classmethod
     def register(cls):

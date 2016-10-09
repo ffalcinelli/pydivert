@@ -29,6 +29,7 @@ if _sys.version_info < (3, 4):
     assert _win_inet_pton
 
 __all__ = [
+    "__author__", "__version__",
     "Layer", "Flag", "Param", "Direction", "CalcChecksumsOption",
     "Packet",
     "WinDivert",
