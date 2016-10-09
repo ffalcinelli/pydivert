@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from _ctypes import byref
+import ctypes
 from binascii import unhexlify, hexlify
 import socket
 from ctypes import Structure, c_uint32, c_uint8, c_uint16, create_string_buffer, c_int
@@ -22,7 +22,7 @@ from time import sleep
 
 from pydivert import enum
 from pydivert.enum import Direction, Defaults
-from pydivert.winutils import string_to_addr, addr_to_string, CreateEvent, OVERLAPPED, GetOverlappedResult, GetLastError
+from pydivert.winutils import string_to_addr, addr_to_string, CreateEvent, OVERLAPPED, GetOverlappedResult
 
 
 __author__ = 'fabio'
@@ -56,7 +56,8 @@ class WinDivertAddress(Structure):
 
     Fields:
 
-        - IfIdx: The interface index on which the packet arrived (for inbound packets), or is to be sent (for outbound packets).
+        - IfIdx: The interface index on which the packet arrived (for inbound packets),
+          or is to be sent (for outbound packets).
         - SubIfIdx: The sub-interface index for IfIdx.
         - Direction: The packet's direction. The possible values are
                     - WINDIVERT_DIRECTION_OUTBOUND with value 0 for outbound packets.
@@ -373,10 +374,10 @@ class CapturedPacket(object):
     def payload(self, payload):
         header = self.headers[0]
         if self._payload:
-            #recalculate length (current length - (current_payload_length - new_payload_length)))
+            # recalculate length (current length - (current_payload_length - new_payload_length)))
             header.Length = socket.ntohs(socket.htons(header.Length) - (len(self._payload) - len(payload)))
         else:
-            #payload was empty: current_length + new_payload_length
+            # payload was empty: current_length + new_payload_length
             header.Length = socket.ntohs(socket.htons(header.Length) + len(payload))
         self._payload = payload
 
@@ -511,18 +512,17 @@ class FuturePacket(object):
         while not ready:
             iolen = DWORD()
             if GetOverlappedResult(self.handle,
-                                   byref(self.overlapped),
-                                   byref(iolen),
+                                   ctypes.byref(self.overlapped),
+                                   ctypes.byref(iolen),
                                    False):
                 # print("%d Executing callback" % GetLastError())
                 if self.callback:
                     self.callback(self.packet[:iolen.value],
                                   CapturedMetadata((self.address.IfIdx, self.address.SubIfIdx), self.address.Direction))
                 self.complete = True
-            ready = (GetLastError() != 996)
+            ready = (ctypes.GetLastError() != 996)
             yield self
             sleep(self.iodelay)
-
 
     def __str__(self):
         return "FuturePacket %s (ready: %s)" % (self.address, self.complete)
