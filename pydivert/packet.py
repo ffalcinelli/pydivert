@@ -35,20 +35,25 @@ class Packet(object):
             protocol = Protocol(protocol).name.lower()
         except ValueError:
             pass
+        if protocol in {Protocol.ICMP, Protocol.ICMPV6}:
+            extra = '\n    type="{}" code="{}"'.format(self.icmp_type, self.icmp_code)
+        else:
+            extra = ''
         return '<Packet \n' \
                '    direction="{}"\n' \
                '    interface="{}" subinterface="{}"\n' \
                '    src="{}"\n' \
                '    dst="{}"\n' \
-               '    protocol="{}">\n' \
+               '    protocol="{}"{}>\n' \
                '{}\n' \
                '</Packet>'.format(
             direction,
             self.interface[0],
             self.interface[1],
-            "{}:{}".format(self.src_addr, self.src_port),
-            "{}:{}".format(self.dst_addr, self.dst_port),
+            ":".join(str(x) for x in (self.src_addr, self.src_port) if x is not None),
+            ":".join(str(x) for x in (self.dst_addr, self.dst_port) if x is not None),
             protocol,
+            extra,
             self.payload
         )
 
@@ -210,7 +215,7 @@ class Packet(object):
         if ipproto in {Protocol.TCP, Protocol.UDP}:
             self.raw = self.raw[:proto_start] + struct.pack("!H", val) + self.raw[proto_start + 2:]
         else:
-            raise ValueError("Unknown protocol")
+            raise ValueError("Protocol is neither TCP nor UDP")
 
     @dst_port.setter
     def dst_port(self, val):
@@ -218,13 +223,13 @@ class Packet(object):
         if ipproto in {Protocol.TCP, Protocol.UDP}:
             self.raw = self.raw[:proto_start + 2] + struct.pack("!H", val) + self.raw[proto_start + 4:]
         else:
-            raise ValueError("Unknown protocol")
+            raise ValueError("Protocol is neither TCP nor UDP")
 
     @property
     def payload(self):
         """
         Returns:
-            The payload, if the packet is valid TCP or UDP.
+            The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
             None, otherwise.
         """
         ipproto, proto_start = self.protocol
@@ -234,6 +239,8 @@ class Packet(object):
             return self.raw[payload_start:]
         elif ipproto == Protocol.UDP:
             return self.raw[proto_start + 8:]
+        elif ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            return self.raw[proto_start + 4:]
 
     @payload.setter
     def payload(self, val):
@@ -248,8 +255,10 @@ class Packet(object):
                 + b"\x00\x00"  # checksum
                 + val  # content
             )
+        elif ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            self.raw = self.raw[:proto_start + 4] + val
         else:
-            raise ValueError("Unknown protocol")
+            raise ValueError("Protocol is neither TCP, UDP, ICMP nor ICMPv6")
 
         self._update_ip_packet_len()
 
@@ -276,4 +285,42 @@ class Packet(object):
         elif self.address_family == socket.AF_INET6:
             self.raw = self.raw[:4] + struct.pack("!H", len(self.raw)) + self.raw[6:]
         else:  # pragma: no cover
-            raise RuntimeError("unknown address family")  # should never be called
+            raise RuntimeError("Unknown address family")  # should never be called
+
+    @property
+    def icmp_type(self):
+        """
+        Returns:
+            The ICMP type, if the packet is valid ICMP or ICMPv6.
+            None, otherwise.
+        """
+        ipproto, proto_start = self.protocol
+        if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            return indexbytes(self.raw, proto_start)
+
+    @property
+    def icmp_code(self):
+        """
+        Returns:
+            The ICMP type, if the packet is valid ICMP or ICMPv6.
+            None, otherwise.
+        """
+        ipproto, proto_start = self.protocol
+        if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            return indexbytes(self.raw, proto_start + 1)
+
+    @icmp_type.setter
+    def icmp_type(self, val):
+        ipproto, proto_start = self.protocol
+        if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            self.raw = self.raw[:proto_start + 0] + struct.pack("!B", val) + self.raw[proto_start + 1:]
+        else:
+            raise ValueError("Protocol is neither ICMP nor ICMPv6")
+
+    @icmp_code.setter
+    def icmp_code(self, val):
+        ipproto, proto_start = self.protocol
+        if ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            self.raw = self.raw[:proto_start + 1] + struct.pack("!B", val) + self.raw[proto_start + 2:]
+        else:
+            raise ValueError("Protocol is neither ICMP nor ICMPv6")
