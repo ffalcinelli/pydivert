@@ -2,7 +2,7 @@ pydivert
 ========
 
 [![AppVeyor Status](https://img.shields.io/appveyor/ci/ffalcinelli/pydivert/master.svg)](https://ci.appveyor.com/project/ffalcinelli/pydivert)
-[![Code Coverage](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/master.svg)](https://ci.appveyor.com/project/ffalcinelli/pydivert)
+[![Code Coverage](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/master.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![PyPI Version](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 [![Python Versions](https://img.shields.io/pypi/pyversions/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 
