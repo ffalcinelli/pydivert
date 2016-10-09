@@ -23,7 +23,7 @@ import platform
 import sys
 from ctypes import (
     POINTER, GetLastError, WinError, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
-    c_uint8
+    c_uint8, windll
 )
 from ctypes.wintypes import HANDLE
 
@@ -50,7 +50,9 @@ def raise_on_error(f):
         result = f(*args, **kwargs)
         retcode = GetLastError()
         if retcode and retcode != ERROR_IO_PENDING:
-            raise WinError(code=retcode)
+            err = WinError(code=retcode)
+            windll.kernel32.SetLastError(0)  # clear error code so that we don't raise twice.
+            raise err
         return result
 
     return wrapper

@@ -1,15 +1,7 @@
 import ctypes
 
 
-class Structure(ctypes.Structure):
-    def __repr__(self):
-        out = []
-        for field in self._fields_:
-            out.append("[%s: %s]" % (field[0], getattr(self, field[0], None)))
-        return "".join(out)
-
-
-class WinDivertAddress(Structure):
+class WinDivertAddress(ctypes.Structure):
     """
     Ctypes Structure for WINDIVERT_ADDRESS.
     The WINDIVERT_ADDRESS structure represents the "address" of a captured or injected packet.

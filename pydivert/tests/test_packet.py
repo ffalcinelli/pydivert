@@ -17,6 +17,7 @@ ipv6_hdr = util.fromhex("600d684a00280640fc000002000000020000000000000001fc00000
 
 @given(raw=binary(0, 500, 1600))
 @example(raw=b'`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+@example(raw=b'E\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
 def test_fuzz(raw):
     assert repr(p(raw))
     assert repr(p(ipv4_hdr + raw))
@@ -37,12 +38,18 @@ def test_ipv6_tcp():
     assert x.dst_port == 8080
     assert x.icmp_type is None
     assert x.icmp_code is None
+    assert not x.is_ipv4
+    assert x.is_ipv6
+    assert x.is_tcp
+    assert not x.is_udp
+    assert not x.is_icmp46
     assert x.payload == (
         b"GET /hello.txt HTTP/1.1\r\n"
         b"User-Agent: curl/7.38.0\r\n"
         b"Host: [fc00:2:0:1::1]:8080\r\n"
         b"Accept: */*\r\n\r\n"
     )
+    assert x.ip_packet_len == 165
     assert repr(x)
 
 
@@ -58,6 +65,11 @@ def test_ipv4_udp():
     assert x.dst_port == 53
     assert x.icmp_type is None
     assert x.icmp_code is None
+    assert x.is_ipv4
+    assert not x.is_ipv6
+    assert not x.is_tcp
+    assert x.is_udp
+    assert not x.is_icmp46
     assert x.payload == util.fromhex("528e01000001000000000000013801380138013807696e2d61646472046172706100000c0001")
     assert repr(x)
 
@@ -74,6 +86,11 @@ def test_icmp_ping():
     assert x.dst_port is None
     assert x.icmp_type == 8
     assert x.icmp_code == 0
+    assert x.is_ipv4
+    assert not x.is_ipv6
+    assert not x.is_tcp
+    assert not x.is_udp
+    assert x.is_icmp46
     assert x.payload == util.fromhex("d73b000051a7d67d000451e408090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232"
                                      "425262728292a2b2c2d2e2f3031323334353637")
     assert repr(x)
@@ -92,6 +109,11 @@ def test_icmpv6_unreachable():
     assert x.dst_port is None
     assert x.icmp_type == 1
     assert x.icmp_code == 4
+    assert not x.is_ipv4
+    assert x.is_ipv6
+    assert not x.is_tcp
+    assert not x.is_udp
+    assert x.is_icmp46
     assert x.payload == util.fromhex("0000000060000000001411013ffe050700000001020086fffe0580da3ffe05010410000002c0dffff"
                                      "e47033ea07582a40014cf470a040000f9c8e7369d250b00")
     assert repr(x)
@@ -129,17 +151,17 @@ def test_ipv4_tcp_modify():
         x.dst_port = "bogus"
     assert x.dst_port == 43
 
+    # tcp_ack (others follow trivially)
+    x.tcp_ack = False
+    assert x.tcp_ack is False
+    x.tcp_ack = True
+    assert x.tcp_ack is True
+
     # payload
     x.payload = b"test"
     with pytest.raises(Exception):
         x.payload = 42
     assert x.payload == b"test"
-
-    # icmp
-    with pytest.raises(ValueError):
-        x.icmp_type = 0
-    with pytest.raises(ValueError):
-        x.icmp_code = 0
 
     # checksum
     a = x.raw
@@ -191,12 +213,6 @@ def test_ipv6_udp_modify():
         x.payload = 42
     assert x.payload == b"test"
 
-    # icmp
-    with pytest.raises(ValueError):
-        x.icmp_type = 0
-    with pytest.raises(ValueError):
-        x.icmp_code = 0
-
     # checksum
     a = x.raw
     assert x.recalculate_checksums(
@@ -228,14 +244,6 @@ def test_icmp_modify():
     with pytest.raises(Exception):
         x.dst_addr = "::1"
     assert x.dst_addr == "4.3.2.1"
-
-    # src_port
-    with pytest.raises(ValueError):
-        x.src_port = 42
-
-    # dst_port
-    with pytest.raises(ValueError):
-        x.dst_port = 42
 
     # payload
     x.payload = b"test"
@@ -293,6 +301,8 @@ def test_bogus():
         x.icmp_code = 42
     with pytest.raises(Exception):
         x.icmp_type = 42
+    with pytest.raises(Exception):
+        x.tcp_ack = True
     assert x.recalculate_checksums() == 0
 
 

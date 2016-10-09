@@ -46,6 +46,7 @@ class WinDivert(object):
     def register(cls):
         """
         An utility method to register the driver the first time.
+        It is usually not required to call this function, as WinDivert will register itself when opening a handle.
         """
         with cls("false"):
             pass
@@ -53,9 +54,19 @@ class WinDivert(object):
     @staticmethod
     def is_registered():
         """
-        Check if an entry exist in windows registry
+        Check if an entry exist in windows registry.
         """
         return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
+
+    @classmethod
+    def unregister(self):
+        """
+        Unregisters the WinDivert service.
+        It is usually not required to call this function as WinDivert will remove itself automatically after running.
+        This function only requests a service stop, which may not be processed immediately if there are still open
+        handles.
+        """
+        subprocess.check_call("sc stop WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     def open(self):
         """
@@ -130,9 +141,7 @@ class WinDivert(object):
 
     def send(self, packet):
         """
-        Injects a packet into the network stack.
-        Args can be a (raw, meta) tuple or a high level packet.
-        If the packet is an highlevel packet, recalculates the checksum before sending.
+        Injects a packet into the network stack. Recalculates the checksum before sending.
         The return value is the number of bytes actually sent.
 
         The injected packet may be one received from receive(), or a modified version, or a completely new packet.
@@ -150,17 +159,14 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
         """
-        if isinstance(packet, Packet):
-            data, meta = packet.raw, packet.meta
-        else:
-            data, meta = packet
+        packet.recalculate_checksums()
 
         address = windivert_dll.WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = meta.iface
-        address.Direction = meta.direction
+        address.IfIdx, address.SubIfIdx = packet.interface
+        address.Direction = packet.direction
 
         send_len = c_uint(0)
-        windivert_dll.WinDivertSend(self._handle, data, len(data), byref(address), byref(send_len))
+        windivert_dll.WinDivertSend(self._handle, packet.raw, len(packet.raw), byref(address), byref(send_len))
         return send_len
 
     def get_param(self, name):

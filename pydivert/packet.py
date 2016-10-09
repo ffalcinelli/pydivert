@@ -16,13 +16,55 @@
 import ctypes
 import socket
 import struct
+import sys
 
 from pydivert import windivert_dll
 from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol
 from pydivert.util import cached_property, indexbytes
 
 
+def tcp_flag(name, bit):
+    @property
+    def flag(self):
+        ipproto, proto_start = self.protocol
+        if ipproto == Protocol.TCP:
+            return bool(indexbytes(self.raw, proto_start + 13) & bit)
+
+    @flag.setter
+    def flag(self, val):
+        ipproto, proto_start = self.protocol
+        if ipproto == Protocol.TCP:
+            flags = indexbytes(self.raw, proto_start + 13)
+            if val:
+                flags |= bit
+            else:
+                flags &= ~bit
+            flags = struct.pack("!B", flags)
+
+            self.raw = self.raw[:proto_start + 13] + flags + self.raw[proto_start + 14:]
+        else:
+            raise ValueError("Protocol is not TCP")
+
+    if sys.version_info < (3, 0):
+        pass  # .__doc__ is readonly on Python 2.
+    else:
+        flag.__doc__ = """
+            Returns:
+                The TCP {} flag, if the packet is valid TCP.
+                None, otherwise.
+            """.format(name.upper())
+
+    return flag
+
+
 class Packet(object):
+    """
+    A single packet, possibly including an IP header, a TCP/UDP header and a payload.
+    Creation of packets is cheap, parsing is done on first attribute access.
+
+    While the raw packet can be modified directly, the protocol and address types will be cached.
+    """
+
     def __init__(self, raw, interface, direction):
         self.raw = raw
         self.interface = interface
@@ -31,10 +73,21 @@ class Packet(object):
     def __repr__(self):
         direction = Direction(self.direction).name.lower()
         protocol = self.protocol[0]
-        if protocol in {Protocol.ICMP, Protocol.ICMPV6}:
+        if self.is_icmp46:
             extra = '\n    type="{}" code="{}"'.format(self.icmp_type, self.icmp_code)
+        elif self.is_tcp:
+            flags = " ".join(
+                x.upper()
+                    for x in ("fin", "syn", "rst", "psh", "ack", "urg")
+                    if getattr(self, "tcp_" + x)
+            )
+            extra = '\n    {}'.format(flags)
         else:
             extra = ''
+        if self.ip_packet_len is not None:
+            bytes_cut_off = self.ip_packet_len - len(self.raw)
+            if bytes_cut_off != 0:
+                extra += '\n    bytes-cut-off="{}"'.format(bytes_cut_off)
         try:
             protocol = Protocol(protocol).name.lower()
         except ValueError:
@@ -68,9 +121,8 @@ class Packet(object):
     @property
     def is_loopback(self):
         """
-        Returns:
-            True, if the packet is on the loopback interface.
-            False, otherwise.
+        True, if the packet is on the loopback interface.
+        False, otherwise.
         """
         return self.interface[0] == 1
 
@@ -91,6 +143,22 @@ class Packet(object):
                 return socket.AF_INET6
 
     @cached_property
+    def is_ipv4(self):
+        """
+        True, if the packet has a IPv4 header.
+        False, otherwise.
+        """
+        return self.address_family == socket.AF_INET
+
+    @cached_property
+    def is_ipv6(self):
+        """
+        True, if the packet has a IPv6 header.
+        False, otherwise.
+        """
+        return self.address_family == socket.AF_INET6
+
+    @cached_property
     def protocol(self):
         """
         Returns:
@@ -99,10 +167,10 @@ class Packet(object):
             proto_start denotes the beginning of the protocol data.
             If the packet does not match our expectations, both ipproto and proto_start are None.
         """
-        if self.address_family == socket.AF_INET:
+        if self.is_ipv4:
             proto = indexbytes(self.raw, 9)
             start = (indexbytes(self.raw, 0) & 0b1111) * 4
-        elif self.address_family == socket.AF_INET6:
+        elif self.is_ipv6:
             proto = indexbytes(self.raw, 6)
 
             # skip over well-known ipv6 headers
@@ -127,8 +195,9 @@ class Packet(object):
             proto = None
 
         out_of_bounds = (
-            (proto == Protocol.TCP and start + 12 >= len(self.raw)) or
-            (proto == Protocol.UDP and start + 8 > len(self.raw))
+            (proto == Protocol.TCP and start + 20 > len(self.raw)) or
+            (proto == Protocol.UDP and start + 8 > len(self.raw)) or
+            (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
         )
         if out_of_bounds:
             # special-case tcp/udp so that we can rely on .protocol for the port properties.
@@ -136,6 +205,30 @@ class Packet(object):
             proto = None
 
         return proto, start
+
+    @cached_property
+    def is_tcp(self):
+        """
+        True, if the packet is TCP.
+        False, otherwise.
+        """
+        return self.protocol[0] == Protocol.TCP
+
+    @cached_property
+    def is_udp(self):
+        """
+        True, if the packet is UDP.
+        False, otherwise.
+        """
+        return self.protocol[0] == Protocol.UDP
+
+    @cached_property
+    def is_icmp46(self):
+        """
+        True, if the packet is ICMP or ICMPv6.
+        False, otherwise.
+        """
+        return self.protocol[0] in {Protocol.ICMP, Protocol.ICMPV6}
 
     @property
     def src_addr(self):
@@ -145,9 +238,9 @@ class Packet(object):
             None, otherwise.
         """
         try:
-            if self.address_family == socket.AF_INET:
+            if self.is_ipv4:
                 return socket.inet_ntop(socket.AF_INET, self.raw[12:16])
-            if self.address_family == socket.AF_INET6:
+            if self.is_ipv6:
                 return socket.inet_ntop(socket.AF_INET6, self.raw[8:24])
         except (ValueError, socket.error):
             # ValueError may be raised by inet_ntop, socket.error by win_inet_pton.
@@ -161,9 +254,9 @@ class Packet(object):
             None, otherwise.
         """
         try:
-            if self.address_family == socket.AF_INET:
+            if self.is_ipv4:
                 return socket.inet_ntop(socket.AF_INET, self.raw[16:20])
-            if self.address_family == socket.AF_INET6:
+            if self.is_ipv6:
                 return socket.inet_ntop(socket.AF_INET6, self.raw[24:40])
         except (ValueError, socket.error):
             # ValueError may be raised by inet_ntop, socket.error by win_inet_pton.
@@ -171,18 +264,18 @@ class Packet(object):
 
     @src_addr.setter
     def src_addr(self, val):
-        if self.address_family == socket.AF_INET:
+        if self.is_ipv4:
             self.raw = self.raw[:12] + socket.inet_pton(socket.AF_INET, val) + self.raw[16:]
-        elif self.address_family == socket.AF_INET6:
+        elif self.is_ipv6:
             self.raw = self.raw[:8] + socket.inet_pton(socket.AF_INET6, val) + self.raw[24:]
         else:
             raise ValueError("Unknown address family")
 
     @dst_addr.setter
     def dst_addr(self, val):
-        if self.address_family == socket.AF_INET:
+        if self.is_ipv4:
             self.raw = self.raw[:16] + socket.inet_pton(socket.AF_INET, val) + self.raw[20:]
-        elif self.address_family == socket.AF_INET6:
+        elif self.is_ipv6:
             self.raw = self.raw[:24] + socket.inet_pton(socket.AF_INET6, val) + self.raw[40:]
         else:
             raise ValueError("Unknown address family")
@@ -226,28 +319,51 @@ class Packet(object):
             raise ValueError("Protocol is neither TCP nor UDP")
 
     @property
+    def ip_packet_len(self):
+        """
+        The total packet length (including all headers, including ipv6), as reported by the IP header.
+        This is useful to determine if the packet has been cut off, e.g. by receiving it into a too small buffer.
+        """
+        if self.is_ipv4:
+            return struct.unpack_from("!H", self.raw, 2)[0]
+        elif self.is_ipv6:
+            return struct.unpack_from("!H", self.raw, 4)[0] + 40
+
+    @ip_packet_len.setter
+    def ip_packet_len(self, val):
+        if self.is_ipv4:
+            self.raw = self.raw[:2] + struct.pack("!H", val) + self.raw[4:]
+        elif self.is_ipv6:
+            self.raw = self.raw[:4] + struct.pack("!H", val - 40) + self.raw[6:]
+        else:  # pragma: no cover
+            raise RuntimeError("Unknown address family")  # should never be called
+
+    @cached_property
+    def _payload_start(self):
+        ipproto, proto_start = self.protocol
+        if ipproto == Protocol.TCP:
+            tcp_header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
+            return proto_start + tcp_header_len
+        elif ipproto == Protocol.UDP:
+            return proto_start + 8
+        elif ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
+            return proto_start + 4
+
+    @property
     def payload(self):
         """
         Returns:
             The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
             None, otherwise.
         """
-        ipproto, proto_start = self.protocol
-        if ipproto == Protocol.TCP:
-            tcp_header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
-            payload_start = proto_start + tcp_header_len
-            return self.raw[payload_start:]
-        elif ipproto == Protocol.UDP:
-            return self.raw[proto_start + 8:]
-        elif ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
-            return self.raw[proto_start + 4:]
+        if self._payload_start:
+            return self.raw[self._payload_start:]
 
     @payload.setter
     def payload(self, val):
         ipproto, proto_start = self.protocol
-        if ipproto == Protocol.TCP:
-            tcp_header_len = (indexbytes(self.raw, proto_start + 12) >> 4) * 4
-            self.raw = self.raw[:proto_start + tcp_header_len] + val
+        if ipproto in {Protocol.TCP, Protocol.ICMP, Protocol.ICMPV6}:
+            self.raw = self.raw[:self._payload_start] + val
         elif ipproto == Protocol.UDP:
             self.raw = (
                 self.raw[:proto_start + 4]  # ip header + ports
@@ -255,12 +371,10 @@ class Packet(object):
                 + b"\x00\x00"  # checksum
                 + val  # content
             )
-        elif ipproto in {Protocol.ICMP, Protocol.ICMPV6}:
-            self.raw = self.raw[:proto_start + 4] + val
         else:
             raise ValueError("Protocol is neither TCP, UDP, ICMP nor ICMPv6")
 
-        self._update_ip_packet_len()
+        self.ip_packet_len = len(val) + self._payload_start
 
     def recalculate_checksums(self, flags=0):
         """
@@ -275,17 +389,6 @@ class Packet(object):
         num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff), len(self.raw), flags)
         self.raw = buff.raw[:len(self.raw)]  # slice to cut off the null byte added by create_string_buffer
         return num
-
-    def _update_ip_packet_len(self):
-        """
-        Update the packet length field in the IP header
-        """
-        if self.address_family == socket.AF_INET:
-            self.raw = self.raw[:2] + struct.pack("!H", len(self.raw)) + self.raw[4:]
-        elif self.address_family == socket.AF_INET6:
-            self.raw = self.raw[:4] + struct.pack("!H", len(self.raw) - 40) + self.raw[6:]
-        else:  # pragma: no cover
-            raise RuntimeError("Unknown address family")  # should never be called
 
     @property
     def icmp_type(self):
@@ -324,3 +427,10 @@ class Packet(object):
             self.raw = self.raw[:proto_start + 1] + struct.pack("!B", val) + self.raw[proto_start + 2:]
         else:
             raise ValueError("Protocol is neither ICMP nor ICMPv6")
+
+    tcp_urg = tcp_flag("syn", 0b100000)
+    tcp_ack = tcp_flag("ack", 0b010000)
+    tcp_psh = tcp_flag("psh", 0b001000)
+    tcp_rst = tcp_flag("rst", 0b000100)
+    tcp_syn = tcp_flag("syn", 0b000010)
+    tcp_fin = tcp_flag("fin", 0b000001)
