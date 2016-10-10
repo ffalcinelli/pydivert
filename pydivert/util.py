@@ -1,4 +1,3 @@
-import operator
 import sys
 
 
@@ -22,12 +21,11 @@ class cached_property(object):
 
 if sys.version_info < (3, 0):
     # python 3's byte indexing: b"AAA"[1] == 65
-    def indexbytes(buf, i):
-        return ord(buf[i])
-
-
+    indexbyte = lambda x: chr(x) if isinstance(x, int) else ord(x)
     # python 3's bytes.fromhex()
     fromhex = lambda x: x.decode("hex")
+    PY2 = True
 else:
-    indexbytes = operator.getitem
+    indexbyte = lambda x: x
     fromhex = lambda x: bytes.fromhex(x)
+    PY2 = False

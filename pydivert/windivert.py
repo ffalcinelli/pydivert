@@ -1,10 +1,11 @@
 import subprocess
-from ctypes import create_string_buffer, byref, c_uint64, c_uint
-
 import sys
+from ctypes import byref, c_uint64, c_uint, c_char
+
 from pydivert import windivert_dll
 from pydivert.consts import Layer, Direction
 from pydivert.packet import Packet
+from pydivert.util import PY2
 
 DEFAULT_PACKET_BUFFER_SIZE = 1500
 
@@ -43,16 +44,16 @@ class WinDivert(object):
     def __next__(self):
         return self.recv()
 
-    if sys.version_info < (3,0):
+    if sys.version_info < (3, 0):
         next = __next__
 
-    @classmethod
-    def register(cls):
+    @staticmethod
+    def register():
         """
         An utility method to register the service the first time.
         It is usually not required to call this function, as WinDivert will register itself when opening a handle.
         """
-        with cls("false"):
+        with WinDivert("false"):
             pass
 
     @staticmethod
@@ -60,17 +61,19 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
+        return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE) == 0
 
-    @classmethod
-    def unregister(self):
+    @staticmethod
+    def unregister():
         """
         Unregisters the WinDivert service.
         It is usually not required to call this function as WinDivert will remove itself automatically after running.
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert1.1", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.check_call("sc stop WinDivert1.1", stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
 
     def open(self):
         """
@@ -91,7 +94,8 @@ class WinDivert(object):
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
+        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority,
+                                                   self._flags)
 
     @property
     def is_open(self):
@@ -131,12 +135,16 @@ class WinDivert(object):
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
         """
-        packet = create_string_buffer(bufsize)
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        packet = bytearray(bufsize)
+        packet_ = (c_char * bufsize).from_buffer(packet)
         address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet, bufsize, byref(address), byref(recv_len))
+        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(address), byref(recv_len))
         return Packet(
-            packet[:recv_len.value],
+            memoryview(packet)[:recv_len.value],
             (address.IfIdx, address.SubIfIdx),
             Direction(address.Direction)
         )
@@ -170,7 +178,14 @@ class WinDivert(object):
         address.Direction = packet.direction
 
         send_len = c_uint(0)
-        windivert_dll.WinDivertSend(self._handle, packet.raw, len(packet.raw), byref(address), byref(send_len))
+        if PY2:
+            # .from_buffer(memoryview) does not work on PY2
+            buff = bytearray(packet.raw)
+        else:
+            buff = packet.raw
+        buff = (c_char * len(packet.raw)).from_buffer(buff)
+        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(address),
+                                    byref(send_len))
         return send_len
 
     def get_param(self, name):

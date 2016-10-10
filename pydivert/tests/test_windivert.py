@@ -42,8 +42,12 @@ def test_open():
     assert not w.is_open
     assert "closed" in repr(w)
 
+    with pytest.raises(RuntimeError):
+        w.recv()
+    with pytest.raises(RuntimeError):
+        w.close()
 
-@pytest.mark.timeout(5)
+
 def test_register():
     if WinDivert.is_registered():
         WinDivert.unregister()
@@ -54,7 +58,6 @@ def test_register():
     assert WinDivert.is_registered()
 
 
-@pytest.mark.timeout(5)
 def test_unregister():
     w = WinDivert("false")
     w.open()
@@ -106,9 +109,9 @@ def test_echo(scenario):
         assert p.is_outbound
         w.send(p)
         done = (
-            (p.is_udp and p.dst_port == client_addr[1])
+            p.udp and p.dst_port == client_addr[1]
             or
-            (p.is_tcp and p.tcp_fin)
+            p.tcp and p.tcp.fin
         )
         if done:
             break
@@ -129,9 +132,9 @@ def test_divert(scenario):
         w.send(p)
 
         done = (
-            (p.is_udp and p.dst_port == client_addr[1])
+            p.udp and p.dst_port == client_addr[1]
             or
-            (p.is_tcp and p.tcp_fin)
+            p.tcp and p.tcp.fin
         )
         if done:
             break
@@ -149,9 +152,9 @@ def test_modify_payload(scenario):
         w.send(p)
 
         done = (
-            (p.is_udp and p.dst_port == client_addr[1])
+            p.udp and p.dst_port == client_addr[1]
             or
-            (p.is_tcp and p.tcp_fin)
+            p.tcp and p.tcp.fin
         )
         if done:
             break
@@ -166,15 +169,17 @@ def test_packet_cutoff(scenario):
     cutoff = None
     while True:
         p = w.recv(500)
-        if p.ip_packet_len != len(p.raw):
+        if p.ip.packet_len != len(p.raw):
             assert cutoff is None
-            cutoff = p.ip_packet_len - len(p.raw)
-            p.payload = p.payload  # fix length
+            cutoff = p.ip.packet_len - len(p.raw)
+            p.ip.packet_len = len(p.raw)  # fix length
+            if p.udp:
+                p.udp.payload_len = len(p.payload)
         w.send(p)
         done = (
-            (p.is_udp and p.dst_port == client_addr[1])
+            p.udp and p.dst_port == client_addr[1]
             or
-            (p.is_tcp and p.tcp_fin)
+            p.tcp and p.tcp.fin
         )
         if done:
             break

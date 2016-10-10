@@ -37,20 +37,18 @@ def test_ipv6_tcp():
     assert x.dst_addr == "fc00:2:0:1::1"
     assert x.src_port == 43424
     assert x.dst_port == 8080
-    assert x.icmp_type is None
-    assert x.icmp_code is None
-    assert not x.is_ipv4
-    assert x.is_ipv6
-    assert x.is_tcp
-    assert not x.is_udp
-    assert not x.is_icmp46
+    assert not x.ipv4
+    assert x.ipv6
+    assert x.tcp
+    assert not x.udp
+    assert not x.icmp
     assert x.payload == (
         b"GET /hello.txt HTTP/1.1\r\n"
         b"User-Agent: curl/7.38.0\r\n"
         b"Host: [fc00:2:0:1::1]:8080\r\n"
         b"Accept: */*\r\n\r\n"
     )
-    assert x.ip_packet_len == 165
+    assert x.ip.packet_len == 165
     assert repr(x)
 
 
@@ -64,14 +62,13 @@ def test_ipv4_udp():
     assert x.dst_addr == "192.168.43.1"
     assert x.src_port == 51677
     assert x.dst_port == 53
-    assert x.icmp_type is None
-    assert x.icmp_code is None
-    assert x.is_ipv4
-    assert not x.is_ipv6
-    assert not x.is_tcp
-    assert x.is_udp
-    assert not x.is_icmp46
+    assert x.ipv4
+    assert not x.ipv6
+    assert not x.tcp
+    assert x.udp
+    assert not x.icmp
     assert x.payload == util.fromhex("528e01000001000000000000013801380138013807696e2d61646472046172706100000c0001")
+    assert x.udp.payload_len == 38
     assert repr(x)
 
 
@@ -85,13 +82,14 @@ def test_icmp_ping():
     assert x.dst_addr == "8.8.8.8"
     assert x.src_port is None
     assert x.dst_port is None
-    assert x.icmp_type == 8
-    assert x.icmp_code == 0
-    assert x.is_ipv4
-    assert not x.is_ipv6
-    assert not x.is_tcp
-    assert not x.is_udp
-    assert x.is_icmp46
+    assert x.icmp.type == 8
+    assert x.icmp.code == 0
+    assert x.ipv4
+    assert not x.ipv6
+    assert not x.tcp
+    assert not x.udp
+    assert x.icmpv4
+    assert not x.icmpv6
     assert x.payload == util.fromhex("d73b000051a7d67d000451e408090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232"
                                      "425262728292a2b2c2d2e2f3031323334353637")
     assert repr(x)
@@ -108,13 +106,14 @@ def test_icmpv6_unreachable():
     assert x.dst_addr == "3ffe:507:0:1:200:86ff:fe05:80da"
     assert x.src_port is None
     assert x.dst_port is None
-    assert x.icmp_type == 1
-    assert x.icmp_code == 4
-    assert not x.is_ipv4
-    assert x.is_ipv6
-    assert not x.is_tcp
-    assert not x.is_udp
-    assert x.is_icmp46
+    assert x.icmp.type == 1
+    assert x.icmp.code == 4
+    assert not x.ipv4
+    assert x.ipv6
+    assert not x.tcp
+    assert not x.udp
+    assert not x.icmpv4
+    assert x.icmpv6
     assert x.payload == util.fromhex("0000000060000000001411013ffe050700000001020086fffe0580da3ffe05010410000002c0dffff"
                                      "e47033ea07582a40014cf470a040000f9c8e7369d250b00")
     assert repr(x)
@@ -153,10 +152,10 @@ def test_ipv4_tcp_modify():
     assert x.dst_port == 43
 
     # tcp_ack (others follow trivially)
-    x.tcp_ack = False
-    assert x.tcp_ack is False
-    x.tcp_ack = True
-    assert x.tcp_ack is True
+    x.tcp.ack = False
+    assert x.tcp.ack is False
+    x.tcp.ack = True
+    assert x.tcp.ack is True
 
     # payload
     x.payload = b"test"
@@ -165,15 +164,15 @@ def test_ipv4_tcp_modify():
     assert x.payload == b"test"
 
     # checksum
-    a = x.raw
+    a = x.raw.tobytes()
     assert x.recalculate_checksums(
         pydivert.CalcChecksumsOption.NO_IP_CHECKSUM |
         pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM
     ) == 0
-    assert x.raw == a
+    assert x.raw.tobytes() == a
 
     assert x.recalculate_checksums() == 2
-    assert x.raw != a
+    assert x.raw.tobytes() != a
 
 
 def test_ipv6_udp_modify():
@@ -215,15 +214,15 @@ def test_ipv6_udp_modify():
     assert x.payload == b"test"
 
     # checksum
-    a = x.raw
+    a = x.raw.tobytes()
     assert x.recalculate_checksums(
         pydivert.CalcChecksumsOption.NO_IP_CHECKSUM |
         pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM
     ) == 0
-    assert x.raw == a
+    assert x.raw.tobytes() == a
 
     assert x.recalculate_checksums() == 1
-    assert x.raw != a
+    assert x.raw.tobytes() != a
 
 
 def test_icmp_modify():
@@ -253,25 +252,25 @@ def test_icmp_modify():
     assert x.payload == b"test"
 
     # icmp
-    x.icmp_type = 42
+    x.icmp.type = 42
     with pytest.raises(Exception):
-        x.icmp_type = "bogus"
-    assert x.icmp_type == 42
-    x.icmp_code = 42
+        x.icmp.type = "bogus"
+    assert x.icmp.type == 42
+    x.icmp.code = 42
     with pytest.raises(Exception):
-        x.icmp_code = "bogus"
-    assert x.icmp_code == 42
+        x.icmp.code = "bogus"
+    assert x.icmp.code == 42
 
     # checksum
-    a = x.raw
+    a = x.raw.tobytes()
     assert x.recalculate_checksums(
         pydivert.CalcChecksumsOption.NO_IP_CHECKSUM |
         pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM
     ) == 0
-    assert x.raw == a
+    assert x.raw.tobytes() == a
 
     assert x.recalculate_checksums() == 2
-    assert x.raw != a
+    assert x.raw.tobytes() != a
 
 
 def test_meta():
@@ -299,11 +298,11 @@ def test_bogus():
     with pytest.raises(Exception):
         x.payload = b""
     with pytest.raises(Exception):
-        x.icmp_code = 42
+        x.icmp.code = 42
     with pytest.raises(Exception):
-        x.icmp_type = 42
+        x.tcp.ack = True
     with pytest.raises(Exception):
-        x.tcp_ack = True
+        x.tcp.unknown_attr = True
     assert x.recalculate_checksums() == 0
 
 
