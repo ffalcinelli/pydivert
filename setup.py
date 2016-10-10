@@ -70,11 +70,14 @@ setup(
             "codecov>=2.0.5",
             "wheel>=0.29",
         ],
+        "docs": [
+            "sphinx>=1.4.8",
+        ],
         # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380
         # Ubuntu Trusty and other still ship with setuptools < 17.1
         ':python_version == "2.7" or python_version == "3.3"': [
-            "win_inet_pton >= 1.0.1",  # available on 3.4+
-            "enum34 >= 1.1.6",  # available on 3.4+
+            "win_inet_pton>=1.0.1",  # available on 3.4+
+            "enum34>=1.1.6",  # available on 3.4+
         ]
     }
 )

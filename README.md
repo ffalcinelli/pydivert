@@ -1,190 +1,148 @@
-pydivert 
-========
+# pydivert
 
 [![AppVeyor Status](https://img.shields.io/appveyor/ci/ffalcinelli/pydivert/master.svg)](https://ci.appveyor.com/project/ffalcinelli/pydivert)
 [![Code Coverage](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/master.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![PyPI Version](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 [![Python Versions](https://img.shields.io/pypi/pyversions/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 
+Python bindings for [WinDivert](https://github.com/basil00/Divert), a Windows driver that allows
+user-mode applications to capture/modify/drop network packets sent to/from the Windows
+network stack.
 
-Python Bindings for [WinDivert](https://github.com/basil00/Divert).
+## Requirements
 
-Platform Support
-----------------
+- Python 2.7 or Python 3.3+ (32 or 64 bit)
+- Windows Vista/7/8/10 or Windows Server 2008 (32 or 64 bit)
+- Administrator Privileges
 
-Right now PyDivert supports Python 2.7/3.3/3.4 and should work on each platform supported by the driver itself.
+## Installation
 
-It has been tested on a Windows 7 64bit machine with Python 2.7 and Python 3.3/3.4 interpreters (64bit).
-
-
-Warnings
---------
-
-* Administrator privileges are required to run the API
-* Windows 64bit must be in **Test Mode** to load drivers signed with untrusted certificates
-* The API is still under heavy development and could receive changes in near future without any notification
-
-Quick Start
-===========
-
-Install PyDivert
-----------------
-
-To install `pydivert` simply run
+You can install PyDivert by running
 
 ```
 $ pip install pydivert
 ```
 
-or
+Starting with PyDivert 1.0.2, [WinDivert](http://reqrypt.org/windivert.html) is bundled with
+PyDivert and does not need to be installed separately.
+
+
+
+##### WinDivert Version Compatibility
+
+
+| PyDivert                          | WinDivert       |
+|-----------------------------------|-----------------|
+| 0.0.7                             | 1.0.x or 1.1.x  |
+| 1.0.2 (API-compatible with 0.0.7) | 1.1.8 (bundled) |
+| 2.0.0                             | 1.1.8 (bundled) |
+
+## Getting Started
+
+PyDivert consists of two main classes: `pydivert.WinDivert` and `pydivert.Packet`.
+First, you usually want to create a `WinDivert` object to start capturing network traffic and then
+call `.recv()` to receive the first `Packet` that was captured. By receiving packets, they are taken
+out of the Windows network stack and will not be sent out unless you take action.
+You can re-inject packets by calling `.send(packet)`.
+The following example opens a WinDivert handle, receives a single packet, prints it, re-injects it,
+and then exits:
+
+```python
+import pydivert
+
+# Capture only TCP packets to port 80, i.e. HTTP requests.
+w = pydivert.WinDivert("tcp.DstPort == 80 and tcp.PayloadLength > 0")
+
+w.open()  # packets will be captured from now on
+
+packet = w.recv()  # read a single packet
+print(packet)
+w.send(packet)  # re-inject the packet into the network stack
+
+w.close()  # stop capturing packets
+```
+
+## Python Idioms
+
+`pydivert.WinDivert` instances can be used as _context managers_ for capturing traffic and as (infinite) _iterators_ over
+packets. The following code is equivalent to the example above:
+
+```python
+import pydivert
+
+with pydivert.WinDivert("tcp.DstPort == 80 and tcp.PayloadLength > 0") as w:
+    for packet in w:
+        print(packet)
+        w.send(packet)
+        break
+```
+
+## Packet Modification
+
+`pydivert.Packet` provides a variety of properties that can be used to access and modify the
+packet's headers or payload. For example, you can browse the web on port 1234 with PyDivert:
+
+```python
+import pydivert
+
+with pydivert.WinDivert("tcp.DstPort == 1234 or tcp.SrcPort == 80") as w:
+    for packet in w:
+        if packet.dst_port == 1234:
+            print(">") # packet to the server
+            packet.dst_port = 80
+        if packet.src_port == 80:
+            print("<") # reply from the server
+            packet.src_port = 1234
+        w.send(packet)
 
 ```
-$ python setup.py install
+
+Try opening <http://example.com:1234/> in your browser!
+
+WinDivert supports access and modification of a variety of TCP/UDP/ICMP attributes out of the box.
+
+```python
+>>> print(packet)
+Packet({'direction': <Direction.OUTBOUND: 0>,
+ 'dst_addr': '93.184.216.34',
+ 'dst_port': 443,
+ 'icmpv4': None,
+ 'icmpv6': None,
+ 'interface': (23, 0),
+ 'ipv4': {'src_addr': '192.168.86.169',
+          'dst_addr': '93.184.216.34',
+          'packet_len': 81},
+ 'ipv6': None,
+ 'is_inbound': False,
+ 'is_loopback': False,
+ 'is_outbound': True,
+ 'payload': '\x17\x03\x03\x00$\x00\x00\x00\x00\x00\x00\x02\x05\x19q\xbd\xcfD\x8a\xe3...',
+ 'raw': <memory at 0x028924E0>,
+ 'src_addr': '192.168.86.169',
+ 'src_port': 52387,
+ 'tcp': {'src_port': 52387,
+         'dst_port': 443,
+         'syn': False,
+         'ack': True,
+         'fin': False,
+         'rst': False,
+         'psh': True,
+         'urg': False,
+         'header_len': 20,
+         'payload': '\x17\x03\x03\x00$\x00\x00\x00\x00\x00\x00\x02\x05\x19q\xbd\xcfD\x8a\xe3...'},
+ 'udp': None})
 ```
 
-As of version `0.1` the [WinDivert](http://reqrypt.org/windivert.html) driver download is no more needed, while the latest version 1.1.8 is bundled to pydivert itself.
+## Uninstalling PyDivert
 
+You can uninstall PyDivert by running
 
-Uninstalling PyDivert
----------------------
-
-Using `pip` you can uninstall the binding with
- 
 ```
 $ pip uninstall pydivert
 ```
 
-WinDivert version 1.0.x
--------------------------------------------------------
+If the WinDivert driver is still running at that time, it will remove itself on the next reboot.
 
-The support for WinDivert 1.0.x has been dropped.
+## API Reference Documentation
 
-
-Registering the driver
-----------------------
-
-When you're done, the first call you do to `WinDivertOpen` (then calling to `open` on an `Handle` instance in this python api) will install the driver if not yet up and running
-
-```python
-handle = WinDivert( os.path.join(PROJECT_ROOT,"lib","WinDivert.dll")).open_handle(filter="false")
-handle.close()
-```
-
-Once installed, you don't have to use anymore the path to your DLL and you can get an handle by constructing a driver with no parameters
-
-```python
-handle = WinDivert().open_handle(filter="true")
-```
-
-Using an Handle instance as a context manager
----------------------------------------------
-
-You may access the driver from your python code by using the following example which intercept and resend the telnet traffic:
-
-```python
-driver = WinDivert(r"C:\PyDivert\WinDivert.dll")
-with Handle(driver, filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
-    while True:
-        raw_packet, metadata = handle.recv()
-        captured_packet = driver.parse_packet(raw_packet)
-        print(captured_packet)
-        handle.send(raw_packet, metadata)
-```
-
-If the driver is already registered you can avoid the explicit instance of `WinDivert` class
-
-```python
-with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
-    while True:
-        raw_packet, metadata = handle.recv()
-        captured_packet = handle.driver.parse_packet(raw_packet)
-        print(captured_packet)
-        handle.send(raw_packet, metadata)
-```
-
-There are a set of high level functions to avoid repeating common operations. The following snippet is perfectly equivalent to the above:
-
-```python
-with Handle(filter="outbound and tcp.DstPort == 23", priority=1000) as handle:
-    while True:
-        packet = handle.receive()
-        print(packet)
-        handle.send(packet)
-```
-
-Accessing TCP/IP header fields and modify them
-----------------------------------------------
-
-You can access the headers of a captured packet directly
-
-```python
-with Handle(filter="tcp.DstPort == 23") as handle:
-    packet = handle.receive()
-    if packet.tcp_hdr.Syn == 1:
-        print("Captured a TCP Syn")
-    handle.send(packet)
-```
-
-For address/port pairs, a `CapturedPacket` provides easy properties to translate the values into network byte order
-
-```python
-with Handle(filter="tcp.DstPort == 23") as handle:
-    packet = handle.receive()
-    print("{}:{}".format(packet.dst_addr,
-                         packet.dst_port))
-    print("{}:{}".format(packet.ipv4_hdr.DstAddr,
-                         packet.tcp_hdr.DstPort))
-```
-
-will print somethig similar to
-
-```
-10.0.2.15:23
-251789322:5888
-```
-
-And you can get/set those headers by simply changing the property value without worrying of underlying representation
-
-```python
-with Handle(filter="tcp.DstPort == 23 or tcp.SrcPort == 13131") as handle:
-    while True:
-        packet = handle.receive()
-        if packet.meta.is_outbound():
-            packet.dst_port = 13131
-        else:
-            packet.src_port = 23
-        handle.send(packet)
-```
-
-Checkout the test suite for examples of usage.
-
-Any feedback is more than welcome!
-
-TODOs
------
-
-1. ~~Packet modification and reinjection~~
-2. ~~Support for other platforms, at least OSX and linux~~ Discarded. These are out of scope for this binding.
-3. ~~May be a good idea to delegate all the WinDivert methods to Handle instances~~
-4. Clean test code. Tests should be more readable to use as usage example
-5. Implement binding for Asynchronous I/O using WinDivertSendEx and WinDivertRecvEx
-6. ~~Drop support for WinDivert 1.0.x~~
-
-
-License
-=======
-
-LGPLv3
-
-> This program is free software: you can redistribute it and/or modify
-> it under the terms of the GNU Lesser General Public License as published by
-> the Free Software Foundation, either version 3 of the License, or
-> (at your option) any later version.
->
-> This program is distributed in the hope that it will be useful,
-> but WITHOUT ANY WARRANTY; without even the implied warranty of
-> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-> GNU Lesser General Public License for more details.
->
-> You should have received a copy of the GNU Lesser General Public License
-> along with this program.  If not, see <http://www.gnu.org/licenses/>.
+The API Reference Documentation for PyDivert can be found [here](FIXME).

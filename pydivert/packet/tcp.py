@@ -21,8 +21,7 @@ def flagproperty(name, bit):
         pass  # .__doc__ is readonly on Python 2.
     else:
         flag.__doc__ = """
-            The TCP {} flag, if the packet is valid TCP.
-            None, otherwise.
+            Indicates if the {} flag is set.
             """.format(name.upper())
 
     return flag
@@ -38,4 +37,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
 
     @property
     def header_len(self):
+        """
+        The TCP header length.
+        """
         return (i(self.raw[12]) >> 4) * 4

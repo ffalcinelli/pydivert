@@ -7,6 +7,9 @@ class ICMPHeader(Header, PayloadMixin):
 
     @property
     def type(self):
+        """
+        The ICMP message type.
+        """
         return i(self.raw[0])
 
     @type.setter
@@ -15,6 +18,9 @@ class ICMPHeader(Header, PayloadMixin):
 
     @property
     def code(self):
+        """
+        The ICMP message code.
+        """
         return i(self.raw[1])
 
     @code.setter

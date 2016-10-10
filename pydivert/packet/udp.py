@@ -1,6 +1,7 @@
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
+from pydivert.util import PY2
 
 
 class UDPHeader(Header, PayloadMixin, PortMixin):
@@ -14,6 +15,11 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
     def payload(self, val):
         PayloadMixin.payload.fset(self, val)
         self.payload_len = len(val)
+
+    if PY2:
+        pass
+    else:
+        payload.__doc__ = PayloadMixin.payload.__doc__
 
     @property
     def payload_len(self):

@@ -18,30 +18,45 @@ from enum import IntEnum
 
 # Divert layers.
 class Layer(IntEnum):
+    """
+    See https://reqrypt.org/windivert-doc.html#divert_open
+    """
     NETWORK = 0
     NETWORK_FORWARD = 1
 
 
 # Divert Flag.
 class Flag(IntEnum):
+    """
+    See https://reqrypt.org/windivert-doc.html#divert_open
+    """
     SNIFF = 1
     DROP = 2
 
 
 # Divert parameters.
 class Param(IntEnum):
+    """
+    See https://reqrypt.org/windivert-doc.html#divert_set_param
+    """
     QUEUE_LEN = 0  # Packet queue length 1 <default 512 < 8192
     QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
 
 
 # Direction outbound/inbound
 class Direction(IntEnum):
+    """
+    See https://reqrypt.org/windivert-doc.html#divert_address
+    """
     OUTBOUND = 0
     INBOUND = 1
 
 
 # Checksums
 class CalcChecksumsOption(IntEnum):
+    """
+    See https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
+    """
     NO_IP_CHECKSUM = 1
     NO_ICMP_CHECKSUM = 2
     NO_ICMPV6_CHECKSUM = 4

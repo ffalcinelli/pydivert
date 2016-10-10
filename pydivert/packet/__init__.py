@@ -14,23 +14,22 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import ctypes
+import pprint
 import socket
 
 from pydivert import windivert_dll
 from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol
+from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
 from pydivert.util import cached_property, indexbyte as i, PY2
 
-
 class Packet(object):
     """
     A single packet, possibly including an IP header, a TCP/UDP header and a payload.
     Creation of packets is cheap, parsing is done on first attribute access.
-
-    While the raw packet can be modified directly, the protocol and address types will be cached.
     """
 
     def __init__(self, raw, interface, direction):
@@ -41,58 +40,45 @@ class Packet(object):
         self.direction = direction
 
     def __repr__(self):
-        direction = Direction(self.direction).name.lower()
-        protocol = self.protocol[0]
-        if self.icmp:
-            extra = '\n    type="{}" code="{}"'.format(self.icmp.type, self.icmp.code)
-        elif self.tcp:
-            flags = " ".join(
-                x.upper()
-                    for x in ("fin", "syn", "rst", "psh", "ack", "urg")
-                    if getattr(self.tcp, x)
-            )
-            extra = '\n    {}'.format(flags)
-        else:
-            extra = ''
-        if self.ip is not None:
-            bytes_cut_off = self.ip.packet_len - len(self.raw)
-            if bytes_cut_off != 0:
-                extra += '\n    bytes-cut-off="{}"'.format(bytes_cut_off)
-        try:
-            protocol = Protocol(protocol).name.lower()
-        except ValueError:
-            pass
-        return '<Packet \n' \
-               '    direction="{}"\n' \
-               '    interface="{}" subinterface="{}"\n' \
-               '    src="{}"\n' \
-               '    dst="{}"\n' \
-               '    protocol="{}"{}>\n' \
-               '{}\n' \
-               '</Packet>'.format(
-            direction,
-            self.interface[0],
-            self.interface[1],
-            ":".join(str(x) for x in (self.src_addr, self.src_port) if x is not None),
-            ":".join(str(x) for x in (self.dst_addr, self.dst_port) if x is not None),
-            protocol,
-            extra,
-            self.payload
-        )
+        def dump(x):
+            if isinstance(x, Header) or isinstance(x, Packet):
+                d = {}
+                for k in dir(x):
+                    v = getattr(x, k)
+                    if k.startswith("_") or callable(v):
+                        continue
+                    if k in {"address_family", "protocol", "ip", "icmp"}:
+                        continue
+                    if k == "payload" and v and len(v) > 20:
+                        v = v[:20] + b"..."
+                    d[k] = dump(v)
+                if isinstance(x, Packet):
+                    return pprint.pformat(d)
+                return d
+            return x
+        return "Packet({})".format(dump(self))
 
     @property
     def is_outbound(self):
+        """
+        Indicates if the packet is outbound.
+        Convenience method for ``.direction``.
+        """
         return self.direction == Direction.OUTBOUND
 
     @property
     def is_inbound(self):
+        """
+        Indicates if the packet is inbound.
+        Convenience method for ``.direction``.
+        """
         return self.direction == Direction.INBOUND
 
     @property
     def is_loopback(self):
         """
-        True, if the packet is on the loopback interface.
-        False, otherwise.
+        - True, if the packet is on the loopback interface.
+        - False, otherwise.
         """
         return self.interface[0] == 1
 
@@ -100,9 +86,9 @@ class Packet(object):
     def address_family(self):
         """
         The packet address family:
-            socket.AF_INET, if IPv4
-            socket.AF_INET6, if IPv6
-            None, otherwise.
+            - socket.AF_INET, if IPv4
+            - socket.AF_INET6, if IPv6
+            - None, otherwise.
         """
         if len(self.raw) >= 20:
             v = i(self.raw[0]) >> 4
@@ -114,10 +100,10 @@ class Packet(object):
     @cached_property
     def protocol(self):
         """
-        A (ipproto, proto_start) tuple.
-        ipproto is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
-        proto_start denotes the beginning of the protocol data.
-        If the packet does not match our expectations, both ipproto and proto_start are None.
+        - | A (ipproto, proto_start) tuple.
+          | ``ipproto`` is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
+          | ``proto_start`` denotes the beginning of the protocol data.
+          | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.address_family == socket.AF_INET:
             proto = i(self.raw[9])
@@ -161,8 +147,8 @@ class Packet(object):
     @cached_property
     def ipv4(self):
         """
-        An IPv4Header instance, if the packet is valid IPv4.
-        None, otherwise.
+        - An IPv4Header instance, if the packet is valid IPv4.
+        - None, otherwise.
         """
         if self.address_family == socket.AF_INET:
             return IPv4Header(self)
@@ -170,8 +156,8 @@ class Packet(object):
     @cached_property
     def ipv6(self):
         """
-        An IPv6Header instance, if the packet is valid IPv6.
-        None, otherwise.
+        - An IPv6Header instance, if the packet is valid IPv6.
+        - None, otherwise.
         """
         if self.address_family == socket.AF_INET6:
             return IPv6Header(self)
@@ -179,16 +165,16 @@ class Packet(object):
     @cached_property
     def ip(self):
         """
-        An IPHeader instance, if the packet is valid IPv4 or IPv6.
-        None, otherwise.
+        - An IPHeader instance, if the packet is valid IPv4 or IPv6.
+        - None, otherwise.
         """
         return self.ipv4 or self.ipv6
 
     @cached_property
     def icmpv4(self):
         """
-        An ICMPv4Header instance, if the packet is valid ICMPv4.
-        None, otherwise.
+        - An ICMPv4Header instance, if the packet is valid ICMPv4.
+        - None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMP:
@@ -197,8 +183,8 @@ class Packet(object):
     @cached_property
     def icmpv6(self):
         """
-        An ICMPv6Header instance, if the packet is valid ICMPv6.
-        None, otherwise.
+        - An ICMPv6Header instance, if the packet is valid ICMPv6.
+        - None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMPV6:
@@ -207,16 +193,16 @@ class Packet(object):
     @cached_property
     def icmp(self):
         """
-        An ICMPHeader instance, if the packet is valid ICMPv4 or ICMPv6.
-        None, otherwise.
+        - An ICMPHeader instance, if the packet is valid ICMPv4 or ICMPv6.
+        - None, otherwise.
         """
         return self.icmpv4 or self.icmpv6
 
     @cached_property
     def tcp(self):
         """
-        An TCPHeader instance, if the packet is valid TCP.
-        None, otherwise.
+        - An TCPHeader instance, if the packet is valid TCP.
+        - None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.TCP:
@@ -225,8 +211,8 @@ class Packet(object):
     @cached_property
     def udp(self):
         """
-        An TCPHeader instance, if the packet is valid UDP.
-        None, otherwise.
+        - An TCPHeader instance, if the packet is valid UDP.
+        - None, otherwise.
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.UDP:
@@ -245,8 +231,8 @@ class Packet(object):
     @property
     def src_addr(self):
         """
-        The source address, if the packet is valid IPv4 or IPv6.
-        None, otherwise.
+        - The source address, if the packet is valid IPv4 or IPv6.
+        - None, otherwise.
         """
         if self.ip:
             return self.ip.src_addr
@@ -258,8 +244,8 @@ class Packet(object):
     @property
     def dst_addr(self):
         """
-        The destination address, if the packet is valid IPv4 or IPv6.
-        None, otherwise.
+        - The destination address, if the packet is valid IPv4 or IPv6.
+        - None, otherwise.
         """
         if self.ip:
             return self.ip.dst_addr
@@ -271,8 +257,8 @@ class Packet(object):
     @property
     def src_port(self):
         """
-        The source port, if the packet is valid TCP or UDP.
-        None, otherwise.
+        - The source port, if the packet is valid TCP or UDP.
+        - None, otherwise.
         """
         if self._port:
             return self._port.src_port
@@ -284,8 +270,8 @@ class Packet(object):
     @property
     def dst_port(self):
         """
-        The destination port, if the packet is valid TCP or UDP.
-        None, otherwise.
+        - The destination port, if the packet is valid TCP or UDP.
+        - None, otherwise.
         """
         if self._port:
             return self._port.dst_port
@@ -297,8 +283,8 @@ class Packet(object):
     @property
     def payload(self):
         """
-        The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
-        None, otherwise.
+        - The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
+        - None, otherwise.
         """
         if self._payload:
             return self._payload.payload

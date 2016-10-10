@@ -12,7 +12,16 @@ DEFAULT_PACKET_BUFFER_SIZE = 1500
 
 class WinDivert(object):
     """
-    An handle object got from a WinDivert DLL.
+    A WinDivert handle that can be used to capture packets.
+    The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
+
+    Use it like so::
+
+        with pydivert.WinDivert() as w:
+            for packet in w:
+                print(packet)
+                w.send(packet)
+
     """
 
     def __init__(self, filter="true", layer=Layer.NETWORK, priority=0, flags=0):
@@ -68,7 +77,6 @@ class WinDivert(object):
     def unregister():
         """
         Unregisters the WinDivert service.
-        It is usually not required to call this function as WinDivert will remove itself automatically after running.
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
@@ -81,14 +89,14 @@ class WinDivert(object):
         Unless otherwise specified by flags, any packet that matches the filter will be diverted to the handle.
         Diverted packets can be read by the application with receive().
 
-        The remapped function is WinDivertOpen:
+        The remapped function is WinDivertOpen::
 
-        HANDLE WinDivertOpen(
-            __in const char *filter,
-            __in WINDIVERT_LAYER layer,
-            __in INT16 priority,
-            __in UINT64 flags
-        );
+            HANDLE WinDivertOpen(
+                __in const char *filter,
+                __in WINDIVERT_LAYER layer,
+                __in INT16 priority,
+                __in UINT64 flags
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_open
         """
@@ -99,17 +107,20 @@ class WinDivert(object):
 
     @property
     def is_open(self):
+        """
+        Indicates if there is currently an open handle.
+        """
         return bool(self._handle)
 
     def close(self):
         """
         Closes the handle opened by open().
 
-        The remapped function is:
+        The remapped function is WinDivertClose::
 
-        BOOL WinDivertClose(
-            __in HANDLE handle
-        );
+            BOOL WinDivertClose(
+                __in HANDLE handle
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_close
         """
@@ -123,15 +134,15 @@ class WinDivert(object):
         Receives a diverted packet that matched the filter.
         The return value is a pydivert.Packet.
 
-        The remapped function is WinDivertRecv:
+        The remapped function is WinDivertRecv::
 
-        BOOL WinDivertRecv(
-            __in HANDLE handle,
-            __out PVOID pPacket,
-            __in UINT packetLen,
-            __out_opt PWINDIVERT_ADDRESS pAddr,
-            __out_opt UINT *recvLen
-        );
+            BOOL WinDivertRecv(
+                __in HANDLE handle,
+                __out PVOID pPacket,
+                __in UINT packetLen,
+                __out_opt PWINDIVERT_ADDRESS pAddr,
+                __out_opt UINT *recvLen
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
         """
@@ -158,15 +169,15 @@ class WinDivert(object):
         The injected packet may be one received from recv(), or a modified version, or a completely new packet.
         Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.
 
-        The remapped function is DivertSend:
+        The remapped function is WinDivertSend::
 
-        BOOL WinDivertSend(
-            __in HANDLE handle,
-            __in PVOID pPacket,
-            __in UINT packetLen,
-            __in PWINDIVERT_ADDRESS pAddr,
-            __out_opt UINT *sendLen
-        );
+            BOOL WinDivertSend(
+                __in HANDLE handle,
+                __in PVOID pPacket,
+                __in UINT packetLen,
+                __in PWINDIVERT_ADDRESS pAddr,
+                __out_opt UINT *sendLen
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
         """
@@ -192,13 +203,13 @@ class WinDivert(object):
         """
         Get a WinDivert parameter. See pydivert.Param for the list of parameters.
 
-        The remapped function is DivertGetParam:
+        The remapped function is WinDivertGetParam::
 
-        BOOL WinDivertGetParam(
-            __in HANDLE handle,
-            __in WINDIVERT_PARAM param,
-            __out UINT64 *pValue
-        );
+            BOOL WinDivertGetParam(
+                __in HANDLE handle,
+                __in WINDIVERT_PARAM param,
+                __out UINT64 *pValue
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_get_param
         """
@@ -210,13 +221,13 @@ class WinDivert(object):
         """
         Set a WinDivert parameter. See pydivert.Param for the list of parameters.
 
-        The remapped function is DivertSetParam:
+        The remapped function is DivertSetParam::
 
-        BOOL WinDivertSetParam(
-            __in HANDLE handle,
-            __in WINDIVERT_PARAM param,
-            __in UINT64 value
-        );
+            BOOL WinDivertSetParam(
+                __in HANDLE handle,
+                __in WINDIVERT_PARAM param,
+                __in UINT64 value
+            );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_set_param
         """

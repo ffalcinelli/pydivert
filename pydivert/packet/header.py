@@ -8,6 +8,9 @@ class Header(object):
 
     @property
     def raw(self):
+        """
+        The raw header, possibly including payload.
+        """
         return self._packet.raw[self._start:]
 
     @raw.setter
@@ -36,6 +39,9 @@ class PayloadMixin(object):
 
     @property
     def payload(self):
+        """
+        The packet payload data.
+        """
         return self.raw[self.header_len:].tobytes()
 
     @payload.setter
@@ -49,10 +55,16 @@ class PayloadMixin(object):
 class PortMixin(object):
     @property
     def src_port(self):
+        """
+        The source port.
+        """
         return struct.unpack_from("!H", self.raw, 0)[0]
 
     @property
     def dst_port(self):
+        """
+        The destination port.
+        """
         return struct.unpack_from("!H", self.raw, 2)[0]
 
     @src_port.setter
