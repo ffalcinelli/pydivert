@@ -158,44 +158,25 @@ class Packet(object):
 
         return proto, start
 
-    def _replace(self, start, val):
-        """
-        Replace the raw content with new raw content of a different length.
-        """
-        self.raw = memoryview(bytearray(
-            self.raw[:start].tobytes() + val
-        ))
-        self.ip.packet_len = len(self.raw)
-        return self.raw[start:]
-
-    def _make(self, Header, proto_start):
-        """
-        Make a header object.
-        """
-        return Header(
-            self.raw[proto_start:],
-            lambda val: self._replace(proto_start, val)
-        )
-
-    @property
+    @cached_property
     def ipv4(self):
         """
         An IPv4Header instance, if the packet is valid IPv4.
         None, otherwise.
         """
         if self.address_family == socket.AF_INET:
-            return IPv4Header(self.raw, None)
+            return IPv4Header(self)
 
-    @property
+    @cached_property
     def ipv6(self):
         """
         An IPv6Header instance, if the packet is valid IPv6.
         None, otherwise.
         """
         if self.address_family == socket.AF_INET6:
-            return IPv6Header(self.raw, None)
+            return IPv6Header(self)
 
-    @property
+    @cached_property
     def ip(self):
         """
         An IPHeader instance, if the packet is valid IPv4 or IPv6.
@@ -203,7 +184,7 @@ class Packet(object):
         """
         return self.ipv4 or self.ipv6
 
-    @property
+    @cached_property
     def icmpv4(self):
         """
         An ICMPv4Header instance, if the packet is valid ICMPv4.
@@ -211,9 +192,9 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMP:
-            return self._make(ICMPv4Header, proto_start)
+            return ICMPv4Header(self, proto_start)
 
-    @property
+    @cached_property
     def icmpv6(self):
         """
         An ICMPv6Header instance, if the packet is valid ICMPv6.
@@ -221,9 +202,9 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMPV6:
-            return self._make(ICMPv6Header, proto_start)
+            return ICMPv6Header(self, proto_start)
 
-    @property
+    @cached_property
     def icmp(self):
         """
         An ICMPHeader instance, if the packet is valid ICMPv4 or ICMPv6.
@@ -231,7 +212,7 @@ class Packet(object):
         """
         return self.icmpv4 or self.icmpv6
 
-    @property
+    @cached_property
     def tcp(self):
         """
         An TCPHeader instance, if the packet is valid TCP.
@@ -239,9 +220,9 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.TCP:
-            return self._make(TCPHeader, proto_start)
+            return TCPHeader(self, proto_start)
 
-    @property
+    @cached_property
     def udp(self):
         """
         An TCPHeader instance, if the packet is valid UDP.
@@ -249,14 +230,14 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.UDP:
-            return self._make(UDPHeader, proto_start)
+            return UDPHeader(self, proto_start)
 
-    @property
+    @cached_property
     def _port(self):
         """header that implements PortMixin"""
         return self.tcp or self.udp
 
-    @property
+    @cached_property
     def _payload(self):
         """header that implements PayloadMixin"""
         return self.tcp or self.udp or self.icmpv4 or self.icmpv6

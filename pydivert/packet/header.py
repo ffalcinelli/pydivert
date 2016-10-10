@@ -2,20 +2,26 @@ import struct
 
 
 class Header(object):
-    def __init__(self, raw, replace):
-        self._raw = raw  # type: memoryview
-        self._replace = replace
+    def __init__(self, packet, start=0):
+        self._packet = packet  # type: "pydivert.Packet"
+        self._start = start
 
     @property
     def raw(self):
-        return self._raw
+        return self._packet.raw[self._start:]
 
     @raw.setter
     def raw(self, val):
-        self._raw = self._replace(val)
+        if len(val) == len(self.raw):
+            self.raw[:] = val
+        else:
+            self._packet.raw = memoryview(bytearray(
+                self._packet.raw[:self._start].tobytes() + val
+            ))
+            self._packet.ip.packet_len = len(self._packet.raw)
 
     def __setattr__(self, key, value):
-        if key in dir(self) or key in {"_raw", "_replace"}:
+        if key in dir(self) or key in {"_packet", "_start"}:
             return super(Header, self).__setattr__(key, value)
         raise ValueError("AttributeError: '{}' object has no attribute '{}'".format(
             type(self).__name__,
