@@ -16,22 +16,25 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 
-import pydivert
 from setuptools import setup, find_packages
 
 __author__ = 'fabio'
 
 workdir = os.path.abspath(os.path.dirname(__file__))
 
+# https://packaging.python.org/single_source_version/
+with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
+    __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
+
 setup(
     name='pydivert',
-    version=pydivert.__version__,
+    version=__version__,
     description='Python binding to windivert driver',
     # long_description=readme.read(),
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
-    download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(pydivert.__version__),
+    download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(__version__),
     keywords=['windivert', 'network', 'tcp/ip'],
     license="LGPLv3",
     packages=find_packages(),
@@ -59,6 +62,7 @@ setup(
     extras_require={
         "test": [
             "mock>=1.0.1",
+            "hypothesis>=3.5.3",
             "pytest>=3.0.3",
             "pytest-cov>=2.2.1",
             "pytest-timeout>=1.0.0, <2",
@@ -66,10 +70,14 @@ setup(
             "codecov>=2.0.5",
             "wheel>=0.29",
         ],
+        "docs": [
+            "sphinx>=1.4.8",
+        ],
         # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380
         # Ubuntu Trusty and other still ship with setuptools < 17.1
         ':python_version == "2.7" or python_version == "3.3"': [
-            "win_inet_pton >= 1.0.1"  # available on 3.4+
+            "win_inet_pton>=1.0.1",  # available on 3.4+
+            "enum34>=1.1.6",  # available on 3.4+
         ]
     }
 )

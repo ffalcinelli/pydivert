@@ -10,3 +10,4 @@ dist/
 .cache/
 venv/
 .coverage
+.hypothesis
