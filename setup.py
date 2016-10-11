@@ -26,11 +26,22 @@ workdir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
     __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
 
+def pypi_md2rst():
+    """
+    This serves the sole aim to convert README.md to ReSTructured Text to show on PyPI
+    Requires pandoc to be installed: http://pandoc.org/installing.html
+    """
+    try:
+        import pypandoc
+        return pypandoc.convert(os.path.join(workdir, 'README.md'), 'rst')
+    except ImportError:
+        return ''
+
 setup(
     name='pydivert',
     version=__version__,
     description='Python binding to windivert driver',
-    # long_description=readme.read(),
+    long_description=pypi_md2rst(),
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
