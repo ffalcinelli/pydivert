@@ -33,7 +33,7 @@ setup(
     url='https://github.com/ffalcinelli/pydivert',
     download_url='https://github.com/ffalcinelli/pydivert/releases/{}'.format(pydivert.__version__),
     keywords=['windivert', 'network', 'tcp/ip'],
-    license="LICENSE",
+    license="LGPLv3",
     packages=find_packages(),
     include_package_data=True,
     classifiers=[
