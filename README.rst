@@ -62,6 +62,9 @@ and then exits:
 
     w.close()  # stop capturing packets
 
+Packets that are not matched by the ``"tcp.DstPort == 80 and tcp.PayloadLength > 0"`` filter will not be handled by WinDivert
+and continue as usual. The syntax for the filter language is described in the `WinDivert documentation <https://reqrypt.org/windivert-doc.html#filter_language>`_.
+
 Python Idioms
 -------------
 
