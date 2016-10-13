@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
+from codecs import open
 
 from setuptools import setup, find_packages
 
@@ -26,22 +27,14 @@ workdir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
     __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
 
-def pypi_md2rst():
-    """
-    This serves the sole aim to convert README.md to ReSTructured Text to show on PyPI
-    Requires pandoc to be installed: http://pandoc.org/installing.html
-    """
-    try:
-        import pypandoc
-        return pypandoc.convert(os.path.join(workdir, 'README.md'), 'rst')
-    except ImportError:
-        return ''
+with open(os.path.join(workdir, 'README.rst'), encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     name='pydivert',
     version=__version__,
     description='Python binding to windivert driver',
-    long_description=pypi_md2rst(),
+    long_description=long_description,
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
