@@ -26,7 +26,7 @@ class Header(object):
     def __setattr__(self, key, value):
         if key in dir(self) or key in {"_packet", "_start"}:
             return super(Header, self).__setattr__(key, value)
-        raise ValueError("AttributeError: '{}' object has no attribute '{}'".format(
+        raise AttributeError("AttributeError: '{}' object has no attribute '{}'".format(
             type(self).__name__,
             key
         ))
@@ -46,7 +46,7 @@ class PayloadMixin(object):
 
     @payload.setter
     def payload(self, val):
-        if len(val) == len(self.payload):
+        if len(val) == len(self.raw) - self.header_len:
             self.raw[self.header_len:] = val
         else:
             self.raw = self.raw[:self.header_len].tobytes() + val

@@ -39,6 +39,9 @@ def test_open():
         assert w.is_open
         assert "open" in repr(w)
 
+        with pytest.raises(RuntimeError):
+            w.open()
+
     assert not w.is_open
     assert "closed" in repr(w)
 

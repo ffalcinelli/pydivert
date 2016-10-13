@@ -174,6 +174,13 @@ def test_ipv4_tcp_modify():
     assert x.recalculate_checksums() == 2
     assert x.raw.tobytes() != a
 
+    # test same length raw replace.
+    x.tcp.raw = x.tcp.raw.tobytes().replace(b"test", b"abcd")
+
+    # catch typo in headers
+    with pytest.raises(AttributeError):
+        x.tcp.typo = 42
+
 
 def test_ipv6_udp_modify():
     raw = util.fromhex("60000000002711403ffe050700000001020086fffe0580da3ffe0501481900000000000000000042095d0035002746b"
