@@ -1,4 +1,16 @@
-Versin 0.0.3
+Version 2.0
+    - Complete API rewrite
+    - Documentation at https://ffalcinelli.github.io/pydivert
+
+Version 1.0
+    - Bundling of WinDivert driver into pydivert
+    - Dropped WinDivert 1.0.x support
+    - Several improvements eg. virtualenv support
+
+Version 0.0.7
+    - Bug fixes and improvements
+
+Version 0.0.3
     - Auto installation of WinDivert driver at version 1.1.5
     - Some refactoring, regrouping constants into "enum" module
     - Tests: no more testing both 1.1 and 1.0 versions, only the driver actually installed in python's DLLs dir will be
