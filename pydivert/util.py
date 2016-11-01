@@ -40,7 +40,13 @@ if sys.version_info < (3, 0):
     # python 3's bytes.fromhex()
     fromhex = lambda x: x.decode("hex")
     PY2 = True
+    PY34 = False
 else:
     indexbyte = lambda x: x
     fromhex = lambda x: bytes.fromhex(x)
     PY2 = False
+    if sys.version_info < (3, 5):
+        # __doc__ attribute is only writable from 3.5.
+        PY34 = True
+    else:
+        PY34 = False

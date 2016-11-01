@@ -17,7 +17,7 @@ import socket
 import struct
 
 from pydivert.packet.header import Header
-from pydivert.util import PY2
+from pydivert.util import PY2, PY34
 
 
 class IPHeader(Header):
@@ -78,7 +78,7 @@ class IPv4Header(IPHeader):
     def packet_len(self, val):
         self.raw[2:4] = struct.pack("!H", val)
 
-    if PY2:
+    if PY2 or PY34:
         pass
     else:
         packet_len.__doc__ = IPHeader.packet_len.__doc__
@@ -97,7 +97,7 @@ class IPv6Header(IPHeader):
     def packet_len(self, val):
         self.raw[4:6] = struct.pack("!H", val - 40)
 
-    if PY2:
+    if PY2 or PY34:
         pass
     else:
         packet_len.__doc__ = IPHeader.packet_len.__doc__
