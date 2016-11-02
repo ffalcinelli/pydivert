@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import indexbyte as i, PY2
+from pydivert.util import indexbyte as i, PY2, PY34
 
 
 def flagproperty(name, bit):
@@ -32,8 +32,8 @@ def flagproperty(name, bit):
 
         self.raw[13] = i(flags)
 
-    if PY2:
-        pass  # .__doc__ is readonly on Python 2.
+    if PY2 or PY34:
+        pass  # .__doc__ is readonly on Python 2 and under 3.5.
     else:
         flag.__doc__ = """
             Indicates if the {} flag is set.
