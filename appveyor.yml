@@ -1,4 +1,7 @@
 environment:
+  pipyusr: ffalcinelli
+  pipypwd:
+    secure: hYfviymcELExtXhgCDbVTg==
   matrix:
     - python: 27
     - python: 27-x64
@@ -19,3 +22,26 @@ test_script:
   - python -u setup.py bdist_wheel
   - codecov
   - ps: Get-ChildItem dist\*.whl | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name }
+
+after_test:
+  - pip install twine
+  - python -u setup.py sdist
+
+on_success:
+  - ps: |
+  if ($env:APPVEYOR_REPO_TAG -eq "true")
+  {
+    echo @"
+[distutils]
+index-servers =
+  pypi
+
+[pypi]
+repository=https://pypi.python.org/pypi
+username=$env:pypiusr
+password=$env:pypipwd
+"@ > .pypirc
+    twine upload -u %pypiusr% -p %pypipwd% --config-file .pypirc dist\*
+  } else {
+    echo "Not a tagged commit. Skipping deployment on PyPI."
+  }
