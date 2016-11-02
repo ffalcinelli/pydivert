@@ -44,7 +44,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 4 - Beta',
         'Environment :: Win32 (MS Windows)',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
@@ -55,7 +55,6 @@ setup(
         'Operating System :: Microsoft :: Windows :: Windows 7',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Topic :: Software Development :: Libraries :: Python Modules',

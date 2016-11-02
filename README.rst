@@ -9,7 +9,7 @@ capture/modify/drop network packets sent to/from the Windows network stack.
 Requirements
 ------------
 
-- Python 2.7 or Python 3.3+ (32 or 64 bit)
+- Python 2.7 or Python 3.4+ (32 or 64 bit)
 - Windows Vista/7/8/10 or Windows Server 2008 (32 or 64 bit)
 - Administrator Privileges
 
@@ -32,8 +32,8 @@ PyDivert and does not need to be installed separately.
 PyDivert                           WinDivert
 ---------------------------------  ---------------
 0.0.7                              1.0.x or 1.1.x
-1.0.2 (API-compatible with 0.0.7)  1.1.8 (bundled)
-2.0.0                              1.1.8 (bundled)
+1.0.x (API-compatible with 0.0.7)  1.1.8 (bundled)
+2.0.x                              1.1.8 (bundled)
 =================================  ===============
 
 Getting Started
