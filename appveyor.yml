@@ -2,6 +2,7 @@ environment:
   pipyusr: ffalcinelli
   pipypwd:
     secure: hYfviymcELExtXhgCDbVTg==
+  pipyrepo: https://pypi.python.org/pypi
   matrix:
     - python: 27
     - python: 27-x64
@@ -28,20 +29,4 @@ after_test:
   - python -u setup.py sdist
 
 on_success:
-  - ps: |
-  if ($env:APPVEYOR_REPO_TAG -eq "true")
-  {
-    echo @"
-[distutils]
-index-servers =
-  pypi
-
-[pypi]
-repository=https://pypi.python.org/pypi
-username=$env:pypiusr
-password=$env:pypipwd
-"@ > .pypirc
-    twine upload -u %pypiusr% -p %pypipwd% --config-file .pypirc dist\*
-  } else {
-    echo "Not a tagged commit. Skipping deployment on PyPI."
-  }
+  - ps: if ($env:APPVEYOR_REPO_TAG -eq "true"){ twine upload -u $env:pypiusr -p $env:pypipwd --repository-url $env:pypirepo dist\* } else { echo "Not a tagged commit. Skipping deployment on PyPI."}
