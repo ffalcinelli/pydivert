@@ -1,8 +1,8 @@
 environment:
-  pipyusr: ffalcinelli
-  pipypwd:
+  pypiusr: ffalcinelli
+  pypipwd:
     secure: hYfviymcELExtXhgCDbVTg==
-  pipyrepo: https://pypi.python.org/pypi
+  pypirepo: https://pypi.python.org/pypi
   matrix:
     - python: 27
     - python: 27-x64
