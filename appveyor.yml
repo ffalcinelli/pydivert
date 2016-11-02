@@ -29,4 +29,4 @@ after_test:
   - python -u setup.py sdist
 
 on_success:
-  - ps: if ($env:APPVEYOR_REPO_TAG -eq "true"){ $ErrorActionPreference='silentlycontinue' ; twine upload -u $env:pypiusr -p $env:pypipwd --repository-url $env:pypirepo dist\* } else { echo "Not a tagged commit. Skipping deployment on PyPI."}
+  - ps: if ($env:APPVEYOR_REPO_TAG -eq "true"){ $ErrorActionPreference='silentlycontinue' ; twine upload -u $env:pypiusr -p $env:pypipwd --repository-url $env:pypirepo dist\* 2>$null ; echo "Twine upload done. Check on PyPI" } else { echo "Not a tagged commit. Skipping deployment on PyPI."}
