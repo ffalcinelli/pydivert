@@ -47,3 +47,7 @@ PyDivert API Reference
 .. autoclass:: pydivert.CalcChecksumsOption
     :members:
     :undoc-members:
+
+.. autoclass:: pydivert.Direction
+    :members:
+    :undoc-members:

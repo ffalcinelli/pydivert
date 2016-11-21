@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys as _sys
 
-from .consts import Layer, Flag, Param, CalcChecksumsOption
+from .consts import Layer, Flag, Param, CalcChecksumsOption, Direction
 from .packet import Packet
 from .windivert import WinDivert
 
@@ -31,5 +31,5 @@ if _sys.version_info < (3, 4):
 __all__ = [
     "WinDivert",
     "Packet",
-    "Layer", "Flag", "Param", "CalcChecksumsOption",
+    "Layer", "Flag", "Param", "CalcChecksumsOption", "Direction",
 ]
