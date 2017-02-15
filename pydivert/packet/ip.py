@@ -107,7 +107,7 @@ class IPv4Header(IPHeader):
 
     @flags.setter
     def flags(self, val):
-        self.raw[6] = i(val) << 5 | self.frag_offset & 0xFF00
+        self.raw[6] = (val << 5) | (self.frag_offset & 0xFF00)
 
     @property
     def frag_offset(self):
