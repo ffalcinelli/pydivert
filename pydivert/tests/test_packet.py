@@ -374,3 +374,57 @@ def test_ipv6_extension_headers():
     raw = util.fromhex("600000000020000100000000000000000000000000000000ff0200000000000000000000000000013a0005020000000"
                        "082007ac103e8000000000000000000000000000000000000")
     assert p(raw).protocol[0] == Protocol.ICMPV6
+
+
+def test_ipv4_fields():
+    raw = util.fromhex("4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
+                       "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
+    ip = p(raw).ipv4
+
+    assert ip.df is False
+    ip.df = True
+    assert ip.df is True
+    assert ip.flags == 2
+    assert ip.frag_offset == 0
+    ip.flags = 3
+    assert ip.flags == 3
+    assert ip.mf is True
+    assert ip.df is True
+    assert ip.frag_offset == 0
+    ip.ecn = 3
+    assert ip.ecn == 3
+    ip.dscp = 18
+    assert ip.dscp == 18
+    assert ip.ecn == 3
+    assert ip.tos == 75
+    ip.tos = 1
+    assert ip.tos == 1
+    assert ip.ecn == 1
+    assert ip.dscp == 0
+    ip.flags = 1
+    assert ip.mf == True
+    ip.mf = False
+    assert ip.mf == False
+    assert ip.flags == 0
+    ip.frag_offset = 65
+    assert ip.frag_offset == 65
+    assert ip.flags == 0
+    ip.flags = 7
+    assert ip.frag_offset == 65
+    assert ip.evil_bit == True
+    ip.evil_bit = False
+    assert ip.evil_bit == False
+    assert ip.flags == 3
+    ip.ident = 257
+    assert ip.ident == 257
+    assert ip.hdr_len == 5
+    ip.cksum = 514
+    assert ip.cksum == 514
+    ip.hdr_len = 6
+    assert ip.hdr_len == 6
+    ip.ttl = 4
+    assert ip.ttl == 4
+    ip.protocol = Protocol.FRAGMENT
+    assert ip.protocol == Protocol.FRAGMENT
+    with pytest.raises(ValueError):
+        ip.hdr_len = 4
