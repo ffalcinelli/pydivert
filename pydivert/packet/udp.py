@@ -31,9 +31,7 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
         PayloadMixin.payload.fset(self, val)
         self.payload_len = len(val)
 
-    if PY2 or PY34:
-        pass
-    else:
+    if not PY2 and not PY34:
         payload.__doc__ = PayloadMixin.payload.__doc__
 
     @property
