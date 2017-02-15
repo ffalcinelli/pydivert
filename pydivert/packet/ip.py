@@ -70,13 +70,9 @@ class IPv4Header(IPHeader):
     _dst_addr = slice(16, 20)
     _af = socket.AF_INET
 
-    # @property
-    # def packet_len(self):
-    #     return struct.unpack_from("!H", self.raw, 2)[0]
-    #
-    # @packet_len.setter
-    # def packet_len(self, val):
-    #     self.raw[2:4] = struct.pack("!H", val)
+    @property
+    def header_len(self):
+        return self.hdr_len * 4
 
     @property
     def hdr_len(self):
@@ -84,9 +80,9 @@ class IPv4Header(IPHeader):
 
     @hdr_len.setter
     def hdr_len(self, val):
-        if i(val) < 5:
+        if val < 5:
             raise ValueError("IP header length must be greater or equal than 5")
-        self.raw[0] = 0x40 | i(val)
+        struct.pack_into('!B', self.raw, 0, 0x40 | val)
 
     tos = raw_property('!B', 1)
     packet_len = raw_property('!H', 2)
@@ -100,14 +96,13 @@ class IPv4Header(IPHeader):
     protocol = raw_property('!B', 9)
     cksum = raw_property('!H', 10)
 
-
     @property
     def flags(self):
         return i(self.raw[6]) >> 5
 
     @flags.setter
     def flags(self, val):
-        self.raw[6] = (val << 5) | (self.frag_offset & 0xFF00)
+        struct.pack_into('!B', self.raw, 6, (val << 5) | (self.frag_offset & 0xFF00))
 
     @property
     def frag_offset(self):
@@ -123,7 +118,7 @@ class IPv4Header(IPHeader):
 
     @dscp.setter
     def dscp(self, val):
-        self.raw[1] = (i(val) << 2) | (self.ecn & 0x03)
+        struct.pack_into('!B', self.raw, 1, (val << 2) | (self.ecn & 0x03))
 
     @property
     def ecn(self):
@@ -131,7 +126,7 @@ class IPv4Header(IPHeader):
 
     @ecn.setter
     def ecn(self, val):
-        self.raw[1] = (self.dscp << 2) | (i(val) & 0x3F)
+        struct.pack_into('!B', self.raw, 1, (self.dscp << 2) | (val & 0x3F))
 
     if not PY2 and not PY34:
         packet_len.__doc__ = IPHeader.packet_len.__doc__
