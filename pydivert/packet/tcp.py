@@ -14,41 +14,16 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import indexbyte as i, PY2, PY34
-
-
-def flagproperty(name, bit):
-    @property
-    def flag(self):
-        return bool(i(self.raw[13]) & bit)
-
-    @flag.setter
-    def flag(self, val):
-        flags = i(self.raw[13])
-        if val:
-            flags |= bit
-        else:
-            flags &= ~bit
-
-        self.raw[13] = i(flags)
-
-    if PY2 or PY34:
-        pass  # .__doc__ is readonly on Python 2 and under 3.5.
-    else:
-        flag.__doc__ = """
-            Indicates if the {} flag is set.
-            """.format(name.upper())
-
-    return flag
+from pydivert.util import indexbyte as i, flag_property
 
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
-    urg = flagproperty("syn", 0b100000)
-    ack = flagproperty("ack", 0b010000)
-    psh = flagproperty("psh", 0b001000)
-    rst = flagproperty("rst", 0b000100)
-    syn = flagproperty("syn", 0b000010)
-    fin = flagproperty("fin", 0b000001)
+    urg = flag_property("syn", 13, 0b100000)
+    ack = flag_property("ack", 13, 0b010000)
+    psh = flag_property("psh", 13, 0b001000)
+    rst = flag_property("rst", 13, 0b000100)
+    syn = flag_property("syn", 13, 0b000010)
+    fin = flag_property("fin", 13, 0b000001)
 
     @property
     def header_len(self):

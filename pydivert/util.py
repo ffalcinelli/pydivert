@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import struct
 import sys
 
 
@@ -50,3 +51,40 @@ else:
         PY34 = True
     else:
         PY34 = False
+
+
+def flag_property(name, offset, bit):
+    @property
+    def flag(self):
+        return bool(indexbyte(self.raw[offset]) & bit)
+
+    @flag.setter
+    def flag(self, val):
+        flags = indexbyte(self.raw[offset])
+        if val:
+            flags |= bit
+        else:
+            flags &= ~bit
+        self.raw[offset] = indexbyte(flags)
+
+    if not PY2 and not PY34:
+        flag.__doc__ = """
+            Indicates if the {} flag is set.
+            """.format(name.upper())
+
+    return flag
+
+
+def raw_property(fmt, offset, docs=None):
+    @property
+    def rprop(self):
+        return struct.unpack_from(fmt, self.raw, offset)[0]
+
+    @rprop.setter
+    def rprop(self, val):
+        struct.pack_into(fmt, self.raw, offset, val)
+
+    if docs and not PY2 and not PY34:
+        rprop.__doc__ = docs
+
+    return rprop
