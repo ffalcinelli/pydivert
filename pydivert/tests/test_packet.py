@@ -381,20 +381,21 @@ def test_ipv4_fields():
                        "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
     ip = p(raw).ipv4
 
-    assert ip.df is False
+    assert not ip.df
     ip.df = True
-    assert ip.df is True
+    assert ip.df
     assert ip.flags == 2
     assert ip.frag_offset == 0
     ip.flags = 3
     assert ip.flags == 3
-    assert ip.mf is True
-    assert ip.df is True
+    assert ip.mf
+    assert ip.df
     assert ip.frag_offset == 0
     ip.ecn = 3
     assert ip.ecn == 3
     ip.dscp = 18
     assert ip.dscp == 18
+    assert ip.diff_serv == ip.dscp
     assert ip.ecn == 3
     assert ip.tos == 75
     ip.tos = 1
@@ -402,19 +403,19 @@ def test_ipv4_fields():
     assert ip.ecn == 1
     assert ip.dscp == 0
     ip.flags = 1
-    assert ip.mf == True
+    assert ip.mf 
     ip.mf = False
-    assert ip.mf == False
+    assert not ip.mf
     assert ip.flags == 0
     ip.frag_offset = 65
     assert ip.frag_offset == 65
     assert ip.flags == 0
     ip.flags = 7
     assert ip.frag_offset == 65
-    assert ip.evil == True
+    assert ip.evil
     assert ip.reserved == ip.evil
     ip.evil = False
-    assert ip.evil == False
+    assert not ip.evil
     assert ip.reserved == ip.evil
     assert ip.flags == 3
     ip.ident = 257
@@ -424,7 +425,7 @@ def test_ipv4_fields():
     assert ip.cksum == 514
     ip.hdr_len = 6
     assert ip.hdr_len == 6
-    assert ip.header_len == 6*4
+    assert ip.header_len == 6 * 4
     ip.ttl = 4
     assert ip.ttl == 4
     ip.protocol = Protocol.FRAGMENT
@@ -452,6 +453,7 @@ def test_ipv6_fields():
     assert ip.flow_label == 17
     assert ip.traffic_class == 32
 
+
 def test_icmp_fields():
     raw = util.fromhex("4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
                        "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
@@ -459,3 +461,34 @@ def test_icmp_fields():
 
     icmp.cksum = 11
     assert icmp.cksum == 11
+
+
+def test_tcp_fields():
+    raw = util.fromhex("45000051476040008006f005c0a856a936f274fdd84201bb0876cfd0c19f9320501800ff8dba0000170303002400000"
+                       "00000000c2f53831a37ed3c3a632f47440594cab95283b558bf82cb7784344c3314")
+    tcp = p(raw).tcp
+
+    assert tcp.reserved == 0
+    tcp.reserved = 7
+    assert tcp.reserved == 7
+    assert not tcp.ns
+    tcp.ns = True
+    assert tcp.ns 
+    assert tcp.reserved == 0b111
+    assert tcp.header_len == tcp.data_offset * 4
+    tcp.data_offset = 5
+    assert tcp.data_offset == 5
+
+    tcp.cwr = True
+    assert tcp.cwr 
+    tcp.ece = True
+    assert tcp.ece
+    tcp.syn = True
+    tcp.control_bits = 0x01F0
+    assert not tcp.fin
+    assert not tcp.syn
+    assert tcp.control_bits == 0x01F0
+    assert tcp.ece
+    assert tcp.ns
+    tcp.ns = False
+    assert tcp.control_bits == 0x00F0

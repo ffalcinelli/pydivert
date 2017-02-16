@@ -372,6 +372,24 @@ Returns the number of checksums calculated.</p>
 <dt id="pydivert.packet.TCPHeader">
 <em class="property">class </em><code class="descclassname">pydivert.packet.</code><code class="descname">TCPHeader</code><span class="sig-paren">(</span><em>packet</em>, <em>start=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.packet.TCPHeader" title="Permalink to this definition">¶</a></dt>
 <dd><dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.ns">
+<code class="descname">ns</code><a class="headerlink" href="#pydivert.packet.TCPHeader.ns" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the NS flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.cwr">
+<code class="descname">cwr</code><a class="headerlink" href="#pydivert.packet.TCPHeader.cwr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the CWR flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.ece">
+<code class="descname">ece</code><a class="headerlink" href="#pydivert.packet.TCPHeader.ece" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the ECE flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.TCPHeader.urg">
 <code class="descname">urg</code><a class="headerlink" href="#pydivert.packet.TCPHeader.urg" title="Permalink to this definition">¶</a></dt>
 <dd><p>Indicates if the SYN flag is set.</p>
@@ -414,6 +432,42 @@ Returns the number of checksums calculated.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.seq_num">
+<code class="descname">seq_num</code><a class="headerlink" href="#pydivert.packet.TCPHeader.seq_num" title="Permalink to this definition">¶</a></dt>
+<dd><p>The sequence number field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.ack_num">
+<code class="descname">ack_num</code><a class="headerlink" href="#pydivert.packet.TCPHeader.ack_num" title="Permalink to this definition">¶</a></dt>
+<dd><p>The acknowledgement number field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.window_size">
+<code class="descname">window_size</code><a class="headerlink" href="#pydivert.packet.TCPHeader.window_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>The size of the receive window in bytes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.cksum">
+<code class="descname">cksum</code><a class="headerlink" href="#pydivert.packet.TCPHeader.cksum" title="Permalink to this definition">¶</a></dt>
+<dd><p>The TCP header checksum field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.urg_ptr">
+<code class="descname">urg_ptr</code><a class="headerlink" href="#pydivert.packet.TCPHeader.urg_ptr" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Urgent Pointer field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.data_offset">
+<code class="descname">data_offset</code><a class="headerlink" href="#pydivert.packet.TCPHeader.data_offset" title="Permalink to this definition">¶</a></dt>
+<dd><p>The size of TCP header in 32bit words.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.TCPHeader.dst_port">
 <code class="descname">dst_port</code><a class="headerlink" href="#pydivert.packet.TCPHeader.dst_port" title="Permalink to this definition">¶</a></dt>
 <dd><p>The destination port.</p>
@@ -432,9 +486,21 @@ Returns the number of checksums calculated.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.reserved">
+<code class="descname">reserved</code><a class="headerlink" href="#pydivert.packet.TCPHeader.reserved" title="Permalink to this definition">¶</a></dt>
+<dd><p>The reserved field.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.TCPHeader.src_port">
 <code class="descname">src_port</code><a class="headerlink" href="#pydivert.packet.TCPHeader.src_port" title="Permalink to this definition">¶</a></dt>
 <dd><p>The source port.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.TCPHeader.control_bits">
+<code class="descname">control_bits</code><a class="headerlink" href="#pydivert.packet.TCPHeader.control_bits" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Control Bits field.</p>
 </dd></dl>
 
 </dd></dl>
@@ -668,6 +734,12 @@ Returns the number of checksums calculated.</p>
 <dt id="pydivert.packet.ICMPv4Header">
 <em class="property">class </em><code class="descclassname">pydivert.packet.</code><code class="descname">ICMPv4Header</code><span class="sig-paren">(</span><em>packet</em>, <em>start=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.packet.ICMPv4Header" title="Permalink to this definition">¶</a></dt>
 <dd><dl class="attribute">
+<dt id="pydivert.packet.ICMPv4Header.cksum">
+<code class="descname">cksum</code><a class="headerlink" href="#pydivert.packet.ICMPv4Header.cksum" title="Permalink to this definition">¶</a></dt>
+<dd><p>The ICMP header checksum field.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.ICMPv4Header.code">
 <code class="descname">code</code><a class="headerlink" href="#pydivert.packet.ICMPv4Header.code" title="Permalink to this definition">¶</a></dt>
 <dd><p>The ICMP message code.</p>
@@ -697,6 +769,12 @@ Returns the number of checksums calculated.</p>
 <dt id="pydivert.packet.ICMPv6Header">
 <em class="property">class </em><code class="descclassname">pydivert.packet.</code><code class="descname">ICMPv6Header</code><span class="sig-paren">(</span><em>packet</em>, <em>start=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.packet.ICMPv6Header" title="Permalink to this definition">¶</a></dt>
 <dd><dl class="attribute">
+<dt id="pydivert.packet.ICMPv6Header.cksum">
+<code class="descname">cksum</code><a class="headerlink" href="#pydivert.packet.ICMPv6Header.cksum" title="Permalink to this definition">¶</a></dt>
+<dd><p>The ICMP header checksum field.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.ICMPv6Header.code">
 <code class="descname">code</code><a class="headerlink" href="#pydivert.packet.ICMPv6Header.code" title="Permalink to this definition">¶</a></dt>
 <dd><p>The ICMP message code.</p>
