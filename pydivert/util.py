@@ -53,7 +53,7 @@ else:
         PY34 = False
 
 
-def flag_property(name, offset, bit):
+def flag_property(name, offset, bit, docs=None):
     @property
     def flag(self):
         return bool(indexbyte(self.raw[offset]) & bit)
@@ -70,7 +70,7 @@ def flag_property(name, offset, bit):
     if not PY2 and not PY34:
         flag.__doc__ = """
             Indicates if the {} flag is set.
-            """.format(name.upper())
+            """.format(name.upper()) if not docs else docs
 
     return flag
 

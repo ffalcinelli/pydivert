@@ -411,9 +411,11 @@ def test_ipv4_fields():
     assert ip.flags == 0
     ip.flags = 7
     assert ip.frag_offset == 65
-    assert ip.evil_bit == True
-    ip.evil_bit = False
-    assert ip.evil_bit == False
+    assert ip.evil == True
+    assert ip.reserved == ip.evil
+    ip.evil = False
+    assert ip.evil == False
+    assert ip.reserved == ip.evil
     assert ip.flags == 3
     ip.ident = 257
     assert ip.ident == 257
@@ -422,6 +424,7 @@ def test_ipv4_fields():
     assert ip.cksum == 514
     ip.hdr_len = 6
     assert ip.hdr_len == 6
+    assert ip.header_len == 6*4
     ip.ttl = 4
     assert ip.ttl == 4
     ip.protocol = Protocol.FRAGMENT

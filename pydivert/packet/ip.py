@@ -28,7 +28,7 @@ class IPHeader(Header):
     @property
     def src_addr(self):
         """
-        The packet source address
+        The packet source address.
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
@@ -42,7 +42,7 @@ class IPHeader(Header):
     @property
     def dst_addr(self):
         """
-        The packet destination address
+        The packet destination address.
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
@@ -72,32 +72,42 @@ class IPv4Header(IPHeader):
 
     @property
     def header_len(self):
+        """
+        The IP header length in bytes.
+        """
         return self.hdr_len * 4
 
     @property
     def hdr_len(self):
+        """
+        The header length in words of 32bit.
+        """
         return i(self.raw[0]) & 0x0F
 
     @hdr_len.setter
     def hdr_len(self, val):
         if val < 5:
-            raise ValueError("IP header length must be greater or equal than 5")
+            raise ValueError("IP header length must be greater or equal than 5.")
         struct.pack_into('!B', self.raw, 0, 0x40 | val)
 
-    tos = raw_property('!B', 1)
-    packet_len = raw_property('!H', 2)
-    ident = raw_property('!H', 4)
+    packet_len = raw_property('!H', 2, docs=IPHeader.packet_len.__doc__)
+    tos = raw_property('!B', 1, docs='The Type Of Service field (six-bit DSCP field and a two-bit ECN field).')
+    ident = raw_property('!H', 4, docs='The Identification field.')
 
-    evil_bit = flag_property('evil_bit', 6, 0b10000000)
+    reserved = flag_property('reserved', 6, 0b10000000)
+    evil = flag_property('evil', 6, 0b10000000, docs='Just an april\'s fool joke for the RESERVED flag.')
     df = flag_property('df', 6, 0b01000000)
     mf = flag_property('mf', 6, 0b00100000)
 
-    ttl = raw_property('!B', 8, docs='Time to live')
-    protocol = raw_property('!B', 9)
-    cksum = raw_property('!H', 10)
+    ttl = raw_property('!B', 8, docs='The Time To Live field.')
+    protocol = raw_property('!B', 9, docs='The Protocol field.')
+    cksum = raw_property('!H', 10, docs='The IP header Checksum field.')
 
     @property
     def flags(self):
+        """
+        The flags field: RESERVED (the evil bit), DF (don't fragment), MF (more fragments).
+        """
         return i(self.raw[6]) >> 5
 
     @flags.setter
@@ -106,6 +116,9 @@ class IPv4Header(IPHeader):
 
     @property
     def frag_offset(self):
+        """
+        The Fragment Offset field in blocks of 8 bytes.
+        """
         return struct.unpack_from("!H", self.raw, 6)[0] & 0x1FFF
 
     @frag_offset.setter
@@ -114,6 +127,9 @@ class IPv4Header(IPHeader):
 
     @property
     def dscp(self):
+        """
+        The Differentiated Services Code Point field (originally defined as Type of Service).
+        """
         return (i(self.raw[1]) >> 2) & 0x3F
 
     @dscp.setter
@@ -122,28 +138,29 @@ class IPv4Header(IPHeader):
 
     @property
     def ecn(self):
+        """
+        The Explicit Congestion Notification field.
+        """
         return i(self.raw[1]) & 0x03
 
     @ecn.setter
     def ecn(self, val):
         struct.pack_into('!B', self.raw, 1, (self.dscp << 2) | (val & 0x3F))
 
-    if not PY2 and not PY34:
-        packet_len.__doc__ = IPHeader.packet_len.__doc__
-
 
 class IPv6Header(IPHeader):
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
     _af = socket.AF_INET6
+    header_len = 40
 
     @property
     def packet_len(self):
-        return struct.unpack_from("!H", self.raw, 4)[0] + 40
+        return struct.unpack_from("!H", self.raw, 4)[0] + self.header_len
 
     @packet_len.setter
     def packet_len(self, val):
-        self.raw[4:6] = struct.pack("!H", val - 40)
+        self.raw[4:6] = struct.pack("!H", val - self.header_len)
 
     if not PY2 and not PY34:
         packet_len.__doc__ = IPHeader.packet_len.__doc__

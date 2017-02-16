@@ -17,7 +17,8 @@
         VERSION:     '',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
-        HAS_SOURCE:  true
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
       };
     </script>
     <script type="text/javascript" src="_static/jquery.js"></script>
@@ -25,7 +26,6 @@
     <script type="text/javascript" src="_static/doctools.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="top" title="PyDivert  documentation" href="#" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -472,15 +472,99 @@ Returns the number of checksums calculated.</p>
 <dt id="pydivert.packet.IPv4Header">
 <em class="property">class </em><code class="descclassname">pydivert.packet.</code><code class="descname">IPv4Header</code><span class="sig-paren">(</span><em>packet</em>, <em>start=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.packet.IPv4Header" title="Permalink to this definition">¶</a></dt>
 <dd><dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.header_len">
+<code class="descname">header_len</code><a class="headerlink" href="#pydivert.packet.IPv4Header.header_len" title="Permalink to this definition">¶</a></dt>
+<dd><p>The IP header length in bytes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.hdr_len">
+<code class="descname">hdr_len</code><a class="headerlink" href="#pydivert.packet.IPv4Header.hdr_len" title="Permalink to this definition">¶</a></dt>
+<dd><p>The header length in words of 32bit.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.IPv4Header.packet_len">
 <code class="descname">packet_len</code><a class="headerlink" href="#pydivert.packet.IPv4Header.packet_len" title="Permalink to this definition">¶</a></dt>
 <dd><p>The total packet length, including <em>all</em> headers, as reported by the IP header.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.tos">
+<code class="descname">tos</code><a class="headerlink" href="#pydivert.packet.IPv4Header.tos" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Type Of Service field (six-bit DSCP field and a two-bit ECN field).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.ident">
+<code class="descname">ident</code><a class="headerlink" href="#pydivert.packet.IPv4Header.ident" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Identification field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.reserved">
+<code class="descname">reserved</code><a class="headerlink" href="#pydivert.packet.IPv4Header.reserved" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the RESERVED flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.evil">
+<code class="descname">evil</code><a class="headerlink" href="#pydivert.packet.IPv4Header.evil" title="Permalink to this definition">¶</a></dt>
+<dd><p>Just an april&#8217;s fool joke for the RESERVED flag.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.df">
+<code class="descname">df</code><a class="headerlink" href="#pydivert.packet.IPv4Header.df" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the DF flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.mf">
+<code class="descname">mf</code><a class="headerlink" href="#pydivert.packet.IPv4Header.mf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Indicates if the MF flag is set.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.ttl">
+<code class="descname">ttl</code><a class="headerlink" href="#pydivert.packet.IPv4Header.ttl" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Time To Live field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.protocol">
+<code class="descname">protocol</code><a class="headerlink" href="#pydivert.packet.IPv4Header.protocol" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Protocol field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.cksum">
+<code class="descname">cksum</code><a class="headerlink" href="#pydivert.packet.IPv4Header.cksum" title="Permalink to this definition">¶</a></dt>
+<dd><p>The IP header Checksum field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.flags">
+<code class="descname">flags</code><a class="headerlink" href="#pydivert.packet.IPv4Header.flags" title="Permalink to this definition">¶</a></dt>
+<dd><p>The flags field: RESERVED (the evil bit), DF (don&#8217;t fragment), MF (more fragments).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.frag_offset">
+<code class="descname">frag_offset</code><a class="headerlink" href="#pydivert.packet.IPv4Header.frag_offset" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Fragment Offset field in blocks of 8 bytes.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.dscp">
+<code class="descname">dscp</code><a class="headerlink" href="#pydivert.packet.IPv4Header.dscp" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Differentiated Services Code Point field (originally defined as Type of Service).</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.IPv4Header.dst_addr">
 <code class="descname">dst_addr</code><a class="headerlink" href="#pydivert.packet.IPv4Header.dst_addr" title="Permalink to this definition">¶</a></dt>
-<dd><p>The packet destination address</p>
+<dd><p>The packet destination address.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -492,7 +576,13 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.packet.IPv4Header.src_addr">
 <code class="descname">src_addr</code><a class="headerlink" href="#pydivert.packet.IPv4Header.src_addr" title="Permalink to this definition">¶</a></dt>
-<dd><p>The packet source address</p>
+<dd><p>The packet source address.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.ecn">
+<code class="descname">ecn</code><a class="headerlink" href="#pydivert.packet.IPv4Header.ecn" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Explicit Congestion Notification field.</p>
 </dd></dl>
 
 </dd></dl>
@@ -503,7 +593,7 @@ Returns the number of checksums calculated.</p>
 <dd><dl class="attribute">
 <dt id="pydivert.packet.IPv6Header.dst_addr">
 <code class="descname">dst_addr</code><a class="headerlink" href="#pydivert.packet.IPv6Header.dst_addr" title="Permalink to this definition">¶</a></dt>
-<dd><p>The packet destination address</p>
+<dd><p>The packet destination address.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -515,7 +605,7 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.packet.IPv6Header.src_addr">
 <code class="descname">src_addr</code><a class="headerlink" href="#pydivert.packet.IPv6Header.src_addr" title="Permalink to this definition">¶</a></dt>
-<dd><p>The packet source address</p>
+<dd><p>The packet source address.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -590,12 +680,12 @@ Returns the number of checksums calculated.</p>
 <dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_open">https://reqrypt.org/windivert-doc.html#divert_open</a></p>
 <dl class="attribute">
 <dt id="pydivert.Layer.NETWORK">
-<code class="descname">NETWORK</code><em class="property"> = &lt;Layer.NETWORK: 0&gt;</em><a class="headerlink" href="#pydivert.Layer.NETWORK" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NETWORK</code><em class="property"> = 0</em><a class="headerlink" href="#pydivert.Layer.NETWORK" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.Layer.NETWORK_FORWARD">
-<code class="descname">NETWORK_FORWARD</code><em class="property"> = &lt;Layer.NETWORK_FORWARD: 1&gt;</em><a class="headerlink" href="#pydivert.Layer.NETWORK_FORWARD" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NETWORK_FORWARD</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Layer.NETWORK_FORWARD" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -606,12 +696,12 @@ Returns the number of checksums calculated.</p>
 <dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_open">https://reqrypt.org/windivert-doc.html#divert_open</a></p>
 <dl class="attribute">
 <dt id="pydivert.Flag.SNIFF">
-<code class="descname">SNIFF</code><em class="property"> = &lt;Flag.SNIFF: 1&gt;</em><a class="headerlink" href="#pydivert.Flag.SNIFF" title="Permalink to this definition">¶</a></dt>
+<code class="descname">SNIFF</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Flag.SNIFF" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.Flag.DROP">
-<code class="descname">DROP</code><em class="property"> = &lt;Flag.DROP: 2&gt;</em><a class="headerlink" href="#pydivert.Flag.DROP" title="Permalink to this definition">¶</a></dt>
+<code class="descname">DROP</code><em class="property"> = 2</em><a class="headerlink" href="#pydivert.Flag.DROP" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -622,12 +712,12 @@ Returns the number of checksums calculated.</p>
 <dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_set_param">https://reqrypt.org/windivert-doc.html#divert_set_param</a></p>
 <dl class="attribute">
 <dt id="pydivert.Param.QUEUE_LEN">
-<code class="descname">QUEUE_LEN</code><em class="property"> = &lt;Param.QUEUE_LEN: 0&gt;</em><a class="headerlink" href="#pydivert.Param.QUEUE_LEN" title="Permalink to this definition">¶</a></dt>
+<code class="descname">QUEUE_LEN</code><em class="property"> = 0</em><a class="headerlink" href="#pydivert.Param.QUEUE_LEN" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.Param.QUEUE_TIME">
-<code class="descname">QUEUE_TIME</code><em class="property"> = &lt;Param.QUEUE_TIME: 1&gt;</em><a class="headerlink" href="#pydivert.Param.QUEUE_TIME" title="Permalink to this definition">¶</a></dt>
+<code class="descname">QUEUE_TIME</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Param.QUEUE_TIME" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -638,27 +728,43 @@ Returns the number of checksums calculated.</p>
 <dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums">https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums</a></p>
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_IP_CHECKSUM">
-<code class="descname">NO_IP_CHECKSUM</code><em class="property"> = &lt;CalcChecksumsOption.NO_IP_CHECKSUM: 1&gt;</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_IP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NO_IP_CHECKSUM</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_IP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM">
-<code class="descname">NO_ICMP_CHECKSUM</code><em class="property"> = &lt;CalcChecksumsOption.NO_ICMP_CHECKSUM: 2&gt;</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NO_ICMP_CHECKSUM</code><em class="property"> = 2</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_ICMPV6_CHECKSUM">
-<code class="descname">NO_ICMPV6_CHECKSUM</code><em class="property"> = &lt;CalcChecksumsOption.NO_ICMPV6_CHECKSUM: 4&gt;</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_ICMPV6_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NO_ICMPV6_CHECKSUM</code><em class="property"> = 4</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_ICMPV6_CHECKSUM" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM">
-<code class="descname">NO_TCP_CHECKSUM</code><em class="property"> = &lt;CalcChecksumsOption.NO_TCP_CHECKSUM: 8&gt;</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NO_TCP_CHECKSUM</code><em class="property"> = 8</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM">
-<code class="descname">NO_UDP_CHECKSUM</code><em class="property"> = &lt;CalcChecksumsOption.NO_UDP_CHECKSUM: 16&gt;</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<code class="descname">NO_UDP_CHECKSUM</code><em class="property"> = 16</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pydivert.Direction">
+<em class="property">class </em><code class="descclassname">pydivert.</code><code class="descname">Direction</code><a class="headerlink" href="#pydivert.Direction" title="Permalink to this definition">¶</a></dt>
+<dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_address">https://reqrypt.org/windivert-doc.html#divert_address</a></p>
+<dl class="attribute">
+<dt id="pydivert.Direction.OUTBOUND">
+<code class="descname">OUTBOUND</code><em class="property"> = 0</em><a class="headerlink" href="#pydivert.Direction.OUTBOUND" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Direction.INBOUND">
+<code class="descname">INBOUND</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Direction.INBOUND" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
