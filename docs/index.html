@@ -492,7 +492,7 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.packet.IPv4Header.tos">
 <code class="descname">tos</code><a class="headerlink" href="#pydivert.packet.IPv4Header.tos" title="Permalink to this definition">¶</a></dt>
-<dd><p>The Type Of Service field (six-bit DSCP field and a two-bit ECN field).</p>
+<dd><p>The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -558,7 +558,19 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.packet.IPv4Header.dscp">
 <code class="descname">dscp</code><a class="headerlink" href="#pydivert.packet.IPv4Header.dscp" title="Permalink to this definition">¶</a></dt>
-<dd><p>The Differentiated Services Code Point field (originally defined as Type of Service).</p>
+<dd><p>The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.diff_serv">
+<code class="descname">diff_serv</code><a class="headerlink" href="#pydivert.packet.IPv4Header.diff_serv" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv4Header.ecn">
+<code class="descname">ecn</code><a class="headerlink" href="#pydivert.packet.IPv4Header.ecn" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Explicit Congestion Notification field.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -579,12 +591,6 @@ Returns the number of checksums calculated.</p>
 <dd><p>The packet source address.</p>
 </dd></dl>
 
-<dl class="attribute">
-<dt id="pydivert.packet.IPv4Header.ecn">
-<code class="descname">ecn</code><a class="headerlink" href="#pydivert.packet.IPv4Header.ecn" title="Permalink to this definition">¶</a></dt>
-<dd><p>The Explicit Congestion Notification field.</p>
-</dd></dl>
-
 </dd></dl>
 
 <dl class="class">
@@ -594,6 +600,12 @@ Returns the number of checksums calculated.</p>
 <dt id="pydivert.packet.IPv6Header.dst_addr">
 <code class="descname">dst_addr</code><a class="headerlink" href="#pydivert.packet.IPv6Header.dst_addr" title="Permalink to this definition">¶</a></dt>
 <dd><p>The packet destination address.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.payload_len">
+<code class="descname">payload_len</code><a class="headerlink" href="#pydivert.packet.IPv6Header.payload_len" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Payload Length field.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -609,9 +621,45 @@ Returns the number of checksums calculated.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.next_hdr">
+<code class="descname">next_hdr</code><a class="headerlink" href="#pydivert.packet.IPv6Header.next_hdr" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Next Header field. Replaces the Protocol field in IPv4.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.hop_limit">
+<code class="descname">hop_limit</code><a class="headerlink" href="#pydivert.packet.IPv6Header.hop_limit" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Hop Limit field. Replaces the TTL field in IPv4.</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.packet.IPv6Header.packet_len">
 <code class="descname">packet_len</code><a class="headerlink" href="#pydivert.packet.IPv6Header.packet_len" title="Permalink to this definition">¶</a></dt>
 <dd><p>The total packet length, including <em>all</em> headers, as reported by the IP header.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.traffic_class">
+<code class="descname">traffic_class</code><a class="headerlink" href="#pydivert.packet.IPv6Header.traffic_class" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Traffic Class field (six-bit DiffServ field and a two-bit ECN field).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.flow_label">
+<code class="descname">flow_label</code><a class="headerlink" href="#pydivert.packet.IPv6Header.flow_label" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Flow Label field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.diff_serv">
+<code class="descname">diff_serv</code><a class="headerlink" href="#pydivert.packet.IPv6Header.diff_serv" title="Permalink to this definition">¶</a></dt>
+<dd><p>The DiffServ field.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.packet.IPv6Header.ecn">
+<code class="descname">ecn</code><a class="headerlink" href="#pydivert.packet.IPv6Header.ecn" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Explicit Congestion Notification field.</p>
 </dd></dl>
 
 </dd></dl>

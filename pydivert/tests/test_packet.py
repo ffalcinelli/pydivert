@@ -431,3 +431,23 @@ def test_ipv4_fields():
     assert ip.protocol == Protocol.FRAGMENT
     with pytest.raises(ValueError):
         ip.hdr_len = 4
+
+
+def test_ipv6_fields():
+    raw = util.fromhex("6e000000003c3301fe800000000000000000000000000001ff020000000000000000000000000005590400000000010"
+                       "00000001321d3a95c5ffd4d184622b9f8030100240101010100000001fb8600000000000501000013000a0028000000"
+                       "0000000000")
+    ip = p(raw).ipv6
+
+    ip.traffic_class = 3
+    assert ip.traffic_class == 3
+    assert ip.ecn == 3
+    ip.ecn = 0
+    assert ip.ecn == 0
+    assert ip.traffic_class == 0
+    ip.diff_serv = 8
+    assert ip.diff_serv == 8
+    assert ip.traffic_class == 32
+    ip.flow_label = 17
+    assert ip.flow_label == 17
+    assert ip.traffic_class == 32

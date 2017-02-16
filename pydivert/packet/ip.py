@@ -91,7 +91,7 @@ class IPv4Header(IPHeader):
         struct.pack_into('!B', self.raw, 0, 0x40 | val)
 
     packet_len = raw_property('!H', 2, docs=IPHeader.packet_len.__doc__)
-    tos = raw_property('!B', 1, docs='The Type Of Service field (six-bit DSCP field and a two-bit ECN field).')
+    tos = raw_property('!B', 1, docs='The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).')
     ident = raw_property('!H', 4, docs='The Identification field.')
 
     reserved = flag_property('reserved', 6, 0b10000000)
@@ -128,13 +128,15 @@ class IPv4Header(IPHeader):
     @property
     def dscp(self):
         """
-        The Differentiated Services Code Point field (originally defined as Type of Service).
+        The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.
         """
         return (i(self.raw[1]) >> 2) & 0x3F
 
     @dscp.setter
     def dscp(self, val):
         struct.pack_into('!B', self.raw, 1, (val << 2) | (self.ecn & 0x03))
+
+    diff_serv = dscp
 
     @property
     def ecn(self):
@@ -154,13 +156,61 @@ class IPv6Header(IPHeader):
     _af = socket.AF_INET6
     header_len = 40
 
+    payload_len = raw_property('!H', 4, docs='The Payload Length field.')
+    next_hdr = raw_property('!B', 6, docs='The Next Header field. Replaces the Protocol field in IPv4.')
+    hop_limit = raw_property('!B', 7, docs='The Hop Limit field. Replaces the TTL field in IPv4.')
+
     @property
     def packet_len(self):
-        return struct.unpack_from("!H", self.raw, 4)[0] + self.header_len
+        return self.payload_len + self.header_len
 
     @packet_len.setter
     def packet_len(self, val):
-        self.raw[4:6] = struct.pack("!H", val - self.header_len)
+        self.payload_len = val - self.header_len
+
+    @property
+    def traffic_class(self):
+        """
+        The Traffic Class field (six-bit DiffServ field and a two-bit ECN field).
+        """
+        return (struct.unpack_from('!H', self.raw, 0)[0] >> 4) & 0x00FF
+
+    @traffic_class.setter
+    def traffic_class(self, val):
+        struct.pack_into('!H', self.raw, 0, 0x6000 | (val << 4) | (self.flow_label & 0x000F0000))
+
+    @property
+    def flow_label(self):
+        """
+        The Flow Label field.
+        """
+        return struct.unpack_from('!I', self.raw, 0)[0] & 0x000FFFFF
+
+    @flow_label.setter
+    def flow_label(self, val):
+        struct.pack_into('!I', self.raw, 0, 0x60000000 | (self.traffic_class << 20) | (val & 0x000FFFFF))
+
+    @property
+    def diff_serv(self):
+        """
+        The DiffServ field.
+        """
+        return (self.traffic_class & 0xFC) >> 2
+
+    @diff_serv.setter
+    def diff_serv(self, val):
+        self.traffic_class = self.ecn | (val << 2)
+
+    @property
+    def ecn(self):
+        """
+        The Explicit Congestion Notification field.
+        """
+        return self.traffic_class & 0x03
+
+    @ecn.setter
+    def ecn(self, val):
+        self.traffic_class = (self.diff_serv << 2) | val
 
     if not PY2 and not PY34:
         packet_len.__doc__ = IPHeader.packet_len.__doc__
