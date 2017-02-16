@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from pydivert.packet.header import Header, PayloadMixin
-from pydivert.util import indexbyte as i, PY34, PY2
+from pydivert.util import indexbyte as i, PY34, PY2, raw_property
 
 
 class ICMPHeader(Header, PayloadMixin):
@@ -41,6 +41,8 @@ class ICMPHeader(Header, PayloadMixin):
     @code.setter
     def code(self, val):
         self.raw[1] = i(val)
+
+    cksum = raw_property('!H', 2, docs='The ICMP header checksum field.')
 
 
 class ICMPv4Header(ICMPHeader):

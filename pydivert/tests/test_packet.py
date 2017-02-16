@@ -451,3 +451,11 @@ def test_ipv6_fields():
     ip.flow_label = 17
     assert ip.flow_label == 17
     assert ip.traffic_class == 32
+
+def test_icmp_fields():
+    raw = util.fromhex("4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
+                       "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637")
+    icmp = p(raw).icmp
+
+    icmp.cksum = 11
+    assert icmp.cksum == 11
