@@ -60,7 +60,7 @@ def raise_on_error(f):
 
 WINDIVERT_FUNCTIONS = {
     "WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
-        c_void_p, POINTER(c_uint)],
+                                   c_void_p, POINTER(c_uint)],
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
     "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],

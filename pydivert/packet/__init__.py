@@ -26,6 +26,7 @@ from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
 from pydivert.util import cached_property, indexbyte as i, PY2
 
+
 class Packet(object):
     """
     A single packet, possibly including an IP header, a TCP/UDP header and a payload.
@@ -56,6 +57,7 @@ class Packet(object):
                     return pprint.pformat(d)
                 return d
             return x
+
         return "Packet({})".format(dump(self))
 
     @property

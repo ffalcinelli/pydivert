@@ -403,7 +403,7 @@ def test_ipv4_fields():
     assert ip.ecn == 1
     assert ip.dscp == 0
     ip.flags = 1
-    assert ip.mf 
+    assert ip.mf
     ip.mf = False
     assert not ip.mf
     assert ip.flags == 0
@@ -473,14 +473,18 @@ def test_tcp_fields():
     assert tcp.reserved == 7
     assert not tcp.ns
     tcp.ns = True
-    assert tcp.ns 
+    assert tcp.ns
     assert tcp.reserved == 0b111
     assert tcp.header_len == tcp.data_offset * 4
     tcp.data_offset = 5
     assert tcp.data_offset == 5
+    with pytest.raises(ValueError):
+        tcp.data_offset = 4
+    with pytest.raises(ValueError):
+        tcp.data_offset = 16
 
     tcp.cwr = True
-    assert tcp.cwr 
+    assert tcp.cwr
     tcp.ece = True
     assert tcp.ece
     tcp.syn = True
@@ -492,3 +496,12 @@ def test_tcp_fields():
     assert tcp.ns
     tcp.ns = False
     assert tcp.control_bits == 0x00F0
+
+
+def test_udp_fields():
+    raw = util.fromhex("4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
+                       "807696e2d61646472046172706100000c0001")
+    udp = p(raw).udp
+
+    udp.cksum = 0xAAAA
+    assert udp.cksum == 0xAAAA

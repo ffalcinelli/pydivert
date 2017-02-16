@@ -16,7 +16,7 @@
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import PY2, PY34
+from pydivert.util import PY2, PY34, raw_property
 
 
 class UDPHeader(Header, PayloadMixin, PortMixin):
@@ -41,3 +41,5 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
     @payload_len.setter
     def payload_len(self, val):
         self.raw[4:6] = struct.pack("!H", val + 8)
+
+    cksum = raw_property('!H', 6, docs='The UDP header checksum field.')

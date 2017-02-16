@@ -55,6 +55,8 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
 
     @data_offset.setter
     def data_offset(self, val):
+        if val < 5 or val > 15:
+            raise ValueError("TCP data offset must be greater or equal than 5 and less than 15.")
         struct.pack_into('!B', self.raw, 12, (val << 4) | (self.reserved << 1) | self.ns)
 
     @property
