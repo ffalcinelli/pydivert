@@ -134,7 +134,7 @@ class IPv4Header(IPHeader):
 
     @dscp.setter
     def dscp(self, val):
-        struct.pack_into('!B', self.raw, 1, (val << 2) | (self.ecn & 0x03))
+        struct.pack_into('!B', self.raw, 1, (val << 2) | self.ecn)
 
     diff_serv = dscp
 
@@ -147,7 +147,7 @@ class IPv4Header(IPHeader):
 
     @ecn.setter
     def ecn(self, val):
-        struct.pack_into('!B', self.raw, 1, (self.dscp << 2) | (val & 0x3F))
+        struct.pack_into('!B', self.raw, 1, (self.dscp << 2) | (val & 0x03))
 
 
 class IPv6Header(IPHeader):
