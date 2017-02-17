@@ -1,8 +1,7 @@
 environment:
-  pypiusr: ffalcinelli
-  pypipwd:
+  PYPI_USERNAME: ffalcinelli
+  PYPI_PASSWORD:
     secure: hYfviymcELExtXhgCDbVTg==
-  pypirepo: https://pypi.python.org/pypi
   matrix:
     - python: 27
     - python: 27-x64
@@ -22,13 +21,12 @@ build: false
 
 test_script:
   - py.test pydivert --capture=no -v --cov pydivert
-  - python -u setup.py bdist_wheel
+  - python -u setup.py sdist bdist_wheel
   - codecov
   - ps: Get-ChildItem dist\*.whl | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name }
 
 after_test:
   - pip install twine
-  - python -u setup.py sdist
 
 on_success:
-  - ps: if ($env:APPVEYOR_REPO_TAG -eq "true"){ $ErrorActionPreference='silentlycontinue' ; twine upload -u $env:pypiusr -p $env:pypipwd --repository-url $env:pypirepo dist\* 2>$null ; echo "Twine upload done. Check on PyPI" } else { echo "Not a tagged commit. Skipping deployment on PyPI."}
+  - ps: if ($env:APPVEYOR_REPO_TAG -eq "true"){ $ErrorActionPreference='silentlycontinue' ; twine upload -u $env:PYPI_USERNAME -p $env:PYPI_PASSWORD dist\* 2>$null ; echo "Twine upload done. Check on PyPI" } else { echo "Not a tagged commit. Skipping deployment on PyPI."}
