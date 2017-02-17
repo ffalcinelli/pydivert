@@ -51,3 +51,7 @@ PyDivert API Reference
 .. autoclass:: pydivert.Direction
     :members:
     :undoc-members:
+
+.. autoclass:: pydivert.Protocol
+    :members:
+    :undoc-members:
