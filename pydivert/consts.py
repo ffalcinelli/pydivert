@@ -30,8 +30,10 @@ class Flag(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
+    DEFAULT = 0
     SNIFF = 1
     DROP = 2
+    NO_CHECKSUM = 1024
 
 
 # Divert parameters.
@@ -39,7 +41,7 @@ class Param(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_set_param
     """
-    QUEUE_LEN = 0  # Packet queue length 1 <default 512 < 8192
+    QUEUE_LEN = 0  # Packet queue length 1 < default 512 (actually 1024) < 8192
     QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
 
 
@@ -65,6 +67,10 @@ class CalcChecksumsOption(IntEnum):
 
 
 class Protocol(IntEnum):
+    """
+    Transport protocol values define the layout of the header that will immediately follow the IPv4 or IPv6 header.
+    See http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
+    """
     HOPOPT = 0
     ICMP = 1
     TCP = 6
