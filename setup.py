@@ -27,7 +27,7 @@ workdir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
     __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
 
-with open(os.path.join(workdir, 'README.rst'), encoding='utf-8') as f:
+with open(os.path.join(workdir, 'README.rst')) as f:
     long_description = f.read()
 
 setup(
