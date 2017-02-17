@@ -827,6 +827,11 @@ Returns the number of checksums calculated.</p>
 <em class="property">class </em><code class="descclassname">pydivert.</code><code class="descname">Flag</code><a class="headerlink" href="#pydivert.Flag" title="Permalink to this definition">¶</a></dt>
 <dd><p>See <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_open">https://reqrypt.org/windivert-doc.html#divert_open</a></p>
 <dl class="attribute">
+<dt id="pydivert.Flag.DEFAULT">
+<code class="descname">DEFAULT</code><em class="property"> = 0</em><a class="headerlink" href="#pydivert.Flag.DEFAULT" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="pydivert.Flag.SNIFF">
 <code class="descname">SNIFF</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Flag.SNIFF" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -834,6 +839,11 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.Flag.DROP">
 <code class="descname">DROP</code><em class="property"> = 2</em><a class="headerlink" href="#pydivert.Flag.DROP" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Flag.NO_CHECKSUM">
+<code class="descname">NO_CHECKSUM</code><em class="property"> = 1024</em><a class="headerlink" href="#pydivert.Flag.NO_CHECKSUM" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -897,6 +907,63 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.Direction.INBOUND">
 <code class="descname">INBOUND</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Direction.INBOUND" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pydivert.Protocol">
+<em class="property">class </em><code class="descclassname">pydivert.</code><code class="descname">Protocol</code><a class="headerlink" href="#pydivert.Protocol" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transport protocol values define the layout of the header that will immediately follow the IPv4 or IPv6 header.
+See <a class="reference external" href="http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml">http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml</a></p>
+<dl class="attribute">
+<dt id="pydivert.Protocol.HOPOPT">
+<code class="descname">HOPOPT</code><em class="property"> = 0</em><a class="headerlink" href="#pydivert.Protocol.HOPOPT" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.ICMP">
+<code class="descname">ICMP</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Protocol.ICMP" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.TCP">
+<code class="descname">TCP</code><em class="property"> = 6</em><a class="headerlink" href="#pydivert.Protocol.TCP" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.UDP">
+<code class="descname">UDP</code><em class="property"> = 17</em><a class="headerlink" href="#pydivert.Protocol.UDP" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.ROUTING">
+<code class="descname">ROUTING</code><em class="property"> = 43</em><a class="headerlink" href="#pydivert.Protocol.ROUTING" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.FRAGMENT">
+<code class="descname">FRAGMENT</code><em class="property"> = 44</em><a class="headerlink" href="#pydivert.Protocol.FRAGMENT" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.AH">
+<code class="descname">AH</code><em class="property"> = 51</em><a class="headerlink" href="#pydivert.Protocol.AH" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.ICMPV6">
+<code class="descname">ICMPV6</code><em class="property"> = 58</em><a class="headerlink" href="#pydivert.Protocol.ICMPV6" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.NONE">
+<code class="descname">NONE</code><em class="property"> = 59</em><a class="headerlink" href="#pydivert.Protocol.NONE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Protocol.DSTOPTS">
+<code class="descname">DSTOPTS</code><em class="property"> = 60</em><a class="headerlink" href="#pydivert.Protocol.DSTOPTS" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
