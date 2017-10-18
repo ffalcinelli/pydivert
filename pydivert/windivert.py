@@ -85,7 +85,7 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert1.1", stdout=subprocess.PIPE,
+        return subprocess.call("sc query WinDivert1.3", stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE) == 0
 
     @staticmethod
@@ -95,7 +95,7 @@ class WinDivert(object):
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert1.1", stdout=subprocess.PIPE,
+        subprocess.check_call("sc stop WinDivert1.3", stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
     def open(self):

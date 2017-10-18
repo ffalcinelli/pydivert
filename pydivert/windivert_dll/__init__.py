@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 pydivert bundles the WinDivert binaries from
-https://github.com/basil00/Divert/releases/download/v1.1.8/WinDivert-1.1.8-WDDK.zip
+https://reqrypt.org/download/WinDivert-1.3.0-WDDK.zip
 """
 import functools
 import os
