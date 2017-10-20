@@ -18,7 +18,7 @@ import pprint
 import socket
 
 from pydivert import windivert_dll
-from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol
+from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol, Layer
 from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPv4Header, IPv6Header
@@ -304,12 +304,47 @@ class Packet(object):
 
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
-        if PY2:
-            buff = bytearray(self.raw.tobytes())
-        else:
-            buff = self.raw.obj
-        buff_ = (ctypes.c_char * len(self.raw)).from_buffer(buff)
+        buff, buff_ = self.__to_buffers()
         num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), flags)
         if PY2:
             self.raw = memoryview(buff)[:len(self.raw)]
         return num
+
+    def __to_buffers(self):
+        buff = bytearray(self.raw.tobytes()) if PY2 else self.raw.obj
+        return buff, (ctypes.c_char * len(self.raw)).from_buffer(buff)
+
+    @property
+    def wd_addr(self):
+        """
+        Gets the interface and direction as a `WINDIVERT_ADDRESS` structure.
+        :return: The `WINDIVERT_ADDRESS` structure.
+        """
+        address = windivert_dll.WinDivertAddress()
+        address.IfIdx, address.SubIfIdx = self.interface
+        address.Direction = self.direction
+        return address
+
+    def matches(self, filter, layer=Layer.NETWORK):
+        """
+        Evaluates the packet against the given packet filter string.
+
+        The remapped function is::
+
+            BOOL WinDivertHelperEvalFilter(
+                __in const char *filter,
+                __in WINDIVERT_LAYER layer,
+                __in PVOID pPacket,
+                __in UINT packetLen,
+                __in PWINDIVERT_ADDRESS pAddr
+            );
+
+        See: https://reqrypt.org/windivert-doc.html#divert_helper_eval_filter
+
+        :param filter: The filter string.
+        :param layer: The network layer.
+        :return: True if the packet matches, and False otherwise.
+        """
+        buff, buff_ = self.__to_buffers()
+        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), layer, ctypes.byref(buff_), len(self.raw),
+                                                       ctypes.byref(self.wd_addr))

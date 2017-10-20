@@ -505,3 +505,13 @@ def test_udp_fields():
 
     udp.cksum = 0xAAAA
     assert udp.cksum == 0xAAAA
+
+
+def test_filter_match():
+    raw = util.fromhex("4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
+                       "807696e2d61646472046172706100000c0001")
+    p = pydivert.Packet(raw, (1, 1), Direction.OUTBOUND)
+
+    assert p.matches("true")
+    assert p.matches("udp and outbound")
+    assert not p.matches("tcp")

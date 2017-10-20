@@ -33,7 +33,7 @@ class Flag(IntEnum):
     DEFAULT = 0
     SNIFF = 1
     DROP = 2
-    NO_CHECKSUM = 1024
+    NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
 
 
 # Divert parameters.
@@ -43,6 +43,7 @@ class Param(IntEnum):
     """
     QUEUE_LEN = 0  # Packet queue length 1 < default 512 (actually 1024) < 8192
     QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
+    QUEUE_SIZE = 2  # Packet queue size (bytes)  4096 (4KB) < default 4194304 (4MB) < 33554432 (32MB)
 
 
 # Direction outbound/inbound
@@ -64,6 +65,7 @@ class CalcChecksumsOption(IntEnum):
     NO_ICMPV6_CHECKSUM = 4
     NO_TCP_CHECKSUM = 8
     NO_UDP_CHECKSUM = 16
+    NO_REPLACE = 2048
 
 
 class Protocol(IntEnum):

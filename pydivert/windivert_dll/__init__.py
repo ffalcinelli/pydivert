@@ -23,8 +23,7 @@ import platform
 import sys
 from ctypes import (
     POINTER, GetLastError, WinError, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
-    c_uint8, windll
-)
+    c_uint8, windll)
 from ctypes.wintypes import HANDLE
 
 from .structs import WinDivertAddress
@@ -64,6 +63,8 @@ WINDIVERT_FUNCTIONS = {
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
     "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
+    "WinDivertHelperCheckFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
+    "WinDivertHelperEvalFilter": [c_char_p, c_int, c_void_p, c_uint, c_void_p],
     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
     "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
     "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],

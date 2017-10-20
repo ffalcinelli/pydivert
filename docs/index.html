@@ -44,7 +44,7 @@
 <h1>PyDivert API Reference<a class="headerlink" href="#pydivert-api-reference" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="pydivert.WinDivert">
-<em class="property">class </em><code class="descclassname">pydivert.</code><code class="descname">WinDivert</code><span class="sig-paren">(</span><em>filter='true'</em>, <em>layer=&lt;Layer.NETWORK: 0&gt;</em>, <em>priority=0</em>, <em>flags=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.WinDivert" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">pydivert.</code><code class="descname">WinDivert</code><span class="sig-paren">(</span><em>filter='true'</em>, <em>layer=&lt;Layer.NETWORK: 0&gt;</em>, <em>priority=0</em>, <em>flags=&lt;Flag.DEFAULT: 0&gt;</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.WinDivert" title="Permalink to this definition">¶</a></dt>
 <dd><p>A WinDivert handle that can be used to capture packets.
 The main methods are <cite>.open()</cite>, <cite>.recv()</cite>, <cite>.send()</cite> and <cite>.close()</cite>.</p>
 <p>Use it like so:</p>
@@ -73,6 +73,30 @@ It is usually not required to call this function, as WinDivert will register its
 <dd><p>Unregisters the WinDivert service.
 This function only requests a service stop, which may not be processed immediately if there are still open
 handles.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="pydivert.WinDivert.check_filter">
+<em class="property">static </em><code class="descname">check_filter</code><span class="sig-paren">(</span><em>filter</em>, <em>layer=&lt;Layer.NETWORK: 0&gt;</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.WinDivert.check_filter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checks if the given packet filter string is valid with respect to the filter language.</p>
+<p>The remapped function is WinDivertHelperCheckFilter:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">BOOL</span> <span class="n">WinDivertHelperCheckFilter</span><span class="p">(</span>
+    <span class="n">__in</span> <span class="n">const</span> <span class="n">char</span> <span class="o">*</span><span class="nb">filter</span><span class="p">,</span>
+    <span class="n">__in</span> <span class="n">WINDIVERT_LAYER</span> <span class="n">layer</span><span class="p">,</span>
+    <span class="n">__out_opt</span> <span class="n">const</span> <span class="n">char</span> <span class="o">**</span><span class="n">errorStr</span><span class="p">,</span>
+    <span class="n">__out_opt</span> <span class="n">UINT</span> <span class="o">*</span><span class="n">errorPos</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p>See: <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_helper_check_filter">https://reqrypt.org/windivert-doc.html#divert_helper_check_filter</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">A tuple (res, pos, msg) with check result in &#8216;res&#8217; human readable description of the error in &#8216;msg&#8217; and the error&#8217;s position in &#8216;pos&#8217;.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -115,8 +139,7 @@ Diverted packets can be read by the application with receive().</p>
 <dl class="method">
 <dt id="pydivert.WinDivert.recv">
 <code class="descname">recv</code><span class="sig-paren">(</span><em>bufsize=1500</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.WinDivert.recv" title="Permalink to this definition">¶</a></dt>
-<dd><p>Receives a diverted packet that matched the filter.
-The return value is a pydivert.Packet.</p>
+<dd><p>Receives a diverted packet that matched the filter.</p>
 <p>The remapped function is WinDivertRecv:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">BOOL</span> <span class="n">WinDivertRecv</span><span class="p">(</span>
     <span class="n">__in</span> <span class="n">HANDLE</span> <span class="n">handle</span><span class="p">,</span>
@@ -128,14 +151,21 @@ The return value is a pydivert.Packet.</p>
 </pre></div>
 </div>
 <p>For more info on the C call visit: <a class="reference external" href="http://reqrypt.org/windivert-doc.html#divert_recv">http://reqrypt.org/windivert-doc.html#divert_recv</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The return value is a <cite>pydivert.Packet</cite>.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="pydivert.WinDivert.send">
 <code class="descname">send</code><span class="sig-paren">(</span><em>packet</em>, <em>recalculate_checksum=True</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.WinDivert.send" title="Permalink to this definition">¶</a></dt>
 <dd><p>Injects a packet into the network stack.
-Recalculates the checksum before sending unless recalculate_checksum=False is passed.
-The return value is the number of bytes actually sent.</p>
+Recalculates the checksum before sending unless recalculate_checksum=False is passed.</p>
 <p>The injected packet may be one received from recv(), or a modified version, or a completely new packet.
 Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.</p>
 <p>The remapped function is WinDivertSend:</p>
@@ -149,6 +179,14 @@ Injected packets can be captured and diverted again by other WinDivert handles w
 </pre></div>
 </div>
 <p>For more info on the C call visit: <a class="reference external" href="http://reqrypt.org/windivert-doc.html#divert_send">http://reqrypt.org/windivert-doc.html#divert_send</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The return value is the number of bytes actually sent.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -164,6 +202,14 @@ Injected packets can be captured and diverted again by other WinDivert handles w
 </pre></div>
 </div>
 <p>For more info on the C call visit: <a class="reference external" href="http://reqrypt.org/windivert-doc.html#divert_get_param">http://reqrypt.org/windivert-doc.html#divert_get_param</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The parameter value.</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
@@ -364,6 +410,45 @@ Individual checksum calculations may be disabled via the appropriate flag.
 Typically this function should be invoked on a modified packet before it is injected with WinDivert.send().
 Returns the number of checksums calculated.</p>
 <p>See: <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums">https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums</a></p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.Packet.wd_addr">
+<code class="descname">wd_addr</code><a class="headerlink" href="#pydivert.Packet.wd_addr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the interface and direction as a <cite>WINDIVERT_ADDRESS</cite> structure.
+:return: The <cite>WINDIVERT_ADDRESS</cite> structure.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pydivert.Packet.matches">
+<code class="descname">matches</code><span class="sig-paren">(</span><em>filter</em>, <em>layer=&lt;Layer.NETWORK: 0&gt;</em><span class="sig-paren">)</span><a class="headerlink" href="#pydivert.Packet.matches" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluates the packet against the given packet filter string.</p>
+<p>The remapped function is:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">BOOL</span> <span class="n">WinDivertHelperEvalFilter</span><span class="p">(</span>
+    <span class="n">__in</span> <span class="n">const</span> <span class="n">char</span> <span class="o">*</span><span class="nb">filter</span><span class="p">,</span>
+    <span class="n">__in</span> <span class="n">WINDIVERT_LAYER</span> <span class="n">layer</span><span class="p">,</span>
+    <span class="n">__in</span> <span class="n">PVOID</span> <span class="n">pPacket</span><span class="p">,</span>
+    <span class="n">__in</span> <span class="n">UINT</span> <span class="n">packetLen</span><span class="p">,</span>
+    <span class="n">__in</span> <span class="n">PWINDIVERT_ADDRESS</span> <span class="n">pAddr</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p>See: <a class="reference external" href="https://reqrypt.org/windivert-doc.html#divert_helper_eval_filter">https://reqrypt.org/windivert-doc.html#divert_helper_eval_filter</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>filter</strong> &#8211; The filter string.</li>
+<li><strong>layer</strong> &#8211; The network layer.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">True if the packet matches, and False otherwise.</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -862,6 +947,11 @@ Returns the number of checksums calculated.</p>
 <code class="descname">QUEUE_TIME</code><em class="property"> = 1</em><a class="headerlink" href="#pydivert.Param.QUEUE_TIME" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="pydivert.Param.QUEUE_SIZE">
+<code class="descname">QUEUE_SIZE</code><em class="property"> = 2</em><a class="headerlink" href="#pydivert.Param.QUEUE_SIZE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="class">
@@ -891,6 +981,11 @@ Returns the number of checksums calculated.</p>
 <dl class="attribute">
 <dt id="pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM">
 <code class="descname">NO_UDP_CHECKSUM</code><em class="property"> = 16</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="pydivert.CalcChecksumsOption.NO_REPLACE">
+<code class="descname">NO_REPLACE</code><em class="property"> = 2048</em><a class="headerlink" href="#pydivert.CalcChecksumsOption.NO_REPLACE" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

@@ -188,3 +188,17 @@ def test_packet_cutoff(scenario):
             break
     assert cutoff
     assert reply.get() == b"A" * (1000 - cutoff)
+
+def test_check_filter():
+
+    res, pos, msg = WinDivert.check_filter('true')
+    assert res
+    assert pos == 0
+    assert msg is not None
+    res, pos, msg = WinDivert.check_filter('something wrong here')
+    assert not res
+    assert pos == 0
+    assert msg is not None
+    res, pos, msg = WinDivert.check_filter('outbound and something wrong here')
+    assert not res
+    assert pos == 13
