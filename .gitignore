@@ -1,13 +1,1 @@
-build
-*.egg-info
-*.pyc
-.tox
-logs
-coverage
-*~
-.idea
-dist/
-.cache/
-venv/
-.coverage
-.hypothesis
+
