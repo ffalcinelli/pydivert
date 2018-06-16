@@ -33,6 +33,7 @@ class Flag(IntEnum):
     DEFAULT = 0
     SNIFF = 1
     DROP = 2
+    DEBUG = 4
     NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
 
 
