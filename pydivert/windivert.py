@@ -85,7 +85,7 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert1.3", stdout=subprocess.PIPE,
+        return subprocess.call("sc query WinDivert1.4", stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE) == 0
 
     @staticmethod
@@ -95,7 +95,7 @@ class WinDivert(object):
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert1.3", stdout=subprocess.PIPE,
+        subprocess.check_call("sc stop WinDivert1.4", stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
     @staticmethod
@@ -142,8 +142,7 @@ class WinDivert(object):
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority,
-                                                   self._flags)
+        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
 
     @property
     def is_open(self):
