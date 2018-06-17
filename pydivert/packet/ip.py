@@ -16,7 +16,7 @@
 import socket
 import struct
 
-from pydivert.packet.header import Header
+from pydivert.packet.header import Header, PseudoCksumHeaderMixin
 from pydivert.util import PY2, PY34, flag_property, indexbyte as i, raw_property
 
 
@@ -65,7 +65,7 @@ class IPHeader(Header):
         raise NotImplementedError()  # pragma: no cover
 
 
-class IPv4Header(IPHeader):
+class IPv4Header(IPHeader, PseudoCksumHeaderMixin):
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
     _af = socket.AF_INET

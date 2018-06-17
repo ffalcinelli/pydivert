@@ -197,7 +197,13 @@ class WinDivert(object):
         return Packet(
             memoryview(packet)[:recv_len.value],
             (address.IfIdx, address.SubIfIdx),
-            Direction(address.Direction)
+            Direction(address.Direction),
+            timestamp=address.Timestamp,
+            loopback=address.Loopback,
+            impostor = address.Impostor,
+            pseudo_cksum_ip= address.PseudoIPChecksum,
+            pseudo_cksum_tcp= address.PseudoTCPChecksum,
+            pseudo_cksum_udp= address.PseudoUDPChecksum,
         )
 
     def send(self, packet, recalculate_checksum=True):

@@ -15,11 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import struct
 
-from pydivert.packet.header import Header, PayloadMixin, PortMixin
+from pydivert.packet.header import PayloadMixin, PortMixin, PseudoCksumHeaderMixin
 from pydivert.util import PY2, PY34, raw_property
 
 
-class UDPHeader(Header, PayloadMixin, PortMixin):
+class UDPHeader(PseudoCksumHeaderMixin, PayloadMixin, PortMixin):
     header_len = 8
 
     @property

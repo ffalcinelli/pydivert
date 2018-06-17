@@ -62,7 +62,7 @@ WINDIVERT_FUNCTIONS = {
                                    c_void_p, POINTER(c_uint)],
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
-    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
+    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_void_p, c_uint64],
     "WinDivertHelperCheckFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
     "WinDivertHelperEvalFilter": [c_char_p, c_int, c_void_p, c_uint, c_void_p],
     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],

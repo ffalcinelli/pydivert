@@ -60,4 +60,5 @@ class WinDivertAddress(ctypes.Structure):
         ("PseudoIPChecksum", ctypes.c_uint8),
         ("PseudoTCPChecksum", ctypes.c_uint8),
         ("PseudoUDPChecksum", ctypes.c_uint8),
+        ("Reserved", ctypes.c_uint8),
     ]

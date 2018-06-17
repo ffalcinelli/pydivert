@@ -16,6 +16,7 @@
 import ctypes
 import pprint
 import socket
+import time
 
 from pydivert import windivert_dll
 from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol, Layer
@@ -33,12 +34,17 @@ class Packet(object):
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    def __init__(self, raw, interface, direction):
+    def __init__(self, raw, interface, direction, timestamp=None, loopback=None, impostor=0, pseudo_cksum_ip=0,
+                 pseudo_cksum_tcp=0, pseudo_cksum_udp=0):
         if isinstance(raw, bytes):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
         self.interface = interface
         self.direction = direction
+        self.timestamp = timestamp if timestamp else int(round(time.time() * 1000))
+        self.loopback = self.interface[0] if loopback is None else loopback
+        self.impostor = impostor
+        self.pseudo_cksums = (pseudo_cksum_ip, pseudo_cksum_tcp, pseudo_cksum_udp)
 
     def __repr__(self):
         def dump(x):
@@ -82,7 +88,20 @@ class Packet(object):
         - True, if the packet is on the loopback interface.
         - False, otherwise.
         """
-        return self.interface[0] == 1
+        return self.loopback == 1
+
+    @property
+    def is_impostor(self):
+        """
+        - True, if the packet is an impostor.
+        - False, otherwise.
+
+        The Impostor flag is set for impostor packets. An impostor packet is any packet injected by another driver
+        rather than originating from the network or Windows TCP/IP stack.
+        Impostor packets are problematic since they can cause infinite loops, where a packet injected by WinDivertSend()
+        is captured again by WinDivertRecv(). For more information, see WinDivertSend().
+        """
+        return self.impostor == 1
 
     @cached_property
     def address_family(self):
@@ -135,9 +154,9 @@ class Packet(object):
             proto = None
 
         out_of_bounds = (
-            (proto == Protocol.TCP and start + 20 > len(self.raw)) or
-            (proto == Protocol.UDP and start + 8 > len(self.raw)) or
-            (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
+                (proto == Protocol.TCP and start + 20 > len(self.raw)) or
+                (proto == Protocol.UDP and start + 8 > len(self.raw)) or
+                (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
         )
         if out_of_bounds:
             # special-case tcp/udp so that we can rely on .protocol for the port properties.
@@ -153,7 +172,7 @@ class Packet(object):
         - None, otherwise.
         """
         if self.address_family == socket.AF_INET:
-            return IPv4Header(self)
+            return IPv4Header(self, pseudo_cksum=self.pseudo_cksums[0] == 1)
 
     @cached_property
     def ipv6(self):
@@ -208,7 +227,7 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.TCP:
-            return TCPHeader(self, proto_start)
+            return TCPHeader(self, proto_start, pseudo_cksum=self.pseudo_cksums[1] == 1)
 
     @cached_property
     def udp(self):
@@ -218,7 +237,7 @@ class Packet(object):
         """
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.UDP:
-            return UDPHeader(self, proto_start)
+            return UDPHeader(self, proto_start, pseudo_cksum=self.pseudo_cksums[2] == 2)
 
     @cached_property
     def _port(self):
@@ -305,7 +324,7 @@ class Packet(object):
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         buff, buff_ = self.__to_buffers()
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), flags)
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(self.wd_addr), flags)
         if PY2:
             self.raw = memoryview(buff)[:len(self.raw)]
         return num
@@ -323,6 +342,11 @@ class Packet(object):
         address = windivert_dll.WinDivertAddress()
         address.IfIdx, address.SubIfIdx = self.interface
         address.Direction = self.direction
+        address.Timestamp = self.timestamp
+        address.Loopback = self.loopback
+        address.Impostor = self.impostor
+        address.PseudoIPChecksum, address.PseudoTCPChecksum, address.PseudoUDPChecksum = self.pseudo_cksums
+        address.Reserved = 0
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):

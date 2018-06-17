@@ -89,7 +89,7 @@ class TestParams(object):
         Tests setting the minimum value for queue length.
         From docs: 1< default 512 <8192
         """
-        for value in (1, 512, 8192):
+        for value in (16, 2048, 16384):
             w.set_param(Param.QUEUE_LEN, value)
             assert value == w.get_param(Param.QUEUE_LEN)
 

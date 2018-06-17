@@ -39,7 +39,7 @@ class Header(object):
             self._packet.ip.packet_len = len(self._packet.raw)
 
     def __setattr__(self, key, value):
-        if key in dir(self) or key in {"_packet", "_start"}:
+        if key in dir(self) or key in {"_packet", "_start", "_pseudo_cksum"}:
             return super(Header, self).__setattr__(key, value)
         raise AttributeError("AttributeError: '{}' object has no attribute '{}'".format(
             type(self).__name__,
@@ -89,3 +89,26 @@ class PortMixin(object):
     @dst_port.setter
     def dst_port(self, val):
         self.raw[2:4] = struct.pack("!H", val)
+
+
+class PseudoCksumHeaderMixin(Header):
+
+    def __init__(self, packet, start=0, pseudo_cksum=0):
+        super().__init__(packet, start)
+        self._pseudo_cksum = pseudo_cksum
+
+    @property
+    def is_pseudo_cksum(self):
+        return self._pseudo_cksum == 1
+
+    @is_pseudo_cksum.setter
+    def is_pseudo_cksum(self, value):
+        self._pseudo_cksum = 0 if not value else 1
+
+    @property
+    def cksum(self):
+        raise NotImplementedError()
+
+    @cksum.setter
+    def cksum(self, value):
+        raise NotImplementedError()

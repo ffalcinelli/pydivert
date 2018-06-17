@@ -15,11 +15,11 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import struct
 
-from pydivert.packet.header import Header, PayloadMixin, PortMixin
+from pydivert.packet.header import PayloadMixin, PortMixin, PseudoCksumHeaderMixin
 from pydivert.util import indexbyte as i, flag_property, raw_property
 
 
-class TCPHeader(Header, PayloadMixin, PortMixin):
+class TCPHeader(PseudoCksumHeaderMixin, PayloadMixin, PortMixin):
     ns = flag_property("ns", 12, 0b00000001)
 
     cwr = flag_property("cwr", 13, 0b10000000)
@@ -31,6 +31,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
     rst = flag_property("rst", 13, 0b00000100)
     syn = flag_property("syn", 13, 0b00000010)
     fin = flag_property("fin", 13, 0b00000001)
+
 
     @property
     def header_len(self):
