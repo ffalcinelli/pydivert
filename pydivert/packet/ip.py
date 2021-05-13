@@ -177,8 +177,7 @@ class IPv6Header(IPHeader):
 
     @traffic_class.setter
     def traffic_class(self, val):
-        struct.pack_into('!H', self.raw, 0, 0x6000 | (val << 4) | (self.flow_label & 0x000F0000))
-
+        struct.pack_into('!H', raw, 0, 0x6000 | (val << 4) | ((flow_label & 0x000F0000) >> 16))
     @property
     def flow_label(self):
         """
