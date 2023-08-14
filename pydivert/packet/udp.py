@@ -15,8 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import struct
 
-from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import PY2, PY34, raw_property
+from ..packet.header import Header, PayloadMixin, PortMixin
+from ..util import PY2, PY34, raw_property
 
 
 class UDPHeader(Header, PayloadMixin, PortMixin):

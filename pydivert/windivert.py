@@ -17,10 +17,10 @@ import subprocess
 import sys
 from ctypes import byref, c_uint64, c_uint, c_char, c_char_p
 
-from pydivert import windivert_dll
-from pydivert.consts import Layer, Direction, Flag
-from pydivert.packet import Packet
-from pydivert.util import PY2
+from . import windivert_dll
+from .consts import Layer, Flag, Priority
+from .packet import Packet
+from .util import PY2
 
 DEFAULT_PACKET_BUFFER_SIZE = 1500
 
@@ -39,12 +39,19 @@ class WinDivert(object):
 
     """
 
-    def __init__(self, filter="true", layer=Layer.NETWORK, priority=0, flags=Flag.DEFAULT):
+    def __init__(self, filter="true", layer=Layer.NETWORK, priority=Priority.DEFAULT, flags=Flag.DEFAULT):
         self._handle = None
         self._filter = filter.encode()
         self._layer = layer
         self._priority = priority
         self._flags = flags
+        if not self._flags:
+            if self._layer == Layer.FLOW:
+                self._flags |= Flag.SNIFF | Flag.RECV_ONLY
+            elif self._layer == Layer.SOCKET:
+                self._flags |= Flag.RECV_ONLY
+            elif self._layer == Layer.REFLECT:
+                self._flags |= Flag.SNIFF | Flag.RECV_ONLY
 
     def __repr__(self):
         return '<WinDivert state="{}" filter="{}" layer="{}" priority="{}" flags="{}" />'.format(
@@ -85,7 +92,7 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert1.3", stdout=subprocess.PIPE,
+        return subprocess.call("sc query WinDivert", stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE) == 0
 
     @staticmethod
@@ -95,11 +102,11 @@ class WinDivert(object):
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert1.3", stdout=subprocess.PIPE,
+        subprocess.check_call("sc stop WinDivert", stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
     @staticmethod
-    def check_filter(filter, layer=Layer.NETWORK):
+    def compile_filter(filter, layer=Layer.NETWORK):
         """
         Checks if the given packet filter string is valid with respect to the filter language.
 
@@ -116,12 +123,14 @@ class WinDivert(object):
 
         :return: A tuple (res, pos, msg) with check result in 'res' human readable description of the error in 'msg' and the error's position in 'pos'.
         """
+        obl = 128 + len(filter) * 2
+        obj = bytes(bytearray(obl))
         res, pos, msg = False, c_uint(), c_char_p()
         try:
-            res = windivert_dll.WinDivertHelperCheckFilter(filter.encode(), layer, byref(msg), byref(pos))
-        except OSError:
+            res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, obj, obl, byref(msg), byref(pos))
+        except OSError as e:
             pass
-        return res, pos.value, msg.value.decode()
+        return res, obj.rstrip(b"\0"), pos.value, msg.value.decode()
 
     def open(self):
         """
@@ -142,8 +151,7 @@ class WinDivert(object):
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority,
-                                                   self._flags)
+        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
 
     @property
     def is_open(self):
@@ -175,13 +183,12 @@ class WinDivert(object):
 
         The remapped function is WinDivertRecv::
 
-            BOOL WinDivertRecv(
-                __in HANDLE handle,
-                __out PVOID pPacket,
-                __in UINT packetLen,
-                __out_opt PWINDIVERT_ADDRESS pAddr,
-                __out_opt UINT *recvLen
-            );
+        WINDIVERTEXPORT BOOL WinDivertRecv(
+        __in        HANDLE handle,
+        __out_opt   VOID *pPacket,
+        __in        UINT packetLen,
+        __out_opt   UINT *pRecvLen,
+        __out_opt   WINDIVERT_ADDRESS *pAddr);
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
 
@@ -189,17 +196,13 @@ class WinDivert(object):
         """
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
-
         packet = bytearray(bufsize)
         packet_ = (c_char * bufsize).from_buffer(packet)
         address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(address), byref(recv_len))
-        return Packet(
-            memoryview(packet)[:recv_len.value],
-            (address.IfIdx, address.SubIfIdx),
-            Direction(address.Direction)
-        )
+        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
+        return Packet(memoryview(packet)[:recv_len.value], self._layer, address)
+
 
     def send(self, packet, recalculate_checksum=True):
         """
@@ -233,8 +236,7 @@ class WinDivert(object):
         else:
             buff = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(buff)
-        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(packet.wd_addr),
-                                    byref(send_len))
+        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
         return send_len
 
     def get_param(self, name):

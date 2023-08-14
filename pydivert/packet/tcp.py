@@ -25,7 +25,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
     cwr = flag_property("cwr", 13, 0b10000000)
     ece = flag_property("ece", 13, 0b01000000)
 
-    urg = flag_property("syn", 13, 0b00100000)
+    urg = flag_property("urg", 13, 0b00100000)
     ack = flag_property("ack", 13, 0b00010000)
     psh = flag_property("psh", 13, 0b00001000)
     rst = flag_property("rst", 13, 0b00000100)
