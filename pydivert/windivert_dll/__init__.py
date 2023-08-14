@@ -58,21 +58,55 @@ def raise_on_error(f):
 
 
 WINDIVERT_FUNCTIONS = {
-    "WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
-                                   c_void_p, POINTER(c_uint)],
+    # WinDivertOpen(const char *filter, WINDIVERT_LAYER layer, INT16 priority, UINT64 flags);
+    # BOOL WinDivertShutdown(HANDLE,WINDIVERT_SHUTDOWN how);
+    # BOOL WinDivertClose(HANDLE handle);
+    "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
+    "WinDivertShutdown": [HANDLE, c_int],
+    "WinDivertClose": [HANDLE],
+
+    # BOOL WinDivertSetParam(HANDLE,WINDIVERT_PARAM param,UINT64 value);
+    # BOOL WinDivertGetParam(HANDLE,WINDIVERT_PARAM param,UINT64 *pValue);
+    "WinDivertSetParam": [HANDLE, c_int, c_uint64],
+    "WinDivertGetParam": [HANDLE, c_int, POINTER(c_uint64)],
+
+    # BOOL WinDivertRecv( HANDLE,VOID *pPacket, UINT packetLen, UINT *pRecvLen,WINDIVERT_ADDRESS *pAddr);
+    # BOOL WinDivertRecvEx( HANDLE,VOID *pPacket, UINT packetLen,UINT *pRecvLen, UINT64 flags, WINDIVERT_ADDRESS *pAddr,UINT *pAddrLen, LPOVERLAPPED lpOverlapped);
+    # BOOL WinDivertSend(HANDLE,const VOID *pPacket,UINT packetLen,UINT *pSendLen,const WINDIVERT_ADDRESS *pAddr);
+    # BOOL WinDivertSendEx(HANDLE,const VOID *pPacket,UINT packetLen,UINT *pSendLen,UINT64 flags,const WINDIVERT_ADDRESS *pAddr,UINT addrLen,#LPOVERLAPPED lpOverlapped);
+    "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
+    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
+    "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
+    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
+
+    # BOOL WinDivertHelperParsePacket(const VOID *pPacket,UINT packetLen,PWINDIVERT_IPHDR *ppIpHdr,PWINDIVERT_IPV6HDR *ppIpv6Hdr,UINT8 *pProtocol,PWINDIVERT_ICMPHDR *ppIcmpHdr,PWINDIVERT_ICMPV6HDR *ppIcmpv6Hdr,PWINDIVERT_TCPHDR *ppTcpHdr,PWINDIVERT_UDPHDR *ppUdpHdr,PVOID *ppData,UINT *pDataLen,PVOID *ppNext,UINT *pNextLen);
+    # BOOL WinDivertHelperParseIPv4Address(const char *addrStr,UINT32 *pAddr);
+    # BOOL WinDivertHelperParseIPv6Address(  const char *addrStr,  UINT32 *pAddr);
+    # BOOL WinDivertHelperFormatIPv4Address(UINT32 addr,char *buffer,UINT bufLen);
+    # BOOL WinDivertHelperFormatIPv6Address(const UINT32 *pAddr,char *buffer,UINT bufLen);
+    # BOOL WinDivertHelperCalcChecksums(VOID *pPacket, UINT packetLen,WINDIVERT_ADDRESS *pAddr,UINT64 flags);
+    # BOOL WinDivertHelperDecrementTTL(VOID *pPacket,UINT packetLen);
+    # BOOL WinDivertHelperCompileFilter(const char *filter,WINDIVERT_LAYER layer,char *object,UINT objLen,const char **errorStr,UINT *errorPos);
+    # BOOL WinDivertHelperEvalFilter(const char *filter,const VOID *pPacket,UINT packetLen,const WINDIVERT_ADDRESS *pAddr);
+    # BOOL WinDivertHelperFormatFilter(const char *filter,WINDIVERT_LAYER layer,char *buffer,UINT bufLen);
+    "WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, POINTER(c_uint)],
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
     "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
-    "WinDivertHelperCheckFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
+    "WinDivertHelperCompileFilter": [c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)],
+    "WinDivertHelperFormatFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
     "WinDivertHelperEvalFilter": [c_char_p, c_int, c_void_p, c_uint, c_void_p],
-    "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
-    "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
-    "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
-    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
-    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
-    "WinDivertClose": [HANDLE],
-    "WinDivertGetParam": [HANDLE, c_int, POINTER(c_uint64)],
-    "WinDivertSetParam": [HANDLE, c_int, c_uint64],
+
+    # UINT16 WinDivertHelperNtohs(UINT16 x);
+    # UINT16 WinDivertHelperHtons(UINT16 x);
+    # UINT32 WinDivertHelperNtohl(UINT32 x);
+    # UINT32 WinDivertHelperHtonl(UINT32 x);
+    # UINT64 WinDivertHelperNtohll(UINT64 x);
+    # UINT64 WinDivertHelperHtonll(UINT64 x);
+    # void WinDivertHelperNtohIPv6Address(const UINT *inAddr,UINT *outAddr);
+    # void WinDivertHelperHtonIPv6Address(const UINT *inAddr,UINT *outAddr);
+    # void WinDivertHelperNtohIpv6Address(const UINT *inAddr,UINT *outAddr);
+    # void WinDivertHelperHtonIpv6Address(const UINT *inAddr,UINT *outAddr);
 }
 
 _instance = None

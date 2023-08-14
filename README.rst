@@ -35,6 +35,7 @@ PyDivert                           WinDivert
 1.0.x (API-compatible with 0.0.7)  1.1.8 (bundled)
 2.0.x                              1.1.8 (bundled)
 2.1.x                              1.3 (bundled)
+2.2.x                              2.2 (bundled)
 =================================  ===============
 
 Getting Started

@@ -17,14 +17,15 @@ import ctypes
 import pprint
 import socket
 
-from pydivert import windivert_dll
-from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol, Layer
-from pydivert.packet.header import Header
-from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
-from pydivert.packet.ip import IPv4Header, IPv6Header
-from pydivert.packet.tcp import TCPHeader
-from pydivert.packet.udp import UDPHeader
-from pydivert.util import cached_property, indexbyte as i, PY2
+from .. import windivert_dll
+from ..consts import IPV6_EXT_HEADERS, Protocol, Layer
+from ..packet.header import Header
+from ..packet.icmp import ICMPv4Header, ICMPv6Header
+from ..packet.ip import IPv4Header, IPv6Header
+from ..packet.tcp import TCPHeader
+from ..packet.udp import UDPHeader
+from ..util import cached_property, indexbyte as i, PY2
+from ..windivert_dll.structs import WinDivertAddress
 
 
 class Packet(object):
@@ -33,23 +34,27 @@ class Packet(object):
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    def __init__(self, raw, interface, direction):
+    def __init__(self, raw, layer: Layer, address: WinDivertAddress):
         if isinstance(raw, bytes):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
-        self.interface = interface
-        self.direction = direction
+        self.layer = layer
+        self.address = address
 
     def __repr__(self):
         def dump(x):
             if isinstance(x, Header) or isinstance(x, Packet):
                 d = {}
                 for k in dir(x):
+                    # print([[[k]]])
                     v = getattr(x, k)
                     if k.startswith("_") or callable(v):
                         continue
-                    if k in {"address_family", "protocol", "ip", "icmp"}:
-                        continue
+                    if k == "wd_addr":
+                        if not x.raw:
+                            v = v.dict()
+                    if k == "raw":
+                        v = bytes(v)
                     if k == "payload" and v and len(v) > 20:
                         v = v[:20] + b"..."
                     d[k] = dump(v)
@@ -66,7 +71,7 @@ class Packet(object):
         Indicates if the packet is outbound.
         Convenience method for ``.direction``.
         """
-        return self.direction == Direction.OUTBOUND
+        return self.address.Outbound == 1
 
     @property
     def is_inbound(self):
@@ -74,7 +79,7 @@ class Packet(object):
         Indicates if the packet is inbound.
         Convenience method for ``.direction``.
         """
-        return self.direction == Direction.INBOUND
+        return self.address.Outbound != 1
 
     @property
     def is_loopback(self):
@@ -82,7 +87,7 @@ class Packet(object):
         - True, if the packet is on the loopback interface.
         - False, otherwise.
         """
-        return self.interface[0] == 1
+        return self.address.Loopback == 1
 
     @cached_property
     def address_family(self):
@@ -92,12 +97,10 @@ class Packet(object):
             - socket.AF_INET6, if IPv6
             - None, otherwise.
         """
-        if len(self.raw) >= 20:
-            v = i(self.raw[0]) >> 4
-            if v == 4:
-                return socket.AF_INET
-            if v == 6:
-                return socket.AF_INET6
+        if self.raw:
+            return socket.AF_INET6 if self.address.IPv6 else socket.AF_INET
+        return None
+
 
     @cached_property
     def protocol(self):
@@ -107,6 +110,8 @@ class Packet(object):
           | ``proto_start`` denotes the beginning of the protocol data.
           | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
+        if len(self.raw) < 4:
+            return None, None
         if self.address_family == socket.AF_INET:
             proto = i(self.raw[9])
             start = (i(self.raw[0]) & 0b1111) * 4
@@ -320,10 +325,7 @@ class Packet(object):
         Gets the interface and direction as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        address = windivert_dll.WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = self.interface
-        address.Direction = self.direction
-        return address
+        return self.address
 
     def matches(self, filter, layer=Layer.NETWORK):
         """

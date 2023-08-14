@@ -56,6 +56,8 @@ else:
 def flag_property(name, offset, bit, docs=None):
     @property
     def flag(self):
+        if len(self.raw) < offset:
+            return None
         return bool(indexbyte(self.raw[offset]) & bit)
 
     @flag.setter
@@ -78,6 +80,8 @@ def flag_property(name, offset, bit, docs=None):
 def raw_property(fmt, offset, docs=None):
     @property
     def rprop(self):
+        if len(self.raw) <= offset + struct.calcsize(fmt):
+            return None
         return struct.unpack_from(fmt, self.raw, offset)[0]
 
     @rprop.setter

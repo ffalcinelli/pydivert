@@ -21,8 +21,11 @@ class Layer(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
-    NETWORK = 0
-    NETWORK_FORWARD = 1
+    NETWORK = 0  # Network layer.
+    NETWORK_FORWARD = 1  # Network layer (forwarded packets)
+    FLOW = 2  # Flow layer.
+    SOCKET = 3  # Socket layer.
+    REFLECT = 4  # Reflect layer.
 
 
 # Divert Flag.
@@ -31,9 +34,21 @@ class Flag(IntEnum):
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
     DEFAULT = 0
-    SNIFF = 1
-    DROP = 2
+    SNIFF = 0x0001
+    DROP = 0x0002
+    RECV_ONLY = 0x0004
+    READ_ONLY = RECV_ONLY
+    SEND_ONLY = 0x0008
+    WRITE_ONLY = SEND_ONLY
+    NO_INSTALL = 0x0010
+    FRAGMENTS = 0x0020
     NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
+
+
+class Priority(IntEnum):
+    DEFAULT = 0
+    HIGHEST = 30000
+    LOWEST = -HIGHEST
 
 
 # Divert parameters.
@@ -41,18 +56,23 @@ class Param(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_set_param
     """
-    QUEUE_LEN = 0  # Packet queue length 1 < default 512 (actually 1024) < 8192
-    QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
-    QUEUE_SIZE = 2  # Packet queue size (bytes)  4096 (4KB) < default 4194304 (4MB) < 33554432 (32MB)
+    # QUEUE_LEN = 0  # Packet queue length 1 < default 512 (actually 1024) < 8192
+    # QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
+    # QUEUE_SIZE = 2  # Packet queue size (bytes)  4096 (4KB) < default 4194304 (4MB) < 33554432 (32MB)
+    QUEUE_LENGTH = 0  # Packet queue length.
+    QUEUE_TIME = 1  # Packet queue time.
+    QUEUE_SIZE = 2  # Packet queue size.
+    VERSION_MAJOR = 3  # Driver version (major).
+    VERSION_MINOR = 4  # Driver version (minor).
 
 
-# Direction outbound/inbound
-class Direction(IntEnum):
+class Shutdown(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_address
     """
-    OUTBOUND = 0
-    INBOUND = 1
+    RECV = 0x1  # Shutdown recv.
+    SEND = 0x2  # Shutdown send.
+    BOTH = 0x3  # Shutdown recv and send.
 
 
 # Checksums
