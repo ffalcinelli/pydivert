@@ -26,4 +26,8 @@
 
 ::: pydivert.Direction
 
+::: pydivert.RecvFlag
+
 ::: pydivert.Protocol
+
+::: pydivert.windivert_dll.Overlapped

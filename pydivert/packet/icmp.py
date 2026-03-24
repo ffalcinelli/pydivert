@@ -39,15 +39,13 @@ class ICMPHeader(Header, PayloadMixin):
     @code.setter
     def code(self, val):
         self.raw[1] = val
-    def code(self, val):
-        self.raw[1] = i(val)
 
     cksum = raw_property('!H', 2, docs='The ICMP header checksum field.')
 
 
 class ICMPv4Header(ICMPHeader):
-    pass
+    header_len = 4
 
 
 class ICMPv6Header(ICMPHeader):
-    pass
+    header_len = 4

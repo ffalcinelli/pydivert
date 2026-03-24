@@ -660,8 +660,8 @@ test = [
     { name = "mock" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "pytest-faulthandler" },
     { name = "pytest-timeout" },
+    { name = "setuptools" },
     { name = "wheel" },
 ]
 
@@ -673,10 +673,10 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.4.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.23.0" },
     { name = "mock", marker = "extra == 'test'", specifier = ">=1.0.1" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=3.0.3" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=2.2.1" },
-    { name = "pytest-faulthandler", marker = "extra == 'test'", specifier = ">=1.3.0,<2" },
-    { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=1.0.0,<2" },
+    { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=2.1.0" },
+    { name = "setuptools", marker = "extra == 'test'" },
     { name = "wheel", marker = "extra == 'test'", specifier = ">=0.29" },
 ]
 provides-extras = ["docs", "test"]
@@ -736,27 +736,15 @@ wheels = [
 ]
 
 [[package]]
-name = "pytest-faulthandler"
-version = "1.6.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pytest" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/8b/94096d0d7b199866ebaa5d3b81561d84636acfcae9ea5c15303d1c2fcbbb/pytest-faulthandler-1.6.0.tar.gz", hash = "sha256:58ce36506476117231192d45697caaa29c44c209be577767d6f40be8bdf16eaf", size = 6656, upload-time = "2019-05-31T00:56:03.094Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/d7/ebdd082d0863532c3f41c9cd142cd5f5d2df4507fd452ad9a4ff113327b3/pytest_faulthandler-1.6.0-py2.py3-none-any.whl", hash = "sha256:9b73670671a011b26a24f3433ec8068c93bd043ed841fe13c7951abb430d4264", size = 4399, upload-time = "2019-05-31T00:56:01.226Z" },
-]
-
-[[package]]
 name = "pytest-timeout"
-version = "1.4.2"
+version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fd/f2/4202dea92b48712481e46bc6fb9122fd76baac727333858c69be5d19dfc5/pytest-timeout-1.4.2.tar.gz", hash = "sha256:20b3113cf6e4e80ce2d403b6fb56e9e1b871b510259206d40ff8d609f48bda76", size = 15424, upload-time = "2020-07-15T19:26:35.383Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/82/4c9ecabab13363e72d880f2fb504c5f750433b2b6f16e99f4ec21ada284c/pytest_timeout-2.4.0.tar.gz", hash = "sha256:7e68e90b01f9eff71332b25001f85c75495fc4e3a836701876183c4bcfd0540a", size = 17973, upload-time = "2025-05-05T19:44:34.99Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/df/97cc0b5b8b53da0e265acd0aeecfc0c279e950a029acd2d7b4e54b00b25f/pytest_timeout-1.4.2-py2.py3-none-any.whl", hash = "sha256:541d7aa19b9a6b4e475c759fd6073ef43d7cdc9a92d95644c260076eb257a063", size = 10902, upload-time = "2020-07-15T19:26:33.505Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/b6/3127540ecdf1464a00e5a01ee60a1b09175f6913f0644ac748494d9c4b21/pytest_timeout-2.4.0-py3-none-any.whl", hash = "sha256:c42667e5cdadb151aeb5b26d114aff6bdf5a907f176a007a30b940d3d865b5c2", size = 14382, upload-time = "2025-05-05T19:44:33.502Z" },
 ]
 
 [[package]]
@@ -860,6 +848,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "82.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
 
 [[package]]

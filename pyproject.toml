@@ -20,9 +20,7 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
-    "Operating System :: Microsoft :: Windows :: Windows Vista",
-    "Operating System :: Microsoft :: Windows :: Windows Server 2008",
-    "Operating System :: Microsoft :: Windows :: Windows 7",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -38,12 +36,12 @@ dependencies = []
 test = [
     "mock>=1.0.1",
     "hypothesis>=3.5.3",
-    "pytest>=3.0.3",
+    "pytest>=7.0.0",
     "pytest-cov>=2.2.1",
-    "pytest-timeout>=1.0.0, <2",
-    "pytest-faulthandler>=1.3.0, <2",
+    "pytest-timeout>=2.1.0",
     "codecov>=2.0.5",
     "wheel>=0.29",
+    "setuptools",
 ]
 docs = [
     "mkdocs>=1.5.0",

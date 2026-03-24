@@ -52,9 +52,23 @@ class Flag(IntEnum):
     """The handle is for sending only."""
     NO_INSTALL = 16
     """Do not install the driver."""
-    FULL_PROCESS_IDS = 32
+    FRAGMENTS = 32
+    """Divert all fragments (requires WinDivert 2.2+)."""
+    OVERLAPPED = 64
+    """Use overlapped IO."""
+    FULL_PROCESS_IDS = 128
     """Include full process IDs in metadata."""
     NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
+
+
+# Divert receive flags.
+class RecvFlag(IntEnum):
+    """
+    WinDivert receive flags.
+    See https://reqrypt.org/windivert-doc.html#divert_recv
+    """
+    DEFAULT = 0
+    NO_BLOCK = 1
 
 
 # Divert parameters.

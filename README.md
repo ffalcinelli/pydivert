@@ -1,35 +1,171 @@
-# pydivert
+# PyDivert
 
 [![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/master.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![latest_release](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
-[![python_versions](https://img.shields.io/pypi/pyversions/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
+[![python_versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://pypi.python.org/pypi/pydivert)
+[![windows](https://img.shields.io/badge/os-windows%2011-blue.svg)](https://pypi.python.org/pypi/pydivert)
+[![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/master/LICENSE)
 
-Python bindings for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture/modify/drop network packets sent to/from the Windows network stack.
+**PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
+
+## Features
+
+- **Capture** network packets matching a specific filter.
+- **Modify** packet headers and payloads on the fly.
+- **Drop** unwanted packets.
+- **Inject** new or modified packets into the network stack.
+- **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
+- **Bundled Binaries**: No need to manually install WinDivert; the 64-bit DLL and driver are included.
 
 ## Requirements
 
-- **Python 3.10+** (32 or 64 bit)
-- **Windows Vista/7/8/10/11** or Windows Server 2008+ (32 or 64 bit)
-- **Administrator Privileges**
+- **Python 3.10+** (64-bit)
+- **Windows 11** (64-bit)
+- **Administrator Privileges** (required to interact with the WinDivert driver)
+
+> [!NOTE]
+> Windows Server is currently untested but likely works if it meets the architecture requirements.
 
 ## Installation
 
-You can install PyDivert by running:
+Install PyDivert using `pip`:
 
 ```bash
 pip install pydivert
 ```
 
-Alternatively, if you use [uv](https://github.com/astral-sh/uv):
+Or using [uv](https://github.com/astral-sh/uv):
 
 ```bash
 uv add pydivert
 ```
 
-WinDivert is bundled with PyDivert and does not need to be installed separately.
+## Quick Start
 
-### WinDivert Version Compatibility
+The main entry points are `pydivert.WinDivert` for capturing and `pydivert.Packet` for manipulation.
+
+### Basic Capture and Re-injection
+
+```python
+import pydivert
+
+# Capture only TCP packets to port 80 (HTTP requests)
+with pydivert.WinDivert("tcp.DstPort == 80") as w:
+    for packet in w:
+        print(f"Captured: {packet}")
+        w.send(packet)  # Re-inject the packet back into the stack
+```
+
+When you call `.recv()` (or iterate over the `WinDivert` object), the packet is **taken out** of the Windows network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
+
+### Packet Modification
+
+You can easily modify packet headers and recalculate checksums automatically.
+
+```python
+import pydivert
+
+with pydivert.WinDivert("tcp.DstPort == 1234") as w:
+    for packet in w:
+        # Redirect traffic to port 80
+        packet.dst_port = 80
+        
+        # WinDivert handles checksum recalculation by default when sending
+        w.send(packet)
+```
+
+## Common Use Cases
+
+### 1. Simple Firewall (Dropping Packets)
+By simply not calling `.send(packet)`, the packet is effectively dropped and never reaches its destination.
+
+```python
+import pydivert
+
+# Block all traffic from a specific IP address
+with pydivert.WinDivert("ip.SrcAddr == 1.2.3.4") as w:
+    for packet in w:
+        print(f"Blocking packet from {packet.src_addr}")
+        # Packet is dropped here
+```
+
+### 2. Payload Inspection and Modification
+You can inspect or modify the raw bytes of the packet payload.
+
+```python
+import pydivert
+
+# Filter for TCP packets with payload
+with pydivert.WinDivert("tcp.PayloadLength > 0") as w:
+    for packet in w:
+        if b"secret-token" in packet.payload:
+            print("Sensitive data detected!")
+            # Redact the token
+            packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
+        w.send(packet)
+```
+
+### 3. Traffic Logging
+Log detailed information about network flows.
+
+```python
+import pydivert
+
+with pydivert.WinDivert("tcp or udp") as w:
+    for packet in w:
+        direction = "OUT" if packet.is_outbound else "IN "
+        print(f"[{direction}] {packet.src_addr}:{packet.src_port} -> "
+              f"{packet.dst_addr}:{packet.dst_port} ({len(packet.payload)} bytes)")
+        w.send(packet)
+```
+
+## Common Packet Properties
+
+The `pydivert.Packet` object provides easy access to common protocol fields:
+
+- **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`
+- **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`
+- **Payload**: `packet.payload` (bytes)
+- **Metadata**: `packet.is_inbound`, `packet.is_outbound`, `packet.interface`, `packet.timestamp`
+
+Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `packet.tcp`, `packet.udp`, and `packet.icmp`.
+
+## Advanced Usage
+
+### WinDivert Layers
+
+WinDivert supports different layers for capturing different types of traffic:
+
+- `Layer.NETWORK` (default): Captures IP packets.
+- `Layer.FLOW`: Captures connection events (useful for logging connections without seeing every packet).
+- `Layer.SOCKET`: Captures socket-level events.
+
+```python
+from pydivert import WinDivert, Layer
+
+with WinDivert("true", layer=Layer.FLOW) as w:
+    for event in w:
+        print(f"Connection event: {event}")
+```
+
+### Flags
+
+You can customize the behavior using flags:
+
+- `Flag.SNIFF`: Capture packets without diverting them (they still reach their destination).
+- `Flag.DROP`: Drop packets by default.
+- `Flag.OVERLAPPED`: Use asynchronous (overlapped) I/O.
+
+```python
+from pydivert import WinDivert, Flag
+
+with WinDivert("tcp.DstPort == 80", flags=Flag.SNIFF) as w:
+    for packet in w:
+        print(f"Sniffed: {packet}")
+```
+
+## WinDivert Version Compatibility
 
 | PyDivert | WinDivert |
 | --- | --- |
@@ -37,60 +173,20 @@ WinDivert is bundled with PyDivert and does not need to be installed separately.
 | 1.0.x | 1.1.8 (bundled) |
 | 2.0.x | 1.1.8 (bundled) |
 | 2.1.x | 1.3 (bundled) |
-| 2.2.2 | 2.2.2 (bundled) |
+| 2.2.2+ | 2.2.2 (bundled) |
 
-## Getting Started
+## Development
 
-PyDivert consists of two main classes: `pydivert.WinDivert` and `pydivert.Packet`.
+To set up a development environment:
 
-First, create a `WinDivert` object to start capturing network traffic and then call `.recv()` to receive the first `Packet` that was captured. By receiving packets, they are taken out of the Windows network stack and will not be sent out unless you take action. You can re-inject packets by calling `.send(packet)`.
-
-```python
-import pydivert
-
-# Capture only TCP packets to port 80, i.e. HTTP requests.
-with pydivert.WinDivert("tcp.DstPort == 80 and tcp.PayloadLength > 0") as w:
-    for packet in w:
-        print(packet)
-        w.send(packet)
-        break
-```
-
-Packets that are not matched by the filter will continue through the network stack as usual. The syntax for the filter language is described in the [WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
-
-## Features in WinDivert 2.2
-
-PyDivert now supports the advanced features introduced in WinDivert 2.2, including:
-- **New Layers**: Support for `FLOW`, `SOCKET`, and `REFLECT` layers.
-- **Improved Packet Parsing**: Accurate handling of IP fragments and more protocol metadata.
-- **Enhanced Address Metadata**: Timestamps, loopback flags, and process IDs (where supported by the layer).
-
-## Packet Modification
-
-`pydivert.Packet` provides properties to access and modify headers or payload.
-
-```python
-import pydivert
-
-with pydivert.WinDivert("tcp.DstPort == 1234 or tcp.SrcPort == 80") as w:
-    for packet in w:
-        if packet.dst_port == 1234:
-            print(">") # packet to the server
-            packet.dst_port = 80
-        if packet.src_port == 80:
-            print("<") # reply from the server
-            packet.src_port = 1234
-        w.send(packet)
-```
+1. Clone the repository.
+2. Install dependencies: `uv sync --extra test --extra docs`
+3. Run tests (requires Admin): `uv run pytest`
 
 ## API Reference
 
-The API Reference Documentation for PyDivert can be found [here](https://ffalcinelli.github.io/pydivert/).
+The full API documentation is available at [https://ffalcinelli.github.io/pydivert/](https://ffalcinelli.github.io/pydivert/).
 
-## Uninstalling
+## License
 
-```bash
-pip uninstall pydivert
-```
-
-If the WinDivert driver is still running, it will remove itself on the next reboot.
+PyDivert is licensed under the **LGPLv3** license. See the [LICENSE](LICENSE) file for more details.

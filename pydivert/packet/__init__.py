@@ -41,9 +41,9 @@ class Packet(object):
         self.interface = interface
         self.direction = direction
         self.timestamp = timestamp
-        self.is_loopback = loopback
-        self.is_impostor = impostor
-        self.is_sniffed = sniffed
+        self._loopback = loopback
+        self._impostor = impostor
+        self._sniffed = sniffed
         self.ip_checksum = ip_checksum
         self.tcp_checksum = tcp_checksum
         self.udp_checksum = udp_checksum
@@ -86,6 +86,39 @@ class Packet(object):
         Convenience method for ``.direction``.
         """
         return self.direction == Direction.INBOUND
+
+    @property
+    def is_loopback(self):
+        """
+        Indicates if the packet is a loopback packet.
+        """
+        return self._loopback
+
+    @is_loopback.setter
+    def is_loopback(self, val):
+        self._loopback = bool(val)
+
+    @property
+    def is_impostor(self):
+        """
+        Indicates if the packet is an impostor packet.
+        """
+        return self._impostor
+
+    @is_impostor.setter
+    def is_impostor(self, val):
+        self._impostor = bool(val)
+
+    @property
+    def is_sniffed(self):
+        """
+        Indicates if the packet is a sniffed packet.
+        """
+        return self._sniffed
+
+    @is_sniffed.setter
+    def is_sniffed(self, val):
+        self._sniffed = bool(val)
 
     @cached_property
     def address_family(self):
@@ -308,7 +341,8 @@ class Packet(object):
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         buff, buff_ = self.__to_buffers()
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), None, flags)
+        addr = self.wd_addr
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)
         return num
 
     def __to_buffers(self):

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from .consts import Layer, Flag, Param, CalcChecksumsOption, Direction, Protocol
+from .consts import Layer, Flag, Param, CalcChecksumsOption, Direction, Protocol, RecvFlag
 from .packet import Packet
 from .windivert import WinDivert
 
@@ -23,5 +23,5 @@ __version__ = '2.2.2'
 __all__ = [
     "WinDivert",
     "Packet",
-    "Layer", "Flag", "Param", "CalcChecksumsOption", "Direction", "Protocol",
+    "Layer", "Flag", "Param", "CalcChecksumsOption", "Direction", "Protocol", "RecvFlag",
 ]

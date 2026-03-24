@@ -16,6 +16,22 @@
 import ctypes
 
 
+from ctypes.wintypes import DWORD, HANDLE
+
+
+class Overlapped(ctypes.Structure):
+    """
+    Ctypes Structure for OVERLAPPED.
+    """
+    _fields_ = [
+        ("Internal", ctypes.c_void_p),
+        ("InternalHigh", ctypes.c_void_p),
+        ("Offset", DWORD),
+        ("OffsetHigh", DWORD),
+        ("hEvent", HANDLE),
+    ]
+
+
 class WinDivertAddress(ctypes.Structure):
     """
     Ctypes Structure for WINDIVERT_ADDRESS (WinDivert 2.2).

@@ -35,9 +35,37 @@ Captured `Packet` objects now include additional metadata provided by WinDivert 
 - **`is_loopback`**: `True` if the packet is a loopback packet.
 - **`is_impostor`**: `True` if the packet was injected by another driver.
 - **`is_sniffed`**: `True` if the packet was captured in sniff mode.
-- **Checksum status**: `ip_checksum`, `tcp_checksum`, and `udp_checksum` flags indicate if the hardware offloaded checksums are valid.
+- Checksum status**: `ip_checksum`, `tcp_checksum`, and `udp_checksum` flags indicate if the hardware offloaded checksums are valid.
+
+## Asynchronous IO
+
+PyDivert supports Windows Overlapped IO for asynchronous packet capture and injection via `recv_ex()` and `send_ex()`:
+
+```python
+import pydivert
+from pydivert.windivert_dll import Overlapped
+import ctypes
+
+# ... create event, initialize Overlapped structure ...
+overlapped = Overlapped()
+overlapped.hEvent = # ... windows event handle ...
+
+with pydivert.WinDivert("true") as w:
+    packet = w.recv_ex(overlapped=overlapped)
+    if packet is None:
+        # Operation is pending (ERROR_IO_PENDING)
+        # ... wait for event ...
+```
+
+## Requirements
+
+PyDivert supports **Python 3.10+** (64-bit) on **Windows 11** (64-bit). Administrator privileges are required to load the WinDivert driver.
+
+!!! warning
+    Windows Server is currently untested, but it may work.
 
 ## Installation
+
 
 ```bash
 pip install pydivert

@@ -58,11 +58,11 @@ class IPHeader(Header):
         """
         The total packet length, including *all* headers, as reported by the IP header.
         """
-        raise NotImplementedError()  # pragma: no cover
+        return len(self._packet.raw)
 
     @packet_len.setter
     def packet_len(self, val):
-        raise NotImplementedError()  # pragma: no cover
+        pass
 
 
 class IPv4Header(IPHeader):

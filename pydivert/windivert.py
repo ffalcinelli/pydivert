@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import subprocess
 import sys
+import ctypes
 from ctypes import byref, c_uint64, c_uint, c_char, c_char_p
 
 from pydivert import windivert_dll
@@ -92,7 +93,7 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert2.2", stdout=subprocess.PIPE,
+        return subprocess.call("sc query WinDivert", stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE) == 0
 
     @staticmethod
@@ -102,7 +103,7 @@ class WinDivert(object):
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert2.2", stdout=subprocess.PIPE,
+        subprocess.check_call("sc stop WinDivert", stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
     @staticmethod
@@ -186,8 +187,8 @@ class WinDivert(object):
                 __in HANDLE handle,
                 __out PVOID pPacket,
                 __in UINT packetLen,
-                __out_opt PWINDIVERT_ADDRESS pAddr,
-                __out_opt UINT *recvLen
+                __out_opt UINT *pRecvLen,
+                __out_opt PWINDIVERT_ADDRESS pAddr
             );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
@@ -201,7 +202,68 @@ class WinDivert(object):
         packet_ = (c_char * bufsize).from_buffer(packet)
         address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(address), byref(recv_len))
+        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
+        return Packet(
+            memoryview(packet)[:recv_len.value],
+            (address.Network.IfIdx, address.Network.SubIfIdx),
+            Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
+            timestamp=address.Timestamp,
+            loopback=bool(address.Loopback),
+            impostor=bool(address.Impostor),
+            sniffed=bool(address.Sniffed),
+            ip_checksum=bool(address.IPChecksum),
+            tcp_checksum=bool(address.TCPChecksum),
+            udp_checksum=bool(address.UDPChecksum)
+        )
+
+    def recv_ex(self, bufsize=DEFAULT_PACKET_BUFFER_SIZE, flags=0, overlapped=None):
+        """
+        Receives a diverted packet that matched the filter (extended version).
+        Supports overlapped IO.
+
+        The remapped function is WinDivertRecvEx::
+
+            BOOL WinDivertRecvEx(
+                __in HANDLE handle,
+                __out PVOID pPacket,
+                __in UINT packetLen,
+                __out_opt UINT *pRecvLen,
+                __in UINT64 flags,
+                __out PWINDIVERT_ADDRESS pAddr,
+                __inout_opt UINT *pAddrLen,
+                __inout_opt LPOVERLAPPED lpOverlapped
+            );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
+
+        :param bufsize: The size of the packet buffer.
+        :param flags: WinDivert receive flags (e.g. RecvFlag.NO_BLOCK).
+        :param overlapped: An optional `pydivert.windivert_dll.Overlapped` structure for overlapped IO.
+        :return: A `pydivert.Packet` if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
+        """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        packet = bytearray(bufsize)
+        packet_ = (c_char * bufsize).from_buffer(packet)
+        windivert_dll._init()
+        from pydivert.windivert_dll.structs import WinDivertAddress
+        address = WinDivertAddress()
+        recv_len = c_uint(0)
+        addr_len = c_uint(ctypes.sizeof(WinDivertAddress))
+
+        try:
+            windivert_dll.WinDivertRecvEx(self._handle, packet_, bufsize, byref(recv_len), flags,
+                                          byref(address), byref(addr_len), overlapped)
+        except OSError as e:
+            if overlapped is not None and e.winerror == windivert_dll.ERROR_IO_PENDING:
+                # Store references to prevent garbage collection
+                overlapped._packet_buffer = packet
+                overlapped._address = address
+                overlapped._recv_len = recv_len
+                return None
+            raise
+
         return Packet(
             memoryview(packet)[:recv_len.value],
             (address.Network.IfIdx, address.Network.SubIfIdx),
@@ -229,8 +291,8 @@ class WinDivert(object):
                 __in HANDLE handle,
                 __in PVOID pPacket,
                 __in UINT packetLen,
-                __in PWINDIVERT_ADDRESS pAddr,
-                __out_opt UINT *sendLen
+                __out_opt UINT *pSendLen,
+                __in const PWINDIVERT_ADDRESS pAddr
             );
 
         For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
@@ -243,9 +305,60 @@ class WinDivert(object):
         send_len = c_uint(0)
         buff = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(buff)
-        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(packet.wd_addr),
-                                    byref(send_len))
-        return send_len
+        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
+        return send_len.value
+
+    def send_ex(self, packet, recalculate_checksum=True, flags=0, overlapped=None):
+        """
+        Injects a packet into the network stack (extended version).
+        Recalculates the checksum before sending unless recalculate_checksum=False is passed.
+        Supports overlapped IO.
+
+        The remapped function is WinDivertSendEx::
+
+            BOOL WinDivertSendEx(
+                __in HANDLE handle,
+                __in PVOID pPacket,
+                __in UINT packetLen,
+                __out_opt UINT *pSendLen,
+                __in UINT64 flags,
+                __in const PWINDIVERT_ADDRESS pAddr,
+                __in UINT addrLen,
+                __inout_opt LPOVERLAPPED lpOverlapped
+            );
+
+        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
+
+        :param packet: The packet to send.
+        :param recalculate_checksum: Whether to recalculate checksums before sending.
+        :param flags: WinDivert send flags (currently unused, should be 0).
+        :param overlapped: An optional `pydivert.windivert_dll.Overlapped` structure for overlapped IO.
+        :return: The number of bytes sent if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
+        """
+        if recalculate_checksum:
+            packet.recalculate_checksums()
+
+        send_len = c_uint(0)
+        buff = packet.raw
+        buff = (c_char * len(packet.raw)).from_buffer(buff)
+        windivert_dll._init()
+        from pydivert.windivert_dll.structs import WinDivertAddress
+        wd_addr = packet.wd_addr
+        addr_len = ctypes.sizeof(WinDivertAddress)
+
+        try:
+            windivert_dll.WinDivertSendEx(self._handle, buff, len(packet.raw), byref(send_len), flags,
+                                          byref(wd_addr), addr_len, overlapped)
+        except OSError as e:
+            if overlapped is not None and e.winerror == windivert_dll.ERROR_IO_PENDING:
+                # Store references to prevent garbage collection
+                overlapped._packet_raw = packet.raw
+                overlapped._address = wd_addr
+                overlapped._send_len = send_len
+                return None
+            raise
+
+        return send_len.value
 
     def get_param(self, name):
         """

@@ -12,3 +12,5 @@ venv/
 .coverage
 .hypothesis
 site
+.vagrant
+.venv
