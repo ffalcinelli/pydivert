@@ -12,6 +12,8 @@ PyDivert is a Python binding for **WinDivert**, a Windows driver that allows use
 ## Key Technologies
 
 - **Python**: Supports 3.10+.
+- **uv**: Modern package management and build tool.
+- **hatchling**: Build backend for PEP 517/621.
 - **ctypes**: Used for interfacing with the native WinDivert DLL.
 - **WinDivert**: Bundled version 2.2.2 (DLLs and drivers).
 
@@ -19,27 +21,24 @@ PyDivert is a Python binding for **WinDivert**, a Windows driver that allows use
 
 ### Prerequisites
 
-- Windows Vista/7/8/10 or Windows Server 2008.
+- Windows Vista/7/8/10/11 or Windows Server 2008+.
 - Administrator Privileges (required for WinDivert driver).
+- [uv](https://github.com/astral-sh/uv) installed.
 
 ### Building and Running
 
-- **Install dependencies**:
-  ```bash
-  pip install -r requirements.txt
-  ```
 - **Install for development**:
   ```bash
-  pip install -e .[test,docs]
+  uv sync --extra test --extra docs
   ```
 - **Run tests**:
   ```bash
-  pytest
+  uv run pytest
   ```
   Note: Many tests require administrator privileges because they interact with the WinDivert driver.
 - **Build documentation**:
   ```bash
-  python docs/build.py
+  uv run python docs/build.py
   ```
 
 ### Project Structure
@@ -48,4 +47,4 @@ PyDivert is a Python binding for **WinDivert**, a Windows driver that allows use
   - `packet/`: Protocol header implementations.
   - `tests/`: Test suite.
   - `windivert_dll/`: Bundled WinDivert binaries and `ctypes` bindings.
-- `docs/`: Sphinx documentation source.
+- `docs/`: MkDocs documentation source.

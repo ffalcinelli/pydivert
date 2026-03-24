@@ -33,18 +33,29 @@ class Packet(object):
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    def __init__(self, raw, interface, direction):
+    def __init__(self, raw, interface, direction, timestamp=0, loopback=False, impostor=False, sniffed=False,
+                 ip_checksum=False, tcp_checksum=False, udp_checksum=False):
         if isinstance(raw, bytes):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
         self.interface = interface
         self.direction = direction
+        self.timestamp = timestamp
+        self.is_loopback = loopback
+        self.is_impostor = impostor
+        self.is_sniffed = sniffed
+        self.ip_checksum = ip_checksum
+        self.tcp_checksum = tcp_checksum
+        self.udp_checksum = udp_checksum
 
     def __repr__(self):
         def dump(x):
             if isinstance(x, Header) or isinstance(x, Packet):
                 d = {}
                 for k in dir(x):
+                    if k in {"is_inbound", "is_outbound", "is_loopback", "is_impostor", "is_sniffed"}:
+                        d[k] = getattr(x, k)
+                        continue
                     v = getattr(x, k)
                     if k.startswith("_") or callable(v):
                         continue
@@ -75,14 +86,6 @@ class Packet(object):
         Convenience method for ``.direction``.
         """
         return self.direction == Direction.INBOUND
-
-    @property
-    def is_loopback(self):
-        """
-        - True, if the packet is on the loopback interface.
-        - False, otherwise.
-        """
-        return self.interface[0] == 1
 
     @cached_property
     def address_family(self):
@@ -315,12 +318,19 @@ class Packet(object):
     @property
     def wd_addr(self):
         """
-        Gets the interface and direction as a `WINDIVERT_ADDRESS` structure.
+        Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
         address = windivert_dll.WinDivertAddress()
-        address.Network.IfIdx, address.Network.SubIfIdx = self.interface
+        address.Timestamp = self.timestamp
         address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
+        address.Loopback = 1 if self.is_loopback else 0
+        address.Impostor = 1 if self.is_impostor else 0
+        address.Sniffed = 1 if self.is_sniffed else 0
+        address.IPChecksum = 1 if self.ip_checksum else 0
+        address.TCPChecksum = 1 if self.tcp_checksum else 0
+        address.UDPChecksum = 1 if self.udp_checksum else 0
+        address.Network.IfIdx, address.Network.SubIfIdx = self.interface
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):

@@ -1,9 +1,16 @@
 import os
+import subprocess
 import shutil
 
-if os.path.exists("index.html"):
-    os.remove("index.html")
-os.system("sphinx-build -E -b html . build index.rst")
+# Detect paths
+here = os.path.dirname(os.path.abspath(__file__))
+root = os.path.dirname(here)
 
-os.rename("build/index.html", "index.html")
-shutil.rmtree("build")
+# Change to the project root directory to ensure mkdocs build works correctly
+os.chdir(root)
+
+# Build documentation using mkdocs
+print("Building documentation with MkDocs...")
+subprocess.check_call(["uv", "run", "mkdocs", "build"])
+
+print("Documentation built successfully in 'site/' directory.")

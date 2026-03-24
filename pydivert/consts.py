@@ -19,23 +19,41 @@ from enum import IntEnum
 # Divert layers.
 class Layer(IntEnum):
     """
+    WinDivert layers.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
     NETWORK = 0
+    """Network layer (capture/inject IP packets)."""
     NETWORK_FORWARD = 1
+    """Network forward layer."""
     FLOW = 2
+    """Flow layer (capture/inject connection events)."""
     SOCKET = 3
+    """Socket layer (capture/inject socket events)."""
     REFLECT = 4
+    """Reflect layer."""
 
 
 # Divert Flag.
 class Flag(IntEnum):
     """
+    WinDivert flags.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
     DEFAULT = 0
+    """Default flags."""
     SNIFF = 1
+    """Sniff mode: packets are not diverted, but a copy is sent to the application."""
     DROP = 2
+    """Drop mode: packets are dropped by default."""
+    RECV_ONLY = 4
+    """The handle is for receiving only."""
+    SEND_ONLY = 8
+    """The handle is for sending only."""
+    NO_INSTALL = 16
+    """Do not install the driver."""
+    FULL_PROCESS_IDS = 32
+    """Include full process IDs in metadata."""
     NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
 
 

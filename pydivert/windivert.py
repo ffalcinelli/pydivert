@@ -39,6 +39,14 @@ class WinDivert(object):
     """
 
     def __init__(self, filter="true", layer=Layer.NETWORK, priority=0, flags=Flag.DEFAULT):
+        """
+        Creates a WinDivert handle.
+
+        :param filter: The packet filter string (e.g. "tcp.DstPort == 80").
+        :param layer: The WinDivert layer (e.g. Layer.NETWORK, Layer.FLOW).
+        :param priority: The priority of the handle (higher priority handles see packets first).
+        :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
+        """
         self._handle = None
         self._filter = filter.encode()
         self._layer = layer
@@ -197,7 +205,14 @@ class WinDivert(object):
         return Packet(
             memoryview(packet)[:recv_len.value],
             (address.Network.IfIdx, address.Network.SubIfIdx),
-            Direction.OUTBOUND if address.Outbound else Direction.INBOUND
+            Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
+            timestamp=address.Timestamp,
+            loopback=bool(address.Loopback),
+            impostor=bool(address.Impostor),
+            sniffed=bool(address.Sniffed),
+            ip_checksum=bool(address.IPChecksum),
+            tcp_checksum=bool(address.TCPChecksum),
+            udp_checksum=bool(address.UDPChecksum)
         )
 
     def send(self, packet, recalculate_checksum=True):

@@ -21,6 +21,12 @@ You can install PyDivert by running:
 pip install pydivert
 ```
 
+Alternatively, if you use [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv add pydivert
+```
+
 WinDivert is bundled with PyDivert and does not need to be installed separately.
 
 ### WinDivert Version Compatibility
