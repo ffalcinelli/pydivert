@@ -20,7 +20,6 @@ from ctypes import byref, c_uint64, c_uint, c_char, c_char_p
 from pydivert import windivert_dll
 from pydivert.consts import Layer, Direction, Flag
 from pydivert.packet import Packet
-from pydivert.util import PY2
 
 DEFAULT_PACKET_BUFFER_SIZE = 1500
 
@@ -85,7 +84,7 @@ class WinDivert(object):
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call("sc query WinDivert1.3", stdout=subprocess.PIPE,
+        return subprocess.call("sc query WinDivert2.2", stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE) == 0
 
     @staticmethod
@@ -95,7 +94,7 @@ class WinDivert(object):
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call("sc stop WinDivert1.3", stdout=subprocess.PIPE,
+        subprocess.check_call("sc stop WinDivert2.2", stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE)
 
     @staticmethod
@@ -118,10 +117,10 @@ class WinDivert(object):
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:
-            res = windivert_dll.WinDivertHelperCheckFilter(filter.encode(), layer, byref(msg), byref(pos))
+            res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
         except OSError:
             pass
-        return res, pos.value, msg.value.decode()
+        return res, pos.value, msg.value.decode() if msg.value else ""
 
     def open(self):
         """
@@ -197,8 +196,8 @@ class WinDivert(object):
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(address), byref(recv_len))
         return Packet(
             memoryview(packet)[:recv_len.value],
-            (address.IfIdx, address.SubIfIdx),
-            Direction(address.Direction)
+            (address.Network.IfIdx, address.Network.SubIfIdx),
+            Direction.OUTBOUND if address.Outbound else Direction.INBOUND
         )
 
     def send(self, packet, recalculate_checksum=True):
@@ -227,11 +226,7 @@ class WinDivert(object):
             packet.recalculate_checksums()
 
         send_len = c_uint(0)
-        if PY2:
-            # .from_buffer(memoryview) does not work on PY2
-            buff = bytearray(packet.raw)
-        else:
-            buff = packet.raw
+        buff = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(buff)
         windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(packet.wd_addr),
                                     byref(send_len))

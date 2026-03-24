@@ -24,7 +24,7 @@ from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
-from pydivert.util import cached_property, indexbyte as i, PY2
+from pydivert.util import cached_property
 
 
 class Packet(object):
@@ -93,7 +93,7 @@ class Packet(object):
             - None, otherwise.
         """
         if len(self.raw) >= 20:
-            v = i(self.raw[0]) >> 4
+            v = self.raw[0] >> 4
             if v == 4:
                 return socket.AF_INET
             if v == 6:
@@ -108,10 +108,10 @@ class Packet(object):
           | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.address_family == socket.AF_INET:
-            proto = i(self.raw[9])
-            start = (i(self.raw[0]) & 0b1111) * 4
+            proto = self.raw[9]
+            start = (self.raw[0] & 0b1111) * 4
         elif self.address_family == socket.AF_INET6:
-            proto = i(self.raw[6])
+            proto = self.raw[6]
 
             # skip over well-known ipv6 headers
             start = 40
@@ -124,11 +124,11 @@ class Packet(object):
                 if proto == Protocol.FRAGMENT:
                     hdrlen = 8
                 elif proto == Protocol.AH:
-                    hdrlen = (i(self.raw[start + 1]) + 2) * 4
+                    hdrlen = (self.raw[start + 1] + 2) * 4
                 else:
                     # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
-                    hdrlen = (i(self.raw[start + 1]) + 1) * 8
-                proto = i(self.raw[start])
+                    hdrlen = (self.raw[start + 1] + 1) * 8
+                proto = self.raw[start]
                 start += hdrlen
         else:
             start = None
@@ -305,13 +305,11 @@ class Packet(object):
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         buff, buff_ = self.__to_buffers()
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), flags)
-        if PY2:
-            self.raw = memoryview(buff)[:len(self.raw)]
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), None, flags)
         return num
 
     def __to_buffers(self):
-        buff = bytearray(self.raw.tobytes()) if PY2 else self.raw.obj
+        buff = self.raw.obj
         return buff, (ctypes.c_char * len(self.raw)).from_buffer(buff)
 
     @property
@@ -321,8 +319,8 @@ class Packet(object):
         :return: The `WINDIVERT_ADDRESS` structure.
         """
         address = windivert_dll.WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = self.interface
-        address.Direction = self.direction
+        address.Network.IfIdx, address.Network.SubIfIdx = self.interface
+        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):
@@ -346,5 +344,7 @@ class Packet(object):
         :return: True if the packet matches, and False otherwise.
         """
         buff, buff_ = self.__to_buffers()
-        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), layer, ctypes.byref(buff_), len(self.raw),
-                                                       ctypes.byref(self.wd_addr))
+        addr = self.wd_addr
+        addr.Layer = layer
+        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), ctypes.byref(buff_), len(self.raw),
+                                                       ctypes.byref(addr))

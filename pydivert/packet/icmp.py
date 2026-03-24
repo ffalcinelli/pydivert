@@ -14,31 +14,31 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from pydivert.packet.header import Header, PayloadMixin
-from pydivert.util import indexbyte as i, raw_property
+from pydivert.util import raw_property
 
 
 class ICMPHeader(Header, PayloadMixin):
-    header_len = 4
-
     @property
     def type(self):
         """
         The ICMP message type.
         """
-        return i(self.raw[0])
+        return self.raw[0]
 
     @type.setter
     def type(self, val):
-        self.raw[0] = i(val)
+        self.raw[0] = val
 
     @property
     def code(self):
         """
         The ICMP message code.
         """
-        return i(self.raw[1])
+        return self.raw[1]
 
     @code.setter
+    def code(self, val):
+        self.raw[1] = val
     def code(self, val):
         self.raw[1] = i(val)
 

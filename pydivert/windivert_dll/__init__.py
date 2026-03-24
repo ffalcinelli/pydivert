@@ -15,7 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 pydivert bundles the WinDivert binaries from
-https://reqrypt.org/download/WinDivert-1.3.0-WDDK.zip
+https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 """
 import functools
 import os
@@ -58,13 +58,13 @@ def raise_on_error(f):
 
 
 WINDIVERT_FUNCTIONS = {
-    "WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
-                                   c_void_p, POINTER(c_uint)],
+    "WinDivertHelperParsePacket": [c_void_p, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
+                                   c_void_p, c_void_p, POINTER(c_uint), c_void_p, POINTER(c_uint)],
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
-    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
-    "WinDivertHelperCheckFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
-    "WinDivertHelperEvalFilter": [c_char_p, c_int, c_void_p, c_uint, c_void_p],
+    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_void_p, c_uint64],
+    "WinDivertHelperCompileFilter": [c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)],
+    "WinDivertHelperEvalFilter": [c_char_p, c_void_p, c_uint, c_void_p],
     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
     "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
     "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],

@@ -16,7 +16,7 @@
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import indexbyte as i, flag_property, raw_property
+from pydivert.util import flag_property, raw_property
 
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
@@ -51,7 +51,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         The size of TCP header in 32bit words.
         """
-        return i(self.raw[12]) >> 4
+        return self.raw[12] >> 4
 
     @data_offset.setter
     def data_offset(self, val):
@@ -64,7 +64,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         The reserved field.
         """
-        return (i(self.raw[12]) >> 1) & 0x07
+        return (self.raw[12] >> 1) & 0x07
 
     @reserved.setter
     def reserved(self, val):

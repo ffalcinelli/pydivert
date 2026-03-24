@@ -17,7 +17,7 @@ import socket
 import struct
 
 from pydivert.packet.header import Header
-from pydivert.util import PY2, PY34, flag_property, indexbyte as i, raw_property
+from pydivert.util import flag_property, raw_property
 
 
 class IPHeader(Header):
@@ -82,7 +82,7 @@ class IPv4Header(IPHeader):
         """
         The header length in words of 32bit.
         """
-        return i(self.raw[0]) & 0x0F
+        return self.raw[0] & 0x0F
 
     @hdr_len.setter
     def hdr_len(self, val):
@@ -108,7 +108,7 @@ class IPv4Header(IPHeader):
         """
         The flags field: RESERVED (the evil bit), DF (don't fragment), MF (more fragments).
         """
-        return i(self.raw[6]) >> 5
+        return self.raw[6] >> 5
 
     @flags.setter
     def flags(self, val):
@@ -130,7 +130,7 @@ class IPv4Header(IPHeader):
         """
         The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.
         """
-        return (i(self.raw[1]) >> 2) & 0x3F
+        return (self.raw[1] >> 2) & 0x3F
 
     @dscp.setter
     def dscp(self, val):
@@ -143,7 +143,7 @@ class IPv4Header(IPHeader):
         """
         The Explicit Congestion Notification field.
         """
-        return i(self.raw[1]) & 0x03
+        return self.raw[1] & 0x03
 
     @ecn.setter
     def ecn(self, val):
@@ -212,5 +212,4 @@ class IPv6Header(IPHeader):
     def ecn(self, val):
         self.traffic_class = (self.diff_serv << 2) | val
 
-    if not PY2 and not PY34:
-        packet_len.__doc__ = IPHeader.packet_len.__doc__
+    packet_len.__doc__ = IPHeader.packet_len.__doc__

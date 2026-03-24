@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import struct
-import sys
 
 
 class cached_property(object):
@@ -35,42 +34,27 @@ class cached_property(object):
         return value
 
 
-if sys.version_info < (3, 0):
-    # python 3's byte indexing: b"AAA"[1] == 65
-    indexbyte = lambda x: chr(x) if isinstance(x, int) else ord(x)
-    # python 3's bytes.fromhex()
-    fromhex = lambda x: x.decode("hex")
-    PY2 = True
-    PY34 = False
-else:
-    indexbyte = lambda x: x
-    fromhex = lambda x: bytes.fromhex(x)
-    PY2 = False
-    if sys.version_info < (3, 5):
-        # __doc__ attribute is only writable from 3.5.
-        PY34 = True
-    else:
-        PY34 = False
+def fromhex(x):
+    return bytes.fromhex(x)
 
 
 def flag_property(name, offset, bit, docs=None):
     @property
     def flag(self):
-        return bool(indexbyte(self.raw[offset]) & bit)
+        return bool(self.raw[offset] & bit)
 
     @flag.setter
     def flag(self, val):
-        flags = indexbyte(self.raw[offset])
+        flags = self.raw[offset]
         if val:
             flags |= bit
         else:
             flags &= ~bit
-        self.raw[offset] = indexbyte(flags)
+        self.raw[offset] = flags
 
-    if not PY2 and not PY34:
-        flag.__doc__ = """
-            Indicates if the {} flag is set.
-            """.format(name.upper()) if not docs else docs
+    flag.__doc__ = """
+        Indicates if the {} flag is set.
+        """.format(name.upper()) if not docs else docs
 
     return flag
 
@@ -84,7 +68,7 @@ def raw_property(fmt, offset, docs=None):
     def rprop(self, val):
         struct.pack_into(fmt, self.raw, offset, val)
 
-    if docs and not PY2 and not PY34:
+    if docs:
         rprop.__doc__ = docs
 
     return rprop

@@ -27,7 +27,7 @@ workdir = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(workdir, "pydivert", "__init__.py")) as fp:
     __version__ = fp.read().split("__version__ = '", 1)[1].split("'", 1)[0]
 
-with open(os.path.join(workdir, 'README.rst')) as f:
+with open(os.path.join(workdir, 'README.md')) as f:
     long_description = f.read()
 
 setup(
@@ -35,6 +35,7 @@ setup(
     version=__version__,
     description='Python binding to windivert driver',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Fabio Falcinelli',
     author_email='fabio.falcinelli@gmail.com',
     url='https://github.com/ffalcinelli/pydivert',
@@ -54,15 +55,15 @@ setup(
         'Operating System :: Microsoft :: Windows :: Windows Server 2008',
         'Operating System :: Microsoft :: Windows :: Windows 7',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: System :: Networking :: Firewalls',
         'Topic :: System :: Networking :: Monitoring',
         'Topic :: Utilities',
     ],
+    python_requires=">=3.10",
     extras_require={
         "test": [
             "mock>=1.0.1",
@@ -77,11 +78,5 @@ setup(
         "docs": [
             "sphinx>=1.4.8",
         ],
-        # Do not use a range operator here: https://bitbucket.org/pypa/setuptools/issues/380
-        # Ubuntu Trusty and other still ship with setuptools < 17.1
-        ':python_version == "2.7" or python_version == "3.3"': [
-            "win_inet_pton>=1.0.1",  # available on 3.4+
-            "enum34>=1.1.6",  # available on 3.4+
-        ]
     }
 )

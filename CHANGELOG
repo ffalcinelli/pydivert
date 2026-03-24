@@ -1,3 +1,9 @@
+Version 2.2.2
+    - Bundle WinDivert 2.2.2.
+    - Drop support for Python < 3.10.
+    - Updated for modern Windows environments (10/11).
+    - Support for new layers (FLOW, SOCKET, REFLECT).
+
 Version 2.1.0
     - Bundle WinDivert 1.3.
 
