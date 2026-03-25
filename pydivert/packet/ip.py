@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -33,7 +32,7 @@ class IPHeader(Header):
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
-        except (ValueError, socket.error):
+        except (OSError, ValueError):
             pass
 
     @src_addr.setter
@@ -47,7 +46,7 @@ class IPHeader(Header):
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
-        except (ValueError, socket.error):
+        except (OSError, ValueError):
             pass
 
     @dst_addr.setter

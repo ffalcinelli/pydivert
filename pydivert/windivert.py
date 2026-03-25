@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,19 +13,18 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import subprocess
-import sys
 import ctypes
-from ctypes import byref, c_uint64, c_uint, c_char, c_char_p
+import subprocess
+from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import windivert_dll
-from pydivert.consts import Layer, Direction, Flag
+from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
 
 DEFAULT_PACKET_BUFFER_SIZE = 1500
 
 
-class WinDivert(object):
+class WinDivert:
     """
     A WinDivert handle that can be used to capture packets.
     The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
@@ -77,9 +75,6 @@ class WinDivert(object):
     def __next__(self):
         return self.recv()
 
-    if sys.version_info < (3, 0):
-        next = __next__
-
     @staticmethod
     def register():
         """
@@ -123,7 +118,8 @@ class WinDivert(object):
 
         See: https://reqrypt.org/windivert-doc.html#divert_helper_check_filter
 
-        :return: A tuple (res, pos, msg) with check result in 'res' human readable description of the error in 'msg' and the error's position in 'pos'.
+        :return: A tuple (res, pos, msg) with check result in 'res' human readable description of the error in 'msg'
+            and the error's position in 'pos'.
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:

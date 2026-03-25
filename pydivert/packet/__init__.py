@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,7 +18,7 @@ import pprint
 import socket
 
 from pydivert import windivert_dll
-from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol, Layer
+from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
 from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPv4Header, IPv6Header
@@ -28,7 +27,7 @@ from pydivert.packet.udp import UDPHeader
 from pydivert.util import cached_property
 
 
-class Packet(object):
+class Packet:
     """
     A single packet, possibly including an IP header, a TCP/UDP header and a payload.
     Creation of packets is cheap, parsing is done on first attribute access.
@@ -70,7 +69,7 @@ class Packet(object):
                 return d
             return x
 
-        return "Packet({})".format(dump(self))
+        return f"Packet({dump(self)})"
 
     @property
     def is_outbound(self):

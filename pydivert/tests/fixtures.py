@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,8 +17,9 @@ import itertools
 import socket
 import threading
 
-import pydivert
 import pytest
+
+import pydivert
 
 try:
     from queue import Queue
@@ -83,11 +83,7 @@ def scenario(request):
     server_thread = threading.Thread(target=server_echo)
     server_thread.start()
 
-    filt = "{proto}.SrcPort == {c_port} or {proto}.SrcPort == {s_port}".format(
-        proto=proto,
-        c_port=client.getsockname()[1],
-        s_port=server.getsockname()[1]
-    )
+    filt = f"{proto}.SrcPort == {client.getsockname()[1]} or {proto}.SrcPort == {server.getsockname()[1]}"
 
     def send_thread(*args, **kwargs):
         threading.Thread(target=send, args=args, kwargs=kwargs).start()

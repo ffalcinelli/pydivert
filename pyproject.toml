@@ -48,10 +48,45 @@ docs = [
     "mkdocs-material>=9.4.0",
     "mkdocstrings[python]>=0.23.0",
 ]
+lint = [
+    "ruff>=0.1.0",
+]
+typecheck = [
+    "mypy>=1.0.0",
+    "pytest>=7.0.0", # mypy needs pytest for tests type checking if desired
+]
 
 [project.urls]
 Homepage = "https://github.com/ffalcinelli/pydivert"
 Repository = "https://github.com/ffalcinelli/pydivert.git"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["pydivert"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false # We can start gradual
+disallow_incomplete_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
 
 [tool.hatch.version]
 path = "pydivert/__init__.py"

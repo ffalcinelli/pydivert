@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,13 +14,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import socket
+import struct
+
+import pytest
+from hypothesis import example, given
+from hypothesis.strategies import binary
 
 import pydivert
-import pytest
-from hypothesis import given, example
-from hypothesis.strategies import binary
 from pydivert import util
-from pydivert.consts import Protocol, Direction
+from pydivert.consts import Direction, Protocol
 
 
 def p(raw):
@@ -143,27 +144,27 @@ def test_ipv4_tcp_modify():
 
     # src_addr
     x.src_addr = "1.2.3.4"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.src_addr = "::1"
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError):
         x.src_addr = 42
     assert x.src_addr == "1.2.3.4"
 
     # dst_addr
     x.dst_addr = "4.3.2.1"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.dst_addr = "::1"
     assert x.dst_addr == "4.3.2.1"
 
     # src_port
     x.src_port = 42
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.src_port = "bogus"
     assert x.src_port == 42
 
     # dst_port
     x.dst_port = 43
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.dst_port = "bogus"
     assert x.dst_port == 43
 
@@ -175,7 +176,7 @@ def test_ipv4_tcp_modify():
 
     # payload
     x.payload = b"test"
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.payload = 42
     assert x.payload == b"test"
 
@@ -207,35 +208,36 @@ def test_ipv6_udp_modify():
 
     # src_addr
     x.src_addr = "::1"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.src_addr = "127.0.0.1"
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError):
         x.src_addr = 42
     assert x.src_addr == "::1"
 
     # dst_addr
     x.dst_addr = "::2"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.dst_addr = "bogus"
     assert x.dst_addr == "::2"
 
     # src_port
     x.src_port = 42
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.src_port = "bogus"
     assert x.src_port == 42
 
     # dst_port
     x.dst_port = 43
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.dst_port = "bogus"
     assert x.dst_port == 43
 
     # payload
     x.payload = b"test"
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.payload = 42
     assert x.payload == b"test"
+
 
     # checksum
     a = x.raw.tobytes()
@@ -257,31 +259,31 @@ def test_icmp_modify():
 
     # src_addr
     x.src_addr = "1.2.3.4"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.src_addr = "::1"
-    with pytest.raises(Exception):
+    with pytest.raises(TypeError):
         x.src_addr = 42
     assert x.src_addr == "1.2.3.4"
 
     # dst_addr
     x.dst_addr = "4.3.2.1"
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):
         x.dst_addr = "::1"
     assert x.dst_addr == "4.3.2.1"
 
     # payload
     x.payload = b"test"
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.payload = 42
     assert x.payload == b"test"
 
     # icmp
     x.icmp.type = 42
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.icmp.type = "bogus"
     assert x.icmp.type == 42
     x.icmp.code = 42
-    with pytest.raises(Exception):
+    with pytest.raises((TypeError, struct.error)):
         x.icmp.code = "bogus"
     assert x.icmp.code == 42
 
@@ -311,21 +313,21 @@ def test_meta():
 
 def test_bogus():
     x = p(b"")
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.src_addr = "127.0.0.1"
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.dst_addr = "127.0.0.1"
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.src_port = 80
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.dst_port = 80
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.payload = b""
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.icmp.code = 42
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.tcp.ack = True
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         x.tcp.unknown_attr = True
     assert x.recalculate_checksums() == 0
 

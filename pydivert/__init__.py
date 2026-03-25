@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,7 +13,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .consts import Layer, Flag, Param, CalcChecksumsOption, Direction, Protocol, RecvFlag
+from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
 from .packet import Packet
 from .windivert import WinDivert
 

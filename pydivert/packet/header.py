@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,7 +16,7 @@
 import struct
 
 
-class Header(object):
+class Header:
     def __init__(self, packet, start=0):
         self._packet = packet  # type: "pydivert.Packet"
         self._start = start
@@ -41,14 +40,11 @@ class Header(object):
 
     def __setattr__(self, key, value):
         if key in dir(self) or key in {"_packet", "_start"}:
-            return super(Header, self).__setattr__(key, value)
-        raise AttributeError("AttributeError: '{}' object has no attribute '{}'".format(
-            type(self).__name__,
-            key
-        ))
+            return super().__setattr__(key, value)
+        raise AttributeError(f"AttributeError: '{type(self).__name__}' object has no attribute '{key}'")
 
 
-class PayloadMixin(object):
+class PayloadMixin:
     @property
     def header_len(self):
         raise NotImplementedError()  # pragma: no cover
@@ -68,7 +64,7 @@ class PayloadMixin(object):
             self.raw = self.raw[:self.header_len].tobytes() + val
 
 
-class PortMixin(object):
+class PortMixin:
     @property
     def src_port(self):
         """

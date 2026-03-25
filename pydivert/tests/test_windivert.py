@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,10 +16,12 @@
 import time
 
 import pytest
+
 from pydivert.consts import Param
 from pydivert.windivert import WinDivert
 
-from .fixtures import scenario, windivert_handle as w
+from .fixtures import scenario
+from .fixtures import windivert_handle as w
 
 assert scenario, w  # keep fixtures
 
@@ -74,7 +75,7 @@ def test_unregister():
         time.sleep(0.01)  # pragma: no cover
 
 
-class TestParams(object):
+class TestParams:
     def test_queue_time_range(self, w):
         """
         Tests setting the minimum value for queue time.
@@ -96,11 +97,11 @@ class TestParams(object):
             assert value == w.get_param(Param.QUEUE_LEN)
 
     def test_invalid_set(self, w):
-        with pytest.raises(Exception):
+        with pytest.raises(OSError):
             w.set_param(42, 43)
 
     def test_invalid_get(self, w):
-        with pytest.raises(Exception):
+        with pytest.raises(OSError):
             w.get_param(42)
 
 

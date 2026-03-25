@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -22,22 +21,38 @@ import functools
 import os
 import platform
 import sys
-import ctypes
+
 try:
     from ctypes import (
-        POINTER, GetLastError, WinError, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
-        c_uint8, windll)
+        ARRAY,
+        POINTER,
+        GetLastError,
+        WinDLL,
+        WinError,
+        c_char_p,
+        c_int,
+        c_int16,
+        c_uint,
+        c_uint8,
+        c_uint32,
+        c_uint64,
+        c_void_p,
+        windll,
+    )
     from ctypes.wintypes import HANDLE
 except (ImportError, AttributeError):
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
-    from ctypes import POINTER, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, c_uint8
-    GetLastError = lambda: 0
+    from ctypes import ARRAY, POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+
+    def GetLastError():
+        return 0
+
     WinError = OSError
     WinDLL = object
     windll = None
     HANDLE = c_void_p
 
-from .structs import WinDivertAddress, Overlapped
+from .structs import Overlapped, WinDivertAddress
 
 ERROR_IO_PENDING = 997
 
@@ -79,8 +94,10 @@ WINDIVERT_FUNCTIONS = {
     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
     "WinDivertRecv": [HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)],
     "WinDivertSend": [HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)],
-    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress), POINTER(c_uint), POINTER(Overlapped)],
-    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress), c_uint, POINTER(Overlapped)],
+    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
+                        POINTER(c_uint), POINTER(Overlapped)],
+    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
+                        c_uint, POINTER(Overlapped)],
     "WinDivertShutdown": [HANDLE, c_int],
     "WinDivertClose": [HANDLE],
     "WinDivertGetParam": [HANDLE, c_int, POINTER(c_uint64)],

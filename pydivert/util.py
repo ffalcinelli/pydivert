@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,7 +16,7 @@
 import struct
 
 
-class cached_property(object):
+class cached_property:
     """
     A property that is only computed once per instance and then replaces itself
     with an ordinary attribute. Deleting the attribute resets the property.
@@ -25,7 +24,7 @@ class cached_property(object):
     """
 
     def __init__(self, func):
-        self.__doc__ = getattr(func, '__doc__')
+        self.__doc__ = func.__doc__
         self.func = func
 
     def __get__(self, obj, cls):
@@ -53,9 +52,9 @@ def flag_property(name, offset, bit, docs=None):
             flags &= ~bit
         self.raw[offset] = flags
 
-    flag.__doc__ = """
-        Indicates if the {} flag is set.
-        """.format(name.upper()) if not docs else docs
+    flag.__doc__ = f"""
+        Indicates if the {name.upper()} flag is set.
+        """ if not docs else docs
 
     return flag
 
