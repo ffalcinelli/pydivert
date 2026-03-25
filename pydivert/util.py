@@ -56,7 +56,7 @@ def flag_property(name, offset, bit, docs=None):
         Indicates if the {name.upper()} flag is set.
         """ if not docs else docs
 
-    return flag
+    return flag  # type: ignore[misc]
 
 
 def raw_property(fmt, offset, docs=None):
@@ -71,4 +71,4 @@ def raw_property(fmt, offset, docs=None):
     if docs:
         rprop.__doc__ = docs
 
-    return rprop
+    return rprop  # type: ignore[misc]

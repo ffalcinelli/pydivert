@@ -160,12 +160,12 @@ class Packet:
                 if proto == Protocol.FRAGMENT:
                     hdrlen = 8
                 elif proto == Protocol.AH:
-                    hdrlen = (self.raw[start + 1] + 2) * 4
+                    hdrlen = (self.raw[start + 1] + 2) * 4  # type: ignore[operator]
                 else:
                     # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
-                    hdrlen = (self.raw[start + 1] + 1) * 8
+                    hdrlen = (self.raw[start + 1] + 1) * 8  # type: ignore[operator]
                 proto = self.raw[start]
-                start += hdrlen
+                start += hdrlen  # type: ignore[operator]
         else:
             start = None
             proto = None
@@ -303,7 +303,7 @@ class Packet:
 
     @src_port.setter
     def src_port(self, val):
-        self._port.src_port = val
+        self._port.src_port = val  # type: ignore[attr-defined]
 
     @property
     def dst_port(self):
@@ -316,7 +316,7 @@ class Packet:
 
     @dst_port.setter
     def dst_port(self, val):
-        self._port.dst_port = val
+        self._port.dst_port = val  # type: ignore[attr-defined]
 
     @property
     def payload(self):
@@ -329,7 +329,7 @@ class Packet:
 
     @payload.setter
     def payload(self, val):
-        self._payload.payload = val
+        self._payload.payload = val  # type: ignore[attr-defined]
 
     def recalculate_checksums(self, flags=0):
         """
@@ -342,7 +342,7 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)  # type: ignore[attr-defined]
         return num
 
     def __to_buffers(self):
@@ -356,15 +356,15 @@ class Packet:
         :return: The `WINDIVERT_ADDRESS` structure.
         """
         address = windivert_dll.WinDivertAddress()
-        address.Timestamp = self.timestamp
-        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
-        address.Loopback = 1 if self.is_loopback else 0
-        address.Impostor = 1 if self.is_impostor else 0
-        address.Sniffed = 1 if self.is_sniffed else 0
-        address.IPChecksum = 1 if self.ip_checksum else 0
-        address.TCPChecksum = 1 if self.tcp_checksum else 0
-        address.UDPChecksum = 1 if self.udp_checksum else 0
-        address.Network.IfIdx, address.Network.SubIfIdx = self.interface
+        address.Timestamp = self.timestamp  # type: ignore
+        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0  # type: ignore
+        address.Loopback = 1 if self.is_loopback else 0  # type: ignore
+        address.Impostor = 1 if self.is_impostor else 0  # type: ignore
+        address.Sniffed = 1 if self.is_sniffed else 0  # type: ignore
+        address.IPChecksum = 1 if self.ip_checksum else 0  # type: ignore
+        address.TCPChecksum = 1 if self.tcp_checksum else 0  # type: ignore
+        address.UDPChecksum = 1 if self.udp_checksum else 0  # type: ignore
+        address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):
@@ -389,6 +389,6 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        addr.Layer = layer
-        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), ctypes.byref(buff_), len(self.raw),
+        addr.Layer = layer  # type: ignore
+        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), ctypes.byref(buff_), len(self.raw),  # type: ignore[attr-defined]
                                                        ctypes.byref(addr))

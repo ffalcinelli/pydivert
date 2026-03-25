@@ -23,7 +23,7 @@ from pydivert.util import flag_property, raw_property
 class IPHeader(Header):
     _src_addr = slice(0, 0)
     _dst_addr = slice(0, 0)
-    _af = None
+    _af = None  # type: ignore
 
     @property
     def src_addr(self):
@@ -31,13 +31,13 @@ class IPHeader(Header):
         The packet source address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
+            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())  # type: ignore[arg-type]
         except (OSError, ValueError):
             pass
 
     @src_addr.setter
     def src_addr(self, val):
-        self.raw[self._src_addr] = socket.inet_pton(self._af, val)
+        self.raw[self._src_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
 
     @property
     def dst_addr(self):
@@ -45,13 +45,13 @@ class IPHeader(Header):
         The packet destination address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
+            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())  # type: ignore[arg-type]
         except (OSError, ValueError):
             pass
 
     @dst_addr.setter
     def dst_addr(self, val):
-        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)
+        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
 
     @property
     def packet_len(self):
@@ -68,7 +68,7 @@ class IPHeader(Header):
 class IPv4Header(IPHeader):
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
-    _af = socket.AF_INET
+    _af = socket.AF_INET  # type: ignore
 
     @property
     def header_len(self):
@@ -153,7 +153,7 @@ class IPv4Header(IPHeader):
 class IPv6Header(IPHeader):
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
-    _af = socket.AF_INET6
+    _af = socket.AF_INET6  # type: ignore
     header_len = 40
 
     payload_len = raw_property('!H', 4, docs='The Payload Length field.')

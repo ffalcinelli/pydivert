@@ -24,12 +24,13 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
 
     @property
     def payload(self):
-        return PayloadMixin.payload.fget(self)
+        return PayloadMixin.payload.fget(self)  # type: ignore
 
     @payload.setter
     def payload(self, val):
-        PayloadMixin.payload.fset(self, val)
+        PayloadMixin.payload.fset(self, val)  # type: ignore
         self.payload_len = len(val)
+
 
     payload.__doc__ = PayloadMixin.payload.__doc__
 

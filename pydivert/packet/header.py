@@ -14,15 +14,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import struct
+from typing import Any
 
 
 class Header:
-    def __init__(self, packet, start=0):
-        self._packet = packet  # type: "pydivert.Packet"
+    def __init__(self, packet: Any, start: int = 0):
+        self._packet = packet
         self._start = start
 
     @property
-    def raw(self):
+    def raw(self) -> Any:  # type: ignore[has-type]
         """
         The raw header, possibly including payload.
         """
@@ -46,6 +47,10 @@ class Header:
 
 class PayloadMixin:
     @property
+    def raw(self) -> Any:
+        raise NotImplementedError()
+
+    @property
     def header_len(self):
         raise NotImplementedError()  # pragma: no cover
 
@@ -66,23 +71,27 @@ class PayloadMixin:
 
 class PortMixin:
     @property
-    def src_port(self):
+    def raw(self) -> Any:
+        raise NotImplementedError()
+
+    @property
+    def src_port(self) -> Any:
         """
         The source port.
         """
-        return struct.unpack_from("!H", self.raw, 0)[0]
+        return struct.unpack_from("!H", self.raw, 0)[0]  # type: ignore[attr-defined]
 
     @property
-    def dst_port(self):
+    def dst_port(self) -> Any:
         """
         The destination port.
         """
-        return struct.unpack_from("!H", self.raw, 2)[0]
+        return struct.unpack_from("!H", self.raw, 2)[0]  # type: ignore[attr-defined]
 
-    @src_port.setter
-    def src_port(self, val):
+    @src_port.setter  # type: ignore
+    def src_port(self, val: Any):
         self.raw[0:2] = struct.pack("!H", val)
 
-    @dst_port.setter
-    def dst_port(self, val):
+    @dst_port.setter  # type: ignore
+    def dst_port(self, val: Any):
         self.raw[2:4] = struct.pack("!H", val)
