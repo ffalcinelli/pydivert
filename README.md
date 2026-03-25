@@ -183,6 +183,33 @@ To set up a development environment:
 2. Install dependencies: `uv sync --extra test --extra docs`
 3. Run tests (requires Admin): `uv run pytest`
 
+### Testing on other Operating Systems (using Vagrant)
+
+Since PyDivert requires Windows and Administrator privileges, you can use **Vagrant** to run the test suite on a Windows 11 virtual machine from a Linux or macOS host.
+
+**Prerequisites:**
+- [Vagrant](https://www.vagrantup.com/)
+- [VirtualBox](https://www.virtualbox.org/)
+
+**Steps:**
+
+1.  **Bring up the VM:**
+    ```bash
+    vagrant up
+    ```
+    This will download a Windows 11 box, provision it with `uv`, and install all necessary dependencies.
+
+2.  **Run the tests:**
+    ```bash
+    vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+    ```
+
+3.  **Interactive Session:**
+    If you need to explore the environment manually:
+    ```bash
+    vagrant powershell
+    ```
+
 ## API Reference
 
 The full API documentation is available at [https://ffalcinelli.github.io/pydivert/](https://ffalcinelli.github.io/pydivert/).
