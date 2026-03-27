@@ -1,0 +1,118 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pydivert"
+dynamic = ["version"]
+description = "Python binding to windivert driver"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "LGPLv3+ or GPLv2+" }
+keywords = ["windivert", "network", "tcp/ip"]
+authors = [
+    { name = "Fabio Falcinelli", email = "fabio.falcinelli@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Telecommunications Industry",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking :: Firewalls",
+    "Topic :: System :: Networking :: Monitoring",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.optional-dependencies]
+test = [
+    "mock>=1.0.1",
+    "hypothesis>=3.5.3",
+    "pytest>=7.0.0",
+    "pytest-cov>=2.2.1",
+    "pytest-timeout>=2.1.0",
+    "codecov>=2.0.5",
+    "wheel>=0.29",
+    "setuptools",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocstrings[python]>=0.23.0",
+]
+lint = [
+    "ruff>=0.1.0",
+]
+typecheck = [
+    "mypy>=1.0.0",
+    "pytest>=7.0.0", # mypy needs pytest for tests type checking if desired
+]
+
+[project.urls]
+Homepage = "https://github.com/ffalcinelli/pydivert"
+Repository = "https://github.com/ffalcinelli/pydivert.git"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["pydivert"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pydivert.windivert_dll.*",
+    "pydivert.windivert",
+    "pydivert.tests.*",
+]
+ignore_errors = true
+
+[tool.hatch.version]
+path = "pydivert/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "pydivert",
+    "AUTHORS",
+    "CHANGELOG",
+    "LICENSE",
+    "README.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pydivert"]
+
+[tool.pytest.ini_options]
+testpaths = ["pydivert"]
+addopts = "--capture=no --color=yes --ignore=pydivert/tests/test_driver_management.py"
+timeout = 60

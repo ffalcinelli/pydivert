@@ -1,39 +1,82 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 from enum import IntEnum
 
 
 # Divert layers.
 class Layer(IntEnum):
     """
+    WinDivert layers.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
     NETWORK = 0
+    """Network layer (capture/inject IP packets)."""
     NETWORK_FORWARD = 1
+    """Network forward layer."""
+    FLOW = 2
+    """Flow layer (capture/inject connection events)."""
+    SOCKET = 3
+    """Socket layer (capture/inject socket events)."""
+    REFLECT = 4
+    """Reflect layer."""
 
 
 # Divert Flag.
 class Flag(IntEnum):
     """
+    WinDivert flags.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
     DEFAULT = 0
+    """Default flags."""
     SNIFF = 1
+    """Sniff mode: packets are not diverted, but a copy is sent to the application."""
     DROP = 2
+    """Drop mode: packets are dropped by default."""
+    RECV_ONLY = 4
+    """The handle is for receiving only."""
+    SEND_ONLY = 8
+    """The handle is for sending only."""
+    NO_INSTALL = 16
+    """Do not install the driver."""
+    FRAGMENTS = 32
+    """Divert all fragments (requires WinDivert 2.2+)."""
+    OVERLAPPED = 64
+    """Use overlapped IO."""
+    FULL_PROCESS_IDS = 128
+    """Include full process IDs in metadata."""
     NO_CHECKSUM = 1024  # Deprecated since Windivert 1.2
+
+
+# Divert receive flags.
+class RecvFlag(IntEnum):
+    """
+    WinDivert receive flags.
+    See https://reqrypt.org/windivert-doc.html#divert_recv
+    """
+    DEFAULT = 0
+    NO_BLOCK = 1
 
 
 # Divert parameters.

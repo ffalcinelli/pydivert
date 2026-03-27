@@ -1,41 +1,75 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 """
 pydivert bundles the WinDivert binaries from
-https://reqrypt.org/download/WinDivert-1.3.0-WDDK.zip
+https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 """
 import functools
 import os
 import platform
 import sys
-from ctypes import (
-    POINTER, GetLastError, WinError, c_uint, c_void_p, c_uint32, c_char_p, ARRAY, c_uint64, c_int16, c_int, WinDLL,
-    c_uint8, windll)
-from ctypes.wintypes import HANDLE
 
-from .structs import WinDivertAddress
+try:
+    from ctypes import (
+        ARRAY,
+        POINTER,
+        GetLastError,
+        WinDLL,
+        WinError,
+        c_char_p,
+        c_int,
+        c_int16,
+        c_uint,
+        c_uint8,
+        c_uint32,
+        c_uint64,
+        c_void_p,
+        windll,
+    )
+    from ctypes.wintypes import HANDLE
+except (ImportError, AttributeError):
+    # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
+    from ctypes import ARRAY, POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+
+    def GetLastError():
+        return 0
+
+    WinError = OSError
+    WinDLL = object
+    windll = None
+    HANDLE = c_void_p
+
+from .structs import Overlapped, WinDivertAddress
 
 ERROR_IO_PENDING = 997
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-if platform.architecture()[0] == "64bit":
-    DLL_PATH = os.path.join(here, "WinDivert64.dll")
-else:
-    DLL_PATH = os.path.join(here, "WinDivert32.dll")
+if platform.architecture()[0] != "64bit":
+    raise RuntimeError("PyDivert only supports 64-bit architecture.")
+
+DLL_PATH = os.path.join(here, "WinDivert64.dll")
 
 
 def raise_on_error(f):
@@ -58,18 +92,21 @@ def raise_on_error(f):
 
 
 WINDIVERT_FUNCTIONS = {
-    "WinDivertHelperParsePacket": [HANDLE, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
-                                   c_void_p, POINTER(c_uint)],
+    "WinDivertHelperParsePacket": [c_void_p, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
+                                   c_void_p, c_void_p, POINTER(c_uint), c_void_p, POINTER(c_uint)],
     "WinDivertHelperParseIPv4Address": [c_char_p, POINTER(c_uint32)],
     "WinDivertHelperParseIPv6Address": [c_char_p, POINTER(ARRAY(c_uint8, 16))],
-    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_uint64],
-    "WinDivertHelperCheckFilter": [c_char_p, c_int, POINTER(c_char_p), POINTER(c_uint)],
-    "WinDivertHelperEvalFilter": [c_char_p, c_int, c_void_p, c_uint, c_void_p],
+    "WinDivertHelperCalcChecksums": [c_void_p, c_uint, c_void_p, c_uint64],
+    "WinDivertHelperCompileFilter": [c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)],
+    "WinDivertHelperEvalFilter": [c_char_p, c_void_p, c_uint, c_void_p],
     "WinDivertOpen": [c_char_p, c_int, c_int16, c_uint64],
-    "WinDivertRecv": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
-    "WinDivertSend": [HANDLE, c_void_p, c_uint, c_void_p, c_void_p],
-    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
-    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, c_uint64, c_void_p, c_void_p, c_void_p],
+    "WinDivertRecv": [HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)],
+    "WinDivertSend": [HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)],
+    "WinDivertRecvEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
+                        POINTER(c_uint), POINTER(Overlapped)],
+    "WinDivertSendEx": [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
+                        c_uint, POINTER(Overlapped)],
+    "WinDivertShutdown": [HANDLE, c_int],
     "WinDivertClose": [HANDLE],
     "WinDivertGetParam": [HANDLE, c_int, POINTER(c_uint64)],
     "WinDivertSetParam": [HANDLE, c_int, c_uint64],

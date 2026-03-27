@@ -1,3 +1,14 @@
+Version 3.0.0
+    - Major version bump due to backward incompatible changes in WinDivert 2.2 address handling.
+    - Updated for WinDivert 2.2 address structure (Layer, Event, and new layer-specific metadata).
+    - Note: Some internal address fields in Packet might have changed.
+
+Version 2.2.2
+    - Bundle WinDivert 2.2.2.
+    - Drop support for Python < 3.10.
+    - Updated for modern Windows environments (10/11).
+    - Support for new layers (FLOW, SOCKET, REFLECT).
+
 Version 2.1.0
     - Bundle WinDivert 1.3.
 

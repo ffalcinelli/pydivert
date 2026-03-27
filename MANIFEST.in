@@ -1,2 +1,0 @@
-include pydivert/windivert_dll/*.dll
-include pydivert/windivert_dll/*.sys

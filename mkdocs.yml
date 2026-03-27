@@ -1,0 +1,40 @@
+site_name: PyDivert
+site_description: Python binding for WinDivert
+site_url: https://ffalcinelli.github.io/pydivert/
+repo_url: https://github.com/ffalcinelli/pydivert
+repo_name: ffalcinelli/pydivert
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - API Reference: api.md
