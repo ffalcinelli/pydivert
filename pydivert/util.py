@@ -1,23 +1,30 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 import struct
-import sys
 
 
-class cached_property(object):
+class cached_property:
     """
     A property that is only computed once per instance and then replaces itself
     with an ordinary attribute. Deleting the attribute resets the property.
@@ -25,7 +32,7 @@ class cached_property(object):
     """
 
     def __init__(self, func):
-        self.__doc__ = getattr(func, '__doc__')
+        self.__doc__ = func.__doc__
         self.func = func
 
     def __get__(self, obj, cls):
@@ -35,44 +42,29 @@ class cached_property(object):
         return value
 
 
-if sys.version_info < (3, 0):
-    # python 3's byte indexing: b"AAA"[1] == 65
-    indexbyte = lambda x: chr(x) if isinstance(x, int) else ord(x)
-    # python 3's bytes.fromhex()
-    fromhex = lambda x: x.decode("hex")
-    PY2 = True
-    PY34 = False
-else:
-    indexbyte = lambda x: x
-    fromhex = lambda x: bytes.fromhex(x)
-    PY2 = False
-    if sys.version_info < (3, 5):
-        # __doc__ attribute is only writable from 3.5.
-        PY34 = True
-    else:
-        PY34 = False
+def fromhex(x):
+    return bytes.fromhex(x)
 
 
 def flag_property(name, offset, bit, docs=None):
     @property
     def flag(self):
-        return bool(indexbyte(self.raw[offset]) & bit)
+        return bool(self.raw[offset] & bit)
 
     @flag.setter
     def flag(self, val):
-        flags = indexbyte(self.raw[offset])
+        flags = self.raw[offset]
         if val:
             flags |= bit
         else:
             flags &= ~bit
-        self.raw[offset] = indexbyte(flags)
+        self.raw[offset] = flags
 
-    if not PY2 and not PY34:
-        flag.__doc__ = """
-            Indicates if the {} flag is set.
-            """.format(name.upper()) if not docs else docs
+    flag.__doc__ = f"""
+        Indicates if the {name.upper()} flag is set.
+        """ if not docs else docs
 
-    return flag
+    return flag  # type: ignore[misc]
 
 
 def raw_property(fmt, offset, docs=None):
@@ -84,7 +76,7 @@ def raw_property(fmt, offset, docs=None):
     def rprop(self, val):
         struct.pack_into(fmt, self.raw, offset, val)
 
-    if docs and not PY2 and not PY34:
+    if docs:
         rprop.__doc__ = docs
 
-    return rprop
+    return rprop  # type: ignore[misc]

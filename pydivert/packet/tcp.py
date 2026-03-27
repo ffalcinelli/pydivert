@@ -1,22 +1,30 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import indexbyte as i, flag_property, raw_property
+from pydivert.util import flag_property, raw_property
 
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
@@ -51,7 +59,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         The size of TCP header in 32bit words.
         """
-        return i(self.raw[12]) >> 4
+        return self.raw[12] >> 4
 
     @data_offset.setter
     def data_offset(self, val):
@@ -64,7 +72,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         The reserved field.
         """
-        return (i(self.raw[12]) >> 1) & 0x07
+        return (self.raw[12] >> 1) & 0x07
 
     @reserved.setter
     def reserved(self, val):

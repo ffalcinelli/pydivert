@@ -21,33 +21,27 @@
 # and the GNU General Public License along with this program.  If not,
 # see <http://www.gnu.org/licenses/>.
 
-import struct
+import time
 
-from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import raw_property
-
-
-class UDPHeader(Header, PayloadMixin, PortMixin):
-    header_len = 8
-
-    @property
-    def payload(self):
-        return PayloadMixin.payload.fget(self)  # type: ignore
-
-    @payload.setter
-    def payload(self, val):
-        PayloadMixin.payload.fset(self, val)  # type: ignore
-        self.payload_len = len(val)
+from pydivert.windivert import WinDivert
 
 
-    payload.__doc__ = PayloadMixin.payload.__doc__
+def test_register():
+    if WinDivert.is_registered():
+        WinDivert.unregister()
+    while WinDivert.is_registered():
+        time.sleep(0.1)
+    assert not WinDivert.is_registered()
+    WinDivert.register()
+    assert WinDivert.is_registered()
 
-    @property
-    def payload_len(self):
-        return struct.unpack_from("!H", self.raw, 4)[0] - 8
-
-    @payload_len.setter
-    def payload_len(self, val):
-        self.raw[4:6] = struct.pack("!H", val + 8)
-
-    cksum = raw_property('!H', 6, docs='The UDP header checksum field.')
+def test_unregister():
+    w = WinDivert("false")
+    w.open()
+    WinDivert.unregister()
+    time.sleep(1.0)
+    assert WinDivert.is_registered()
+    w.close()
+    # may not trigger immediately.
+    while WinDivert.is_registered():
+        time.sleep(0.1)

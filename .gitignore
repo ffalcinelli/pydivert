@@ -11,3 +11,7 @@ dist/
 venv/
 .coverage
 .hypothesis
+site
+.vagrant
+.venv
+coverage.xml

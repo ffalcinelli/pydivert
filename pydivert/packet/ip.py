@@ -1,29 +1,37 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 import socket
 import struct
 
 from pydivert.packet.header import Header
-from pydivert.util import PY2, PY34, flag_property, indexbyte as i, raw_property
+from pydivert.util import flag_property, raw_property
 
 
 class IPHeader(Header):
     _src_addr = slice(0, 0)
     _dst_addr = slice(0, 0)
-    _af = None
+    _af = None  # type: ignore
 
     @property
     def src_addr(self):
@@ -31,13 +39,13 @@ class IPHeader(Header):
         The packet source address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
-        except (ValueError, socket.error):
+            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())  # type: ignore[arg-type]
+        except (OSError, ValueError):
             pass
 
     @src_addr.setter
     def src_addr(self, val):
-        self.raw[self._src_addr] = socket.inet_pton(self._af, val)
+        self.raw[self._src_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
 
     @property
     def dst_addr(self):
@@ -45,30 +53,30 @@ class IPHeader(Header):
         The packet destination address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
-        except (ValueError, socket.error):
+            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())  # type: ignore[arg-type]
+        except (OSError, ValueError):
             pass
 
     @dst_addr.setter
     def dst_addr(self, val):
-        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)
+        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
 
     @property
     def packet_len(self):
         """
         The total packet length, including *all* headers, as reported by the IP header.
         """
-        raise NotImplementedError()  # pragma: no cover
+        return len(self._packet.raw)
 
     @packet_len.setter
     def packet_len(self, val):
-        raise NotImplementedError()  # pragma: no cover
+        pass
 
 
 class IPv4Header(IPHeader):
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
-    _af = socket.AF_INET
+    _af = socket.AF_INET  # type: ignore
 
     @property
     def header_len(self):
@@ -82,7 +90,7 @@ class IPv4Header(IPHeader):
         """
         The header length in words of 32bit.
         """
-        return i(self.raw[0]) & 0x0F
+        return self.raw[0] & 0x0F
 
     @hdr_len.setter
     def hdr_len(self, val):
@@ -108,7 +116,7 @@ class IPv4Header(IPHeader):
         """
         The flags field: RESERVED (the evil bit), DF (don't fragment), MF (more fragments).
         """
-        return i(self.raw[6]) >> 5
+        return self.raw[6] >> 5
 
     @flags.setter
     def flags(self, val):
@@ -130,7 +138,7 @@ class IPv4Header(IPHeader):
         """
         The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.
         """
-        return (i(self.raw[1]) >> 2) & 0x3F
+        return (self.raw[1] >> 2) & 0x3F
 
     @dscp.setter
     def dscp(self, val):
@@ -143,7 +151,7 @@ class IPv4Header(IPHeader):
         """
         The Explicit Congestion Notification field.
         """
-        return i(self.raw[1]) & 0x03
+        return self.raw[1] & 0x03
 
     @ecn.setter
     def ecn(self, val):
@@ -153,7 +161,7 @@ class IPv4Header(IPHeader):
 class IPv6Header(IPHeader):
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
-    _af = socket.AF_INET6
+    _af = socket.AF_INET6  # type: ignore
     header_len = 40
 
     payload_len = raw_property('!H', 4, docs='The Payload Length field.')
@@ -212,5 +220,4 @@ class IPv6Header(IPHeader):
     def ecn(self, val):
         self.traffic_class = (self.diff_serv << 2) | val
 
-    if not PY2 and not PY34:
-        packet_len.__doc__ = IPHeader.packet_len.__doc__
+    packet_len.__doc__ = IPHeader.packet_len.__doc__

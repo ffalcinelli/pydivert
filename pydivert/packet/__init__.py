@@ -1,54 +1,79 @@
-# -*- coding: utf-8 -*-
-# Copyright (C) 2016  Fabio Falcinelli, Maximilian Hils
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# it under the terms of either:
+#
+# 1) The GNU Lesser General Public License as published by the Free
+#    Software Foundation, either version 3 of the License, or (at your
+#    option) any later version.
+#
+# 2) The GNU General Public License as published by the Free Software
+#    Foundation, either version 2 of the License, or (at your option)
+#    any later version.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
+# GNU Lesser General Public License and the GNU General Public License
+# for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# and the GNU General Public License along with this program.  If not,
+# see <http://www.gnu.org/licenses/>.
+
 import ctypes
 import pprint
 import socket
 
 from pydivert import windivert_dll
-from pydivert.consts import Direction, IPV6_EXT_HEADERS, Protocol, Layer
+from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
 from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
-from pydivert.util import cached_property, indexbyte as i, PY2
+from pydivert.util import cached_property
 
 
-class Packet(object):
+class Packet:
     """
     A single packet, possibly including an IP header, a TCP/UDP header and a payload.
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    def __init__(self, raw, interface, direction):
+    def __init__(self, raw, interface=None, direction=Direction.OUTBOUND, timestamp=0, loopback=False, impostor=False,
+                 sniffed=False, ip_checksum=False, tcp_checksum=False, udp_checksum=False,
+                 layer=Layer.NETWORK, event=0, flow=None, socket=None, reflect=None):
         if isinstance(raw, bytes):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
-        self.interface = interface
+        self.interface = interface or (0, 0)
         self.direction = direction
+        self.timestamp = timestamp
+        self._loopback = loopback
+        self._impostor = impostor
+        self._sniffed = sniffed
+        self.ip_checksum = ip_checksum
+        self.tcp_checksum = tcp_checksum
+        self.udp_checksum = udp_checksum
+        self.layer = layer
+        self.event = event
+        self.flow = flow
+        self.socket = socket
+        self.reflect = reflect
 
     def __repr__(self):
         def dump(x):
             if isinstance(x, Header) or isinstance(x, Packet):
                 d = {}
                 for k in dir(x):
+                    if k in {"is_inbound", "is_outbound", "is_loopback", "is_impostor", "is_sniffed"}:
+                        d[k] = getattr(x, k)
+                        continue
                     v = getattr(x, k)
                     if k.startswith("_") or callable(v):
                         continue
-                    if k in {"address_family", "protocol", "ip", "icmp"}:
+                    if k in {"address_family", "protocol", "ip", "icmp", "wd_addr"}:
                         continue
                     if k == "payload" and v and len(v) > 20:
                         v = v[:20] + b"..."
@@ -58,7 +83,7 @@ class Packet(object):
                 return d
             return x
 
-        return "Packet({})".format(dump(self))
+        return f"Packet({dump(self)})"
 
     @property
     def is_outbound(self):
@@ -79,10 +104,35 @@ class Packet(object):
     @property
     def is_loopback(self):
         """
-        - True, if the packet is on the loopback interface.
-        - False, otherwise.
+        Indicates if the packet is a loopback packet.
         """
-        return self.interface[0] == 1
+        return self._loopback
+
+    @is_loopback.setter
+    def is_loopback(self, val):
+        self._loopback = bool(val)
+
+    @property
+    def is_impostor(self):
+        """
+        Indicates if the packet is an impostor packet.
+        """
+        return self._impostor
+
+    @is_impostor.setter
+    def is_impostor(self, val):
+        self._impostor = bool(val)
+
+    @property
+    def is_sniffed(self):
+        """
+        Indicates if the packet is a sniffed packet.
+        """
+        return self._sniffed
+
+    @is_sniffed.setter
+    def is_sniffed(self, val):
+        self._sniffed = bool(val)
 
     @cached_property
     def address_family(self):
@@ -93,7 +143,7 @@ class Packet(object):
             - None, otherwise.
         """
         if len(self.raw) >= 20:
-            v = i(self.raw[0]) >> 4
+            v = self.raw[0] >> 4
             if v == 4:
                 return socket.AF_INET
             if v == 6:
@@ -108,10 +158,10 @@ class Packet(object):
           | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.address_family == socket.AF_INET:
-            proto = i(self.raw[9])
-            start = (i(self.raw[0]) & 0b1111) * 4
+            proto = self.raw[9]
+            start = (self.raw[0] & 0b1111) * 4
         elif self.address_family == socket.AF_INET6:
-            proto = i(self.raw[6])
+            proto = self.raw[6]
 
             # skip over well-known ipv6 headers
             start = 40
@@ -124,12 +174,12 @@ class Packet(object):
                 if proto == Protocol.FRAGMENT:
                     hdrlen = 8
                 elif proto == Protocol.AH:
-                    hdrlen = (i(self.raw[start + 1]) + 2) * 4
+                    hdrlen = (self.raw[start + 1] + 2) * 4  # type: ignore[operator]
                 else:
                     # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
-                    hdrlen = (i(self.raw[start + 1]) + 1) * 8
-                proto = i(self.raw[start])
-                start += hdrlen
+                    hdrlen = (self.raw[start + 1] + 1) * 8  # type: ignore[operator]
+                proto = self.raw[start]
+                start += hdrlen  # type: ignore[operator]
         else:
             start = None
             proto = None
@@ -267,7 +317,7 @@ class Packet(object):
 
     @src_port.setter
     def src_port(self, val):
-        self._port.src_port = val
+        self._port.src_port = val  # type: ignore[attr-defined]
 
     @property
     def dst_port(self):
@@ -280,7 +330,7 @@ class Packet(object):
 
     @dst_port.setter
     def dst_port(self, val):
-        self._port.dst_port = val
+        self._port.dst_port = val  # type: ignore[attr-defined]
 
     @property
     def payload(self):
@@ -293,7 +343,7 @@ class Packet(object):
 
     @payload.setter
     def payload(self, val):
-        self._payload.payload = val
+        self._payload.payload = val  # type: ignore[attr-defined]
 
     def recalculate_checksums(self, flags=0):
         """
@@ -305,24 +355,41 @@ class Packet(object):
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         buff, buff_ = self.__to_buffers()
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), flags)
-        if PY2:
-            self.raw = memoryview(buff)[:len(self.raw)]
+        addr = self.wd_addr
+        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)  # type: ignore[attr-defined]
         return num
 
     def __to_buffers(self):
-        buff = bytearray(self.raw.tobytes()) if PY2 else self.raw.obj
+        buff = self.raw.obj
         return buff, (ctypes.c_char * len(self.raw)).from_buffer(buff)
 
     @property
     def wd_addr(self):
         """
-        Gets the interface and direction as a `WINDIVERT_ADDRESS` structure.
+        Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
         address = windivert_dll.WinDivertAddress()
-        address.IfIdx, address.SubIfIdx = self.interface
-        address.Direction = self.direction
+        address.Timestamp = self.timestamp  # type: ignore
+        address.Layer = self.layer  # type: ignore
+        address.Event = self.event  # type: ignore
+        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0  # type: ignore
+        address.Loopback = 1 if self.is_loopback else 0  # type: ignore
+        address.Impostor = 1 if self.is_impostor else 0  # type: ignore
+        address.Sniffed = 1 if self.is_sniffed else 0  # type: ignore
+        address.IPChecksum = 1 if self.ip_checksum else 0  # type: ignore
+        address.TCPChecksum = 1 if self.tcp_checksum else 0  # type: ignore
+        address.UDPChecksum = 1 if self.udp_checksum else 0  # type: ignore
+
+        if self.layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
+            address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
+        elif self.layer == Layer.FLOW and self.flow:
+            ctypes.pointer(address.Flow)[0] = self.flow
+        elif self.layer == Layer.SOCKET and self.socket:
+            ctypes.pointer(address.Socket)[0] = self.socket
+        elif self.layer == Layer.REFLECT and self.reflect:
+            ctypes.pointer(address.Reflect)[0] = self.reflect
+
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):
@@ -346,5 +413,7 @@ class Packet(object):
         :return: True if the packet matches, and False otherwise.
         """
         buff, buff_ = self.__to_buffers()
-        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), layer, ctypes.byref(buff_), len(self.raw),
-                                                       ctypes.byref(self.wd_addr))
+        addr = self.wd_addr
+        addr.Layer = layer  # type: ignore
+        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), ctypes.byref(buff_), len(self.raw),  # type: ignore[attr-defined]
+                                                       ctypes.byref(addr))
