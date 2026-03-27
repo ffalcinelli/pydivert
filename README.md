@@ -45,6 +45,9 @@ uv add pydivert
 
 The main entry points are `pydivert.WinDivert` for capturing and `pydivert.Packet` for manipulation.
 
+> [!TIP]
+> All code examples in this README are verified by automated integration tests in `pydivert/tests/test_readme_examples.py`.
+
 ### Basic Capture and Re-injection
 
 ```python

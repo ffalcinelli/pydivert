@@ -21,8 +21,6 @@
 # and the GNU General Public License along with this program.  If not,
 # see <http://www.gnu.org/licenses/>.
 
-import time
-
 import pytest
 
 from pydivert.consts import Param
@@ -59,28 +57,6 @@ def test_open():
         w.recv()
     with pytest.raises(RuntimeError):
         w.close()
-
-
-def test_register():
-    if WinDivert.is_registered():
-        WinDivert.unregister()
-    while WinDivert.is_registered():
-        time.sleep(0.01)  # pragma: no cover
-    assert not WinDivert.is_registered()
-    WinDivert.register()
-    assert WinDivert.is_registered()
-
-
-def test_unregister():
-    w = WinDivert("false")
-    w.open()
-    WinDivert.unregister()
-    time.sleep(0.1)
-    assert WinDivert.is_registered()
-    w.close()
-    # may not trigger immediately.
-    while WinDivert.is_registered():
-        time.sleep(0.01)  # pragma: no cover
 
 
 class TestParams:

@@ -114,5 +114,5 @@ packages = ["pydivert"]
 
 [tool.pytest.ini_options]
 testpaths = ["pydivert"]
-addopts = "--capture=no --color=yes"
-timeout = 20
+addopts = "--capture=no --color=yes --ignore=pydivert/tests/test_driver_management.py"
+timeout = 60

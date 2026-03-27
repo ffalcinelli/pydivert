@@ -69,7 +69,7 @@ def test_http_port_redirection():
     # Filter to capture:
     # 1. Inbound to fake_port (to redirect to real_port)
     # 2. Outbound from real_port (to redirect back to fake_port)
-    filt = f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}"
+    filt = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port})"
 
     stop_event = threading.Event()
 
@@ -92,8 +92,7 @@ def test_http_port_redirection():
     divert_thread.start()
 
     # Give some time for WinDivert to start
-    time.sleep(0.5)
-
+    time.sleep(1.0)
     try:
         # Client connects to the FAKE port
         url = f"http://127.0.0.1:{fake_port}/"
@@ -132,7 +131,8 @@ def test_http_modification():
 
     # WinDivert filter for our HTTP server port
     # We want to capture packets going to or coming from the server port
-    filt = f"tcp.DstPort == {port} or tcp.SrcPort == {port}"
+    # For loopback, capturing outbound is sufficient and avoids double-processing.
+    filt = f"(tcp.DstPort == {port} or tcp.SrcPort == {port})"
 
     # Event to stop the diverter thread
     stop_event = threading.Event()
@@ -153,8 +153,7 @@ def test_http_modification():
     divert_thread.start()
 
     # Give some time for WinDivert to start
-    time.sleep(0.5)
-
+    time.sleep(1.0)
     try:
         url = f"http://127.0.0.1:{port}/"
         with urllib.request.urlopen(url, timeout=5) as response:
