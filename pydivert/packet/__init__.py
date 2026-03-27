@@ -33,12 +33,13 @@ class Packet:
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    def __init__(self, raw, interface, direction, timestamp=0, loopback=False, impostor=False, sniffed=False,
-                 ip_checksum=False, tcp_checksum=False, udp_checksum=False):
+    def __init__(self, raw, interface=None, direction=Direction.OUTBOUND, timestamp=0, loopback=False, impostor=False,
+                 sniffed=False, ip_checksum=False, tcp_checksum=False, udp_checksum=False,
+                 layer=Layer.NETWORK, event=0, flow=None, socket=None, reflect=None):
         if isinstance(raw, bytes):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
-        self.interface = interface
+        self.interface = interface or (0, 0)
         self.direction = direction
         self.timestamp = timestamp
         self._loopback = loopback
@@ -47,6 +48,11 @@ class Packet:
         self.ip_checksum = ip_checksum
         self.tcp_checksum = tcp_checksum
         self.udp_checksum = udp_checksum
+        self.layer = layer
+        self.event = event
+        self.flow = flow
+        self.socket = socket
+        self.reflect = reflect
 
     def __repr__(self):
         def dump(x):
@@ -59,7 +65,7 @@ class Packet:
                     v = getattr(x, k)
                     if k.startswith("_") or callable(v):
                         continue
-                    if k in {"address_family", "protocol", "ip", "icmp"}:
+                    if k in {"address_family", "protocol", "ip", "icmp", "wd_addr"}:
                         continue
                     if k == "payload" and v and len(v) > 20:
                         v = v[:20] + b"..."
@@ -357,6 +363,8 @@ class Packet:
         """
         address = windivert_dll.WinDivertAddress()
         address.Timestamp = self.timestamp  # type: ignore
+        address.Layer = self.layer  # type: ignore
+        address.Event = self.event  # type: ignore
         address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0  # type: ignore
         address.Loopback = 1 if self.is_loopback else 0  # type: ignore
         address.Impostor = 1 if self.is_impostor else 0  # type: ignore
@@ -364,7 +372,16 @@ class Packet:
         address.IPChecksum = 1 if self.ip_checksum else 0  # type: ignore
         address.TCPChecksum = 1 if self.tcp_checksum else 0  # type: ignore
         address.UDPChecksum = 1 if self.udp_checksum else 0  # type: ignore
-        address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
+
+        if self.layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
+            address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
+        elif self.layer == Layer.FLOW and self.flow:
+            ctypes.pointer(address.Flow)[0] = self.flow
+        elif self.layer == Layer.SOCKET and self.socket:
+            ctypes.pointer(address.Socket)[0] = self.socket
+        elif self.layer == Layer.REFLECT and self.reflect:
+            ctypes.pointer(address.Reflect)[0] = self.reflect
+
         return address
 
     def matches(self, filter, layer=Layer.NETWORK):

@@ -20,10 +20,88 @@ Note: These tests must be run on Windows with administrator privileges.
 """
 
 import http.server
+import socket
 import threading
-import urllib.request
-import pydivert
 import time
+import urllib.request
+
+import pydivert
+
+
+def get_free_port():
+    s = socket.socket()
+    s.bind(('127.0.0.1', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+def test_http_port_redirection():
+    class SimpleHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Port Redirection Success")
+
+        def log_message(self, format, *args):
+            pass
+
+    # Real port where the server is listening
+    httpd = http.server.HTTPServer(('127.0.0.1', 0), SimpleHandler)
+    real_port = httpd.server_address[1]
+
+    server_thread = threading.Thread(target=httpd.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
+    # Fake port that the client will connect to
+    fake_port = get_free_port()
+    while fake_port == real_port:
+        fake_port = get_free_port()
+
+    # Filter to capture:
+    # 1. Inbound to fake_port (to redirect to real_port)
+    # 2. Outbound from real_port (to redirect back to fake_port)
+    filt = f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}"
+
+    stop_event = threading.Event()
+
+    def divert_and_redirect():
+        with pydivert.WinDivert(filt) as w:
+            for packet in w:
+                if stop_event.is_set():
+                    break
+
+                # Client -> Fake Port: Redirect to Real Port
+                if packet.dst_port == fake_port:
+                    packet.dst_port = real_port
+                # Server -> Client: Redirect Source Port back to Fake Port
+                elif packet.src_port == real_port:
+                    packet.src_port = fake_port
+
+                w.send(packet)
+
+    divert_thread = threading.Thread(target=divert_and_redirect)
+    divert_thread.start()
+
+    # Give some time for WinDivert to start
+    time.sleep(0.5)
+
+    try:
+        # Client connects to the FAKE port
+        url = f"http://127.0.0.1:{fake_port}/"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            body = response.read()
+            assert body == b"Port Redirection Success"
+    finally:
+        stop_event.set()
+        # Unblock WinDivert loop
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{fake_port}/", timeout=0.1)
+        except Exception:
+            pass
+
+        httpd.shutdown()
+        divert_thread.join(timeout=1)
 
 def test_http_modification():
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
@@ -32,14 +110,14 @@ def test_http_modification():
             self.send_header('Content-type', 'text/plain')
             self.end_headers()
             self.wfile.write(b"Hello, World!")
-            
+
         def log_message(self, format, *args):
             pass
 
     # Bind to 127.0.0.1:0 to get a random free port
     httpd = http.server.HTTPServer(('127.0.0.1', 0), SimpleHandler)
     port = httpd.server_address[1]
-    
+
     server_thread = threading.Thread(target=httpd.serve_forever)
     server_thread.daemon = True
     server_thread.start()
@@ -47,7 +125,7 @@ def test_http_modification():
     # WinDivert filter for our HTTP server port
     # We want to capture packets going to or coming from the server port
     filt = f"tcp.DstPort == {port} or tcp.SrcPort == {port}"
-    
+
     # Event to stop the diverter thread
     stop_event = threading.Event()
 
@@ -56,11 +134,11 @@ def test_http_modification():
             for packet in w:
                 if stop_event.is_set():
                     break
-                
+
                 # Check if the packet contains our target string
                 if packet.payload and b"Hello, World!" in packet.payload:
                     packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
-                
+
                 w.send(packet)
 
     divert_thread = threading.Thread(target=divert_and_modify)
@@ -82,8 +160,8 @@ def test_http_modification():
         # A simple way to unblock it is to make one more request that will be captured.
         try:
             urllib.request.urlopen(url, timeout=0.1)
-        except:
+        except Exception:
             pass
-        
+
         httpd.shutdown()
         divert_thread.join(timeout=1)

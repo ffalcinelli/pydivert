@@ -200,17 +200,23 @@ class WinDivert:
         address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
+
         return Packet(
             memoryview(packet)[:recv_len.value],
-            (address.Network.IfIdx, address.Network.SubIfIdx),
-            Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
+            interface=(address.Network.IfIdx, address.Network.SubIfIdx),
+            direction=Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
             timestamp=address.Timestamp,
             loopback=bool(address.Loopback),
             impostor=bool(address.Impostor),
             sniffed=bool(address.Sniffed),
             ip_checksum=bool(address.IPChecksum),
             tcp_checksum=bool(address.TCPChecksum),
-            udp_checksum=bool(address.UDPChecksum)
+            udp_checksum=bool(address.UDPChecksum),
+            layer=address.Layer,
+            event=address.Event,
+            flow=address.Flow if address.Layer == Layer.FLOW else None,
+            socket=address.Socket if address.Layer == Layer.SOCKET else None,
+            reflect=address.Reflect if address.Layer == Layer.REFLECT else None
         )
 
     def recv_ex(self, bufsize=DEFAULT_PACKET_BUFFER_SIZE, flags=0, overlapped=None):
@@ -263,15 +269,20 @@ class WinDivert:
 
         return Packet(
             memoryview(packet)[:recv_len.value],
-            (address.Network.IfIdx, address.Network.SubIfIdx),
-            Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
+            interface=(address.Network.IfIdx, address.Network.SubIfIdx),
+            direction=Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
             timestamp=address.Timestamp,
             loopback=bool(address.Loopback),
             impostor=bool(address.Impostor),
             sniffed=bool(address.Sniffed),
             ip_checksum=bool(address.IPChecksum),
             tcp_checksum=bool(address.TCPChecksum),
-            udp_checksum=bool(address.UDPChecksum)
+            udp_checksum=bool(address.UDPChecksum),
+            layer=address.Layer,
+            event=address.Event,
+            flow=address.Flow if address.Layer == Layer.FLOW else None,
+            socket=address.Socket if address.Layer == Layer.SOCKET else None,
+            reflect=address.Reflect if address.Layer == Layer.REFLECT else None
         )
 
     def send(self, packet, recalculate_checksum=True):

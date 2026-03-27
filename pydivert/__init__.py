@@ -18,7 +18,7 @@ from .packet import Packet
 from .windivert import WinDivert
 
 __author__ = 'fabio'
-__version__ = '2.2.2'
+__version__ = '3.0.0'
 
 __all__ = [
     "WinDivert",
