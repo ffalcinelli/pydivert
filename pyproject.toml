@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Python binding to windivert driver"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "LGPLv3" }
+license = { text = "LGPLv3+ or GPLv2+" }
 keywords = ["windivert", "network", "tcp/ip"]
 authors = [
     { name = "Fabio Falcinelli", email = "fabio.falcinelli@gmail.com" },
@@ -20,6 +20,7 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
     "Operating System :: Microsoft :: Windows :: Windows 11",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.10",

@@ -227,4 +227,4 @@ The full API documentation is available at [https://ffalcinelli.github.io/pydive
 
 ## License
 
-PyDivert is licensed under the **LGPLv3** license. See the [LICENSE](LICENSE) file for more details.
+PyDivert is dual-licensed under the **LGPLv3** and **GPLv2** licenses to match the WinDivert driver's licensing strategy. See the [LICENSE](LICENSE) file for more details.
