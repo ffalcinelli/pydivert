@@ -28,10 +28,12 @@ Integration tests for each example provided in the README.md.
 import socket
 import threading
 import time
-import urllib.request
+
 import pytest
+
 import pydivert
-from pydivert import Layer, Flag
+from pydivert import Flag, Layer
+
 
 def get_free_port():
     s = socket.socket()
@@ -43,7 +45,7 @@ def get_free_port():
 def test_example_basic_capture():
     # Example: Basic Capture and Re-injection
     port = get_free_port()
-    
+
     def server():
         s = socket.socket()
         s.bind(('127.0.0.1', port))
@@ -53,12 +55,12 @@ def test_example_basic_capture():
             data = conn.recv(1024)
             conn.sendall(data)
             conn.close()
-        except:
+        except Exception:
             pass
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     stop_event = threading.Event()
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
@@ -97,12 +99,12 @@ def test_example_packet_modification_redirection():
             conn.recv(1024)
             conn.sendall(b"redirected")
             conn.close()
-        except:
+        except Exception:
             pass
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     stop_event = threading.Event()
     def diverter():
         # Capturing both directions
@@ -133,7 +135,7 @@ def test_example_packet_modification_redirection():
 def test_example_firewall_drop():
     # Example: Simple Firewall (Dropping Packets)
     port = get_free_port()
-    
+
     def server():
         s = socket.socket()
         s.bind(('127.0.0.1', port))
@@ -145,11 +147,11 @@ def test_example_firewall_drop():
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     stop_event = threading.Event()
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
-            for packet in w:
+            for _packet in w:
                 if stop_event.is_set():
                     break
                 # Drop it by NOT sending
@@ -170,7 +172,7 @@ def test_example_firewall_drop():
 def test_example_payload_modification():
     # Example: Payload Inspection and Modification
     port = get_free_port()
-    
+
     def server():
         s = socket.socket()
         s.bind(('127.0.0.1', port))
@@ -179,12 +181,12 @@ def test_example_payload_modification():
             conn, addr = s.accept()
             conn.sendall(b"Your secret-token is 123")
             conn.close()
-        except:
+        except Exception:
             pass
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     stop_event = threading.Event()
     def diverter():
         with pydivert.WinDivert(f"tcp.SrcPort == {port} and tcp.PayloadLength > 0") as w:
@@ -213,7 +215,7 @@ def test_example_payload_modification():
 def test_example_traffic_logging():
     # Example: Traffic Logging
     port = get_free_port()
-    
+
     def server():
         s = socket.socket()
         s.bind(('127.0.0.1', port))
@@ -222,12 +224,12 @@ def test_example_traffic_logging():
             conn, addr = s.accept()
             conn.recv(1024)
             conn.close()
-        except:
+        except Exception:
             pass
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     captured_info = []
     stop_event = threading.Event()
     def diverter():
@@ -251,57 +253,60 @@ def test_example_traffic_logging():
             socket.create_connection(('127.0.0.1', port), timeout=0.1)
         except Exception:
             pass
-    
+
     assert len(captured_info) > 0
+
+def flow_layer_diverter(port, stop_event, events):
+    # Layer.FLOW doesn't capture packets but events.
+    # Some filters are not supported on Layer.FLOW, use "true" and filter in Python.
+    # Also using RECV_ONLY as FLOW re-injection is complex.
+    try:
+        with pydivert.WinDivert("true", layer=Layer.FLOW, flags=Flag.RECV_ONLY) as w:
+            for event in w:
+                if stop_event.is_set():
+                    break
+
+                # Check if it's our connection
+                if event.flow and (event.flow.LocalPort == port or event.flow.RemotePort == port):
+                    events.append(event)
+    except OSError as e:
+        if e.winerror == 87:
+            events.append("SKIP_WINERROR_87")
+        else:
+            events.append(e)
+    except Exception as e:
+        events.append(e)
+
+
+def flow_layer_server(port):
+    s = socket.socket()
+    s.bind(('127.0.0.1', port))
+    s.listen(1)
+    try:
+        conn, _ = s.accept()
+        conn.close()
+    except Exception:
+        pass
+    s.close()
+
 
 def test_example_flow_layer():
     # Example: WinDivert Layers (FLOW)
     port = get_free_port()
-    
+
     events = []
     stop_event = threading.Event()
-    def diverter():
-        # Layer.FLOW doesn't capture packets but events.
-        # Some filters are not supported on Layer.FLOW, use "true" and filter in Python.
-        # Also using RECV_ONLY as FLOW re-injection is complex.
-        try:
-            with pydivert.WinDivert("true", layer=Layer.FLOW, flags=Flag.RECV_ONLY) as w:
-                for event in w:
-                    if stop_event.is_set():
-                        break
-                    
-                    # Check if it's our connection
-                    if event.flow and (event.flow.LocalPort == port or event.flow.RemotePort == port):
-                        events.append(event)
-        except OSError as e:
-            if e.winerror == 87:
-                events.append("SKIP_WINERROR_87")
-            else:
-                events.append(e)
-        except Exception as e:
-            events.append(e)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    threading.Thread(target=flow_layer_diverter, args=(port, stop_event, events), daemon=True).start()
     time.sleep(1.0)
 
     if events and events[0] == "SKIP_WINERROR_87":
         pytest.skip("Layer.FLOW is not supported on this environment (WinError 87)")
 
-    def server():
-        s = socket.socket()
-        s.bind(('127.0.0.1', port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            conn.close()
-        except:
-            pass
-        s.close()
-
-    threading.Thread(target=server, daemon=True).start()
+    threading.Thread(target=flow_layer_server, args=(port,), daemon=True).start()
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+        with socket.create_connection(('127.0.0.1', port), timeout=2):
             pass
     finally:
         stop_event.set()
@@ -309,17 +314,17 @@ def test_example_flow_layer():
             socket.create_connection(('127.0.0.1', port), timeout=0.1)
         except Exception:
             pass
-    
+
     if len(events) > 0 and isinstance(events[0], Exception):
         pytest.fail(f"Diverter thread failed: {events[0]}")
-    
+
     assert len(events) > 0
     assert any(hasattr(e, 'layer') and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
 
 def test_example_sniff_mode():
     # Example: Flags (SNIFF)
     port = get_free_port()
-    
+
     def server():
         s = socket.socket()
         s.bind(('127.0.0.1', port))
@@ -329,12 +334,12 @@ def test_example_sniff_mode():
             data = conn.recv(1024)
             conn.sendall(data)
             conn.close()
-        except:
+        except Exception:
             pass
         s.close()
 
     threading.Thread(target=server, daemon=True).start()
-    
+
     sniffed_packets = []
     stop_event = threading.Event()
     def diverter():
@@ -357,5 +362,5 @@ def test_example_sniff_mode():
             socket.create_connection(('127.0.0.1', port), timeout=0.1)
         except Exception:
             pass
-    
+
     assert len(sniffed_packets) > 0

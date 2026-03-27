@@ -22,8 +22,9 @@
 # see <http://www.gnu.org/licenses/>.
 
 import time
-import pytest
+
 from pydivert.windivert import WinDivert
+
 
 def test_register():
     if WinDivert.is_registered():
