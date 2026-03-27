@@ -173,9 +173,20 @@ with WinDivert("tcp.DstPort == 80", flags=Flag.SNIFF) as w:
 | 1.0.x | 1.1.8 (bundled) |
 | 2.0.x | 1.1.8 (bundled) |
 | 2.1.x | 1.3 (bundled) |
-| 2.2.2+ | 2.2.2 (bundled) |
+| 3.0.0+ | 2.2.2 (bundled) - Breaking changes for full 2.2 support |
 
-## Development
+## Breaking Changes in 3.0.0
+
+PyDivert 3.0.0 introduces full support for WinDivert 2.2's advanced metadata, which required several backward-incompatible changes to the internal API:
+
+- **Packet Constructor**: The `Packet` class's `__init__` now accepts additional metadata fields (`layer`, `event`, `flow`, `socket`, `reflect`). The `interface` parameter is now optional and defaults to `(0, 0)`.
+- **Internal Metadata**: When receiving packets from non-`NETWORK` layers (like `FLOW` or `SOCKET`), the `Packet` object now preserves and allows re-injecting the full metadata structure.
+- **`wd_addr` Property**: This property now returns a full `WINDIVERT_ADDRESS` for any supported layer, not just the network layer.
+
+If you are manually creating `Packet` objects or relying on the exact signature of the `Packet` constructor, you may need to update your code.
+
+## Installation
+
 
 To set up a development environment:
 
