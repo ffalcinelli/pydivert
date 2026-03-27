@@ -116,3 +116,16 @@ packages = ["pydivert"]
 testpaths = ["pydivert"]
 addopts = "--capture=no --color=yes --ignore=pydivert/tests/test_driver_management.py"
 timeout = 60
+
+[tool.coverage.run]
+source = ["pydivert"]
+omit = ["pydivert/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
