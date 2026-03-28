@@ -6,10 +6,30 @@ Invoke-WebRequest -Uri https://astral.sh/uv/install.ps1 -OutFile install-uv.ps1
 powershell -ExecutionPolicy ByPass -File install-uv.ps1
 Remove-Item install-uv.ps1
 
-# Add uv to the current session's path
-$uvPath = "$HOME\.cargo\bin"
-if (-not ($env:Path -like "*$uvPath*")) {
-    $env:Path += ";$uvPath"
+# Find where uv was installed
+$uvPath = ""
+$commonPaths = @("$HOME\.local\bin", "$HOME\.cargo\bin")
+foreach ($p in $commonPaths) {
+    if (Test-Path "$p\uv.exe") {
+        $uvPath = $p
+        break
+    }
+}
+
+if ($uvPath) {
+    Write-Host "Found uv at $uvPath"
+    if (-not ($env:Path -like "*$uvPath*")) {
+        $env:Path = "$uvPath;$env:Path"
+    }
+
+    # Ensure uv is in the User PATH permanently
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    if ($userPath -notlike "*$uvPath*") {
+        Write-Host "Adding $uvPath to User PATH"
+        [System.Environment]::SetEnvironmentVariable("Path", "$uvPath;$userPath", "User")
+    }
+} else {
+    Write-Warning "uv.exe not found in common locations!"
 }
 
 # Use a local virtual environment on the VM's C: drive to avoid issues with VirtualBox shared folders
