@@ -28,6 +28,11 @@ from pydivert.util import flag_property, raw_property
 
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
+    __repr_fields__ = (
+        "ack", "ack_num", "cksum", "control_bits", "cwr", "data_offset", "dst_port", "ece", "fin",
+        "header_len", "ns", "payload", "psh", "raw", "reserved", "rst", "seq_num", "src_port", "syn",
+        "urg", "urg_ptr", "window_size"
+    )
     ns = flag_property("ns", 12, 0b00000001)
 
     cwr = flag_property("cwr", 13, 0b10000000)
