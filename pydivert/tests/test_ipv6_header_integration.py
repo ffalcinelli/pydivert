@@ -24,8 +24,11 @@
 import socket
 import threading
 import time
-import pydivert
+
 import pytest
+
+import pydivert
+
 
 def test_ipv6_traffic_class_flow_label_integration():
     """
@@ -47,7 +50,7 @@ def test_ipv6_traffic_class_flow_label_integration():
 
     # Filter to capture our test packet
     filt = f"ipv6 and udp and udp.DstPort == {port}"
-    
+
     captured_packets = []
     stop_event = threading.Event()
 
@@ -56,12 +59,12 @@ def test_ipv6_traffic_class_flow_label_integration():
             for packet in w:
                 if stop_event.is_set():
                     break
-                
+
                 # Verify initial state (should be 0 for most OSes by default)
                 # Modify traffic class and flow label
                 packet.ipv6.traffic_class = 0xAB
                 packet.ipv6.flow_label = 0x12345
-                
+
                 # Store a copy for verification
                 captured_packets.append({
                     'traffic_class': packet.ipv6.traffic_class,
@@ -69,22 +72,22 @@ def test_ipv6_traffic_class_flow_label_integration():
                     'diff_serv': packet.ipv6.diff_serv,
                     'ecn': packet.ipv6.ecn
                 })
-                
+
                 # Re-inject (though we don't have a listener, this tests the setter/getter consistency)
                 w.send(packet)
                 break
 
     thread = threading.Thread(target=divert_thread_func)
     thread.start()
-    
+
     # Give WinDivert a moment to start
     time.sleep(0.5)
-    
+
     # Send an IPv6 UDP packet to localhost
     sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     sock.sendto(b"test", ("::1", port))
     sock.close()
-    
+
     thread.join(timeout=2)
     stop_event.set()
 
