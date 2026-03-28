@@ -33,7 +33,7 @@ Vagrant.configure("2") do |config|
     Windows 11 VM for PyDivert is up and running!
     
     To run tests within the VM:
-      vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run --extra test pytest'
+      vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
 
     To get an interactive PowerShell session:
       vagrant powershell
