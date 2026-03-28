@@ -51,7 +51,7 @@ class Packet:
     def __init__(self, raw, interface=None, direction=Direction.OUTBOUND, timestamp=0, loopback=False, impostor=False,
                  sniffed=False, ip_checksum=False, tcp_checksum=False, udp_checksum=False,
                  layer=Layer.NETWORK, event=0, flow=None, socket=None, reflect=None):
-        if isinstance(raw, bytes):
+        if isinstance(raw, (bytes, bytearray)):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
         self.interface = interface or (0, 0)
