@@ -591,7 +591,20 @@ def test_ip_addr_invalid_length():
     assert p4.src_addr is None
     assert p4.dst_addr is None
 
+    # Partially truncated IPv4 destination address
+    p4_partial = p(b"\x45" + b"\x00" * 18)
+    # address_family requires length 20, so we have to use IPv4Header directly
+    assert p4_partial.address_family is None
+    assert pydivert.packet.ip.IPv4Header(p4_partial).src_addr == "0.0.0.0"
+    assert pydivert.packet.ip.IPv4Header(p4_partial).dst_addr is None
+
     # IPv6 addresses at 8-24 and 24-40
     p6 = p(b"\x60" + b"\x00" * 19)
     assert p6.src_addr is None
     assert p6.dst_addr is None
+
+    # Partially truncated IPv6 destination address
+    p6_partial = p(b"\x60" + b"\x00" * 31)
+    assert p6_partial.address_family == socket.AF_INET6
+    assert p6_partial.src_addr == "::"
+    assert p6_partial.dst_addr is None
