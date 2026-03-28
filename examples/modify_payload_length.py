@@ -34,6 +34,9 @@ def modify_payload_example():
                 # IMPORTANT for MTU:
                 # If the packet length exceeds the MTU (usually 1500 bytes),
                 # you might need to fragment it manually, which is complex.
+                # PyDivert's DEFAULT_PACKET_BUFFER_SIZE is now 65535 to handle
+                # jumbo frames and large packets, but MTU limits still apply
+                # to the physical network.
                 if len(packet.raw) > 1500:
                     print("Warning: Packet exceeds standard MTU (1500 bytes)!")
 

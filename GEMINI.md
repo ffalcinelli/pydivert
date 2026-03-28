@@ -41,6 +41,24 @@ PyDivert is a Python binding for **WinDivert**, a Windows driver that allows use
   uv run python docs/build.py
   ```
 
+### Testing on Non-Windows Platforms
+
+Since **WinDivert** is a Windows-only driver, you must use a Windows environment for testing. A `Vagrantfile` is provided to set up a Windows 11 virtual machine for local development and testing.
+
+- **Prerequisites**: [Vagrant](https://www.vagrantup.com/) and [VirtualBox](https://www.virtualbox.org/).
+- **Start the VM**:
+  ```bash
+  vagrant up
+  ```
+- **Run tests in the VM**:
+  ```bash
+  vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+  ```
+- **Interactive PowerShell**:
+  ```bash
+  vagrant powershell
+  ```
+
 ### Project Structure
 
 - `pydivert/`: Main source code.
