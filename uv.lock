@@ -831,6 +831,9 @@ requires-dist = [
 ]
 provides-extras = ["docs", "lint", "test", "typecheck"]
 
+[package.metadata.requires-dev]
+dev = []
+
 [[package]]
 name = "pygments"
 version = "2.19.2"
