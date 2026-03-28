@@ -29,7 +29,7 @@ from pydivert import windivert_dll
 from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
 
-DEFAULT_PACKET_BUFFER_SIZE = 1500
+DEFAULT_PACKET_BUFFER_SIZE = 65535
 
 
 class WinDivert:

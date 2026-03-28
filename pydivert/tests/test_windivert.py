@@ -169,7 +169,7 @@ def test_packet_cutoff(scenario):
 
     cutoff = None
     while True:
-        p = w.recv(1500)
+        p = w.recv()
 
         if p.ip.packet_len != len(p.raw):
             assert cutoff is None
