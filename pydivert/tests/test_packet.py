@@ -583,3 +583,15 @@ def test_filter_match():
     assert p.matches("true")
     assert p.matches("udp and outbound")
     assert not p.matches("tcp")
+
+
+def test_ip_addr_invalid_length():
+    # IPv4 addresses at 12-16 and 16-20
+    p4 = p(b"\x45" + b"\x00" * 9)
+    assert p4.src_addr is None
+    assert p4.dst_addr is None
+
+    # IPv6 addresses at 8-24 and 24-40
+    p6 = p(b"\x60" + b"\x00" * 19)
+    assert p6.src_addr is None
+    assert p6.dst_addr is None
