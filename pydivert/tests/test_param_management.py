@@ -42,21 +42,27 @@ def test_get_param_success(mock_windivert_dll):
 
     # We simulate WinDivertGetParam returning success and setting the value via byref
     def side_effect(handle, param, pValue):
-        pValue._obj.value = 42
+        if param == Param.QUEUE_LEN:
+            pValue._obj.value = 42
+        elif param == Param.QUEUE_SIZE:
+            pValue._obj.value = 8388608
         return True
 
     mock_windivert_dll.WinDivertGetParam.side_effect = side_effect
 
     value = w.get_param(Param.QUEUE_LEN)
-
     assert value == 42
     assert mock_windivert_dll.WinDivertGetParam.called
-
-    # Check that it was called with the right arguments
     args = mock_windivert_dll.WinDivertGetParam.call_args[0]
     assert args[0] == 123
     assert args[1] == Param.QUEUE_LEN
-    # The third argument is a byref object, we can't easily assert equality on it directly
+
+    # Test getting QUEUE_SIZE
+    value = w.get_param(Param.QUEUE_SIZE)
+    assert value == 8388608
+    args = mock_windivert_dll.WinDivertGetParam.call_args[0]
+    assert args[0] == 123
+    assert args[1] == Param.QUEUE_SIZE
 
 
 def test_set_param_success(mock_windivert_dll):
@@ -68,7 +74,17 @@ def test_set_param_success(mock_windivert_dll):
     result = w.set_param(Param.QUEUE_TIME, 1024)
 
     assert result is True
-    mock_windivert_dll.WinDivertSetParam.assert_called_once_with(123, Param.QUEUE_TIME, 1024)
+    mock_windivert_dll.WinDivertSetParam.assert_called_with(123, Param.QUEUE_TIME, 1024)
+
+    # Test setting QUEUE_SIZE
+    result = w.set_param(Param.QUEUE_SIZE, 8388608)
+    assert result is True
+    mock_windivert_dll.WinDivertSetParam.assert_called_with(123, Param.QUEUE_SIZE, 8388608)
+
+    # Test setting QUEUE_LEN
+    result = w.set_param(Param.QUEUE_LEN, 4096)
+    assert result is True
+    mock_windivert_dll.WinDivertSetParam.assert_called_with(123, Param.QUEUE_LEN, 4096)
 
 
 def test_get_param_error(mock_windivert_dll):
