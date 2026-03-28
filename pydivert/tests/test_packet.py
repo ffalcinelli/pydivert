@@ -519,6 +519,62 @@ def test_udp_fields():
     assert udp.cksum == 0xAAAA
 
 
+def test_ipv6_traffic_class_flow_label_bit_sharing():
+    # IPv6 header structure (RFC 2460):
+    # Bits 0-3: Version (6)
+    # Bits 4-11: Traffic Class
+    # Bits 12-31: Flow Label (20 bits)
+
+    # Create a dummy IPv6 packet
+    raw = bytes(40)
+    raw = b"\x60" + raw[1:] # Version 6
+
+    packet = pydivert.Packet(raw, (0, 0), Direction.OUTBOUND)
+    ipv6 = packet.ipv6
+
+    # Initial state
+    assert ipv6.traffic_class == 0
+    assert ipv6.flow_label == 0
+
+    # 1. Set Traffic Class, verify Flow Label is unchanged
+    ipv6.traffic_class = 0xAA # 1010 1010
+    assert ipv6.traffic_class == 0xAA
+    assert ipv6.flow_label == 0
+
+    # 2. Set Flow Label (including bits in the first 16-bit word), verify Traffic Class is unchanged
+    # Flow label is 20 bits. Let's set some bits in the most significant 4 bits (0xF....)
+    ipv6.flow_label = 0xF1234
+    assert ipv6.flow_label == 0xF1234
+    assert ipv6.traffic_class == 0xAA # Should be preserved
+
+    # 3. Modify Traffic Class again, verify Flow Label is preserved
+    ipv6.traffic_class = 0x55 # 0101 0101
+    assert ipv6.traffic_class == 0x55
+    assert ipv6.flow_label == 0xF1234 # Should be preserved
+
+    # 4. Verify raw bytes
+    # Version (4): 6 (0110)
+    # Traffic Class (8): 0x55 (0101 0101)
+    # Flow Label (20): 0xF1234 (1111 0001 0010 0011 0100)
+    # First 32 bits: 0110 0101 0101 1111 0001 0010 0011 0100
+    # Hex: 6 5 5 F 1 2 3 4 -> 0x655F1234
+    first_32_bits = struct.unpack_from("!I", packet.raw, 0)[0]
+    assert first_32_bits == 0x655F1234
+
+    # 5. Verify properties derived from traffic_class
+    # traffic_class 0x55 = 010101 01
+    # diff_serv = 010101 = 21 (0x15)
+    # ecn = 01 = 1
+    assert ipv6.diff_serv == 0x15
+    assert ipv6.ecn == 1
+
+    ipv6.diff_serv = 0x3F
+    ipv6.ecn = 3
+    assert ipv6.traffic_class == 0xFF
+    assert ipv6.flow_label == 0xF1234
+    assert struct.unpack_from("!I", packet.raw, 0)[0] == 0x6FFF1234
+
+
 def test_filter_match():
     raw = util.fromhex("4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
                        "807696e2d61646472046172706100000c0001")
