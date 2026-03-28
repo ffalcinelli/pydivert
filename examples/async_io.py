@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,10 +13,11 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import pydivert
-from pydivert.windivert_dll import Overlapped
 import ctypes
 from ctypes import windll
+
+import pydivert
+from pydivert.windivert_dll import Overlapped
 
 # Windows API constants
 INFINITE = 0xFFFFFFFF
