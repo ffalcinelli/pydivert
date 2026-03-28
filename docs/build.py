@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,7 +15,6 @@
 
 import os
 import subprocess
-import shutil
 
 # Detect paths
 here = os.path.dirname(os.path.abspath(__file__))
