@@ -28,6 +28,7 @@ from pydivert.util import raw_property
 
 
 class UDPHeader(Header, PayloadMixin, PortMixin):
+    __repr_fields__ = ("cksum", "dst_port", "header_len", "payload", "payload_len", "raw", "src_port")
     header_len = 8
 
     @property

@@ -41,6 +41,13 @@ class Packet:
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
+    __repr_fields__ = (
+        "direction", "dst_addr", "dst_port", "event", "flow", "icmpv4", "icmpv6", "interface", "ip_checksum",
+        "ipv4", "ipv6", "is_impostor", "is_inbound", "is_loopback", "is_outbound", "is_sniffed", "layer",
+        "payload", "raw", "reflect", "socket", "src_addr", "src_port", "tcp", "tcp_checksum", "timestamp",
+        "udp", "udp_checksum"
+    )
+
     def __init__(self, raw, interface=None, direction=Direction.OUTBOUND, timestamp=0, loopback=False, impostor=False,
                  sniffed=False, ip_checksum=False, tcp_checksum=False, udp_checksum=False,
                  layer=Layer.NETWORK, event=0, flow=None, socket=None, reflect=None):
@@ -64,17 +71,10 @@ class Packet:
 
     def __repr__(self):
         def dump(x):
-            if isinstance(x, Header) or isinstance(x, Packet):
+            if isinstance(x, (Header, Packet)):
                 d = {}
-                for k in dir(x):
-                    if k in {"is_inbound", "is_outbound", "is_loopback", "is_impostor", "is_sniffed"}:
-                        d[k] = getattr(x, k)
-                        continue
+                for k in getattr(x, "__repr_fields__", ()):
                     v = getattr(x, k)
-                    if k.startswith("_") or callable(v):
-                        continue
-                    if k in {"address_family", "protocol", "ip", "icmp", "wd_addr"}:
-                        continue
                     if k == "payload" and v and len(v) > 20:
                         v = v[:20] + b"..."
                     d[k] = dump(v)
