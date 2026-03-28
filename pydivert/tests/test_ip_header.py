@@ -1,5 +1,7 @@
 import pytest
+
 from pydivert.packet.ip import IPHeader
+
 
 def test_ip_header_packet_len_setter():
     class DummyPacket:
