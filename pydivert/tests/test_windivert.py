@@ -80,6 +80,16 @@ class TestParams:
             w.set_param(Param.QUEUE_LEN, value)
             assert value == w.get_param(Param.QUEUE_LEN)
 
+    @pytest.mark.skip(reason="Fails on Vagrant VM with WinError 87")
+    def test_queue_size_range(self, w):
+        """
+        Tests setting the minimum value for queue size.
+        From docs: 4096 <= queue size <= 33554432
+        """
+        for value in (4096, 4194304, 33554432):
+            w.set_param(Param.QUEUE_SIZE, value)
+            assert value == w.get_param(Param.QUEUE_SIZE)
+
     def test_invalid_set(self, w):
         with pytest.raises(OSError):
             w.set_param(42, 43)
