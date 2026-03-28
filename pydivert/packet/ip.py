@@ -74,6 +74,10 @@ class IPHeader(Header):
 
 
 class IPv4Header(IPHeader):
+    __repr_fields__ = (
+        "cksum", "df", "diff_serv", "dscp", "dst_addr", "ecn", "evil", "flags", "frag_offset", "hdr_len",
+        "header_len", "ident", "mf", "packet_len", "raw", "reserved", "src_addr", "tos", "ttl"
+    )
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
     _af = socket.AF_INET  # type: ignore
@@ -159,6 +163,10 @@ class IPv4Header(IPHeader):
 
 
 class IPv6Header(IPHeader):
+    __repr_fields__ = (
+        "diff_serv", "dst_addr", "ecn", "flow_label", "header_len", "hop_limit", "next_hdr", "packet_len",
+        "payload_len", "raw", "src_addr", "traffic_class"
+    )
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
     _af = socket.AF_INET6  # type: ignore
