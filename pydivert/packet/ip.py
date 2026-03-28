@@ -70,7 +70,7 @@ class IPHeader(Header):
 
     @packet_len.setter
     def packet_len(self, val):
-        pass
+        raise AttributeError("can't set attribute")
 
 
 class IPv4Header(IPHeader):
