@@ -361,7 +361,18 @@ class Packet:
 
     def __to_buffers(self):
         buff = self.raw.obj
-        return buff, (ctypes.c_char * len(self.raw)).from_buffer(buff)
+        raw_len = len(self.raw)
+
+        try:
+            if self._cached_buff_len == raw_len and self._cached_buff_id == id(buff):
+                return buff, self._cached_buff
+        except AttributeError:
+            pass
+
+        self._cached_buff_len = raw_len
+        self._cached_buff_id = id(buff)
+        self._cached_buff = (ctypes.c_char * raw_len).from_buffer(buff)
+        return buff, self._cached_buff
 
     @property
     def wd_addr(self):
