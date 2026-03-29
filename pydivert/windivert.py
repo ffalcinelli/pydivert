@@ -70,7 +70,7 @@ class WinDivert:
             self._filter.decode(),
             self._layer,
             self._priority,
-            self._flags
+            self._flags,
         )
 
     def __enter__(self):
@@ -100,8 +100,7 @@ class WinDivert:
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call(["sc", "query", "WinDivert"], stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE) == 0
+        return subprocess.call(["sc", "query", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
 
     @staticmethod
     def unregister():
@@ -110,8 +109,7 @@ class WinDivert:
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call(["sc", "stop", "WinDivert"], stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
+        subprocess.check_call(["sc", "stop", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     @staticmethod
     def check_filter(filter, layer=Layer.NETWORK):
@@ -158,8 +156,7 @@ class WinDivert:
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority,
-                                                   self._flags)
+        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
 
     @property
     def is_open(self):
@@ -212,8 +209,16 @@ class WinDivert:
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
+        return self._parse_packet(packet, recv_len.value, address)
+
+    @staticmethod
+    def _parse_packet(packet, recv_len, address):
+        """
+        Helper method to parse a raw packet buffer and a WinDivertAddress structure
+        into a pydivert.Packet instance.
+        """
         return Packet(
-            memoryview(packet)[:recv_len.value],
+            memoryview(packet)[:recv_len],
             interface=(address.Network.IfIdx, address.Network.SubIfIdx),
             direction=Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
             timestamp=address.Timestamp,
@@ -227,7 +232,7 @@ class WinDivert:
             event=address.Event,
             flow=address.Flow if address.Layer == Layer.FLOW else None,
             socket=address.Socket if address.Layer == Layer.SOCKET else None,
-            reflect=address.Reflect if address.Layer == Layer.REFLECT else None
+            reflect=address.Reflect if address.Layer == Layer.REFLECT else None,
         )
 
     def recv_ex(self, bufsize=DEFAULT_PACKET_BUFFER_SIZE, flags=0, overlapped=None):
@@ -262,13 +267,15 @@ class WinDivert:
         packet_ = (c_char * bufsize).from_buffer(packet)
         windivert_dll._init()
         from pydivert.windivert_dll.structs import WinDivertAddress
+
         address = WinDivertAddress()
         recv_len = c_uint(0)
         addr_len = c_uint(ctypes.sizeof(WinDivertAddress))
 
         try:
-            windivert_dll.WinDivertRecvEx(self._handle, packet_, bufsize, byref(recv_len), flags,
-                                          byref(address), byref(addr_len), overlapped)
+            windivert_dll.WinDivertRecvEx(
+                self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), byref(addr_len), overlapped
+            )
         except OSError as e:
             if overlapped is not None and e.winerror == windivert_dll.ERROR_IO_PENDING:
                 # Store references to prevent garbage collection
@@ -278,23 +285,7 @@ class WinDivert:
                 return None
             raise
 
-        return Packet(
-            memoryview(packet)[:recv_len.value],
-            interface=(address.Network.IfIdx, address.Network.SubIfIdx),
-            direction=Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
-            timestamp=address.Timestamp,
-            loopback=bool(address.Loopback),
-            impostor=bool(address.Impostor),
-            sniffed=bool(address.Sniffed),
-            ip_checksum=bool(address.IPChecksum),
-            tcp_checksum=bool(address.TCPChecksum),
-            udp_checksum=bool(address.UDPChecksum),
-            layer=address.Layer,
-            event=address.Event,
-            flow=address.Flow if address.Layer == Layer.FLOW else None,
-            socket=address.Socket if address.Layer == Layer.SOCKET else None,
-            reflect=address.Reflect if address.Layer == Layer.REFLECT else None
-        )
+        return self._parse_packet(packet, recv_len.value, address)
 
     def send(self, packet, recalculate_checksum=True):
         """
@@ -362,12 +353,14 @@ class WinDivert:
         buff = (c_char * len(packet.raw)).from_buffer(buff)
         windivert_dll._init()
         from pydivert.windivert_dll.structs import WinDivertAddress
+
         wd_addr = packet.wd_addr
         addr_len = ctypes.sizeof(WinDivertAddress)
 
         try:
-            windivert_dll.WinDivertSendEx(self._handle, buff, len(packet.raw), byref(send_len), flags,
-                                          byref(wd_addr), addr_len, overlapped)
+            windivert_dll.WinDivertSendEx(
+                self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), addr_len, overlapped
+            )
         except OSError as e:
             if overlapped is not None and e.winerror == windivert_dll.ERROR_IO_PENDING:
                 # Store references to prevent garbage collection
