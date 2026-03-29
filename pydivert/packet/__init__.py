@@ -149,6 +149,31 @@ class Packet:
             if v == 6:
                 return socket.AF_INET6
 
+    def _parse_ipv4_protocol(self):
+        proto = self.raw[9]
+        start = (self.raw[0] & 0b1111) * 4
+        return proto, start
+
+    def _parse_ipv6_protocol(self):
+        proto = self.raw[6]
+
+        # skip over well-known ipv6 headers
+        start = 40
+        while proto in IPV6_EXT_HEADERS:
+            if start >= len(self.raw):
+                # less than two bytes left
+                return None, None
+            if proto == Protocol.FRAGMENT:
+                hdrlen = 8
+            elif proto == Protocol.AH:
+                hdrlen = (self.raw[start + 1] + 2) * 4  # type: ignore[operator]
+            else:
+                # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
+                hdrlen = (self.raw[start + 1] + 1) * 8  # type: ignore[operator]
+            proto = self.raw[start]
+            start += hdrlen  # type: ignore[operator]
+        return proto, start
+
     @cached_property
     def protocol(self):
         """
@@ -158,28 +183,9 @@ class Packet:
           | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
         if self.address_family == socket.AF_INET:
-            proto = self.raw[9]
-            start = (self.raw[0] & 0b1111) * 4
+            proto, start = self._parse_ipv4_protocol()
         elif self.address_family == socket.AF_INET6:
-            proto = self.raw[6]
-
-            # skip over well-known ipv6 headers
-            start = 40
-            while proto in IPV6_EXT_HEADERS:
-                if start >= len(self.raw):
-                    # less than two bytes left
-                    start = None
-                    proto = None
-                    break
-                if proto == Protocol.FRAGMENT:
-                    hdrlen = 8
-                elif proto == Protocol.AH:
-                    hdrlen = (self.raw[start + 1] + 2) * 4  # type: ignore[operator]
-                else:
-                    # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
-                    hdrlen = (self.raw[start + 1] + 1) * 8  # type: ignore[operator]
-                proto = self.raw[start]
-                start += hdrlen  # type: ignore[operator]
+            proto, start = self._parse_ipv6_protocol()
         else:
             start = None
             proto = None
