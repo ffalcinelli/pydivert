@@ -63,6 +63,8 @@ class WinDivert:
         self._layer = layer
         self._priority = priority
         self._flags = flags
+        self._recv_buf = None
+        self._recv_buf_c = None
 
     def __repr__(self):
         return '<WinDivert state="{}" filter="{}" layer="{}" priority="{}" flags="{}" />'.format(
@@ -203,8 +205,12 @@ class WinDivert:
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        packet = bytearray(bufsize)
-        packet_ = (c_char * bufsize).from_buffer(packet)
+        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+            self._recv_buf = bytearray(bufsize)
+            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+
+        packet = self._recv_buf
+        packet_ = self._recv_buf_c
         address = windivert_dll.WinDivertAddress()
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
@@ -263,8 +269,15 @@ class WinDivert:
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        packet = bytearray(bufsize)
-        packet_ = (c_char * bufsize).from_buffer(packet)
+        if overlapped is None:
+            if self._recv_buf is None or len(self._recv_buf) != bufsize:
+                self._recv_buf = bytearray(bufsize)
+                self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+            packet = self._recv_buf
+            packet_ = self._recv_buf_c
+        else:
+            packet = bytearray(bufsize)
+            packet_ = (c_char * bufsize).from_buffer(packet)
         windivert_dll._init()
         from pydivert.windivert_dll.structs import WinDivertAddress
 
