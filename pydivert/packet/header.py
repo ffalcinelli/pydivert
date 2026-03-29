@@ -48,11 +48,17 @@ class Header:
             self._packet.ip.packet_len = len(self._packet.raw)
 
 
-class PayloadMixin:
+class RawProtocol:
     @property
     def raw(self) -> Any:
         raise NotImplementedError()
 
+    @raw.setter
+    def raw(self, val: Any):
+        raise NotImplementedError()
+
+
+class PayloadMixin(RawProtocol):
     @property
     def header_len(self):
         raise NotImplementedError()  # pragma: no cover
@@ -72,11 +78,7 @@ class PayloadMixin:
             self.raw = self.raw[:self.header_len].tobytes() + val
 
 
-class PortMixin:
-    @property
-    def raw(self) -> Any:
-        raise NotImplementedError()
-
+class PortMixin(RawProtocol):
     @property
     def src_port(self) -> Any:
         """
