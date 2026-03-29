@@ -22,6 +22,7 @@
 # see <http://www.gnu.org/licenses/>.
 
 import ctypes
+import logging
 import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
@@ -30,6 +31,8 @@ from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
 
 DEFAULT_PACKET_BUFFER_SIZE = 65575
+
+logger = logging.getLogger(__name__)
 
 
 class WinDivert:
@@ -132,8 +135,8 @@ class WinDivert:
         res, pos, msg = False, c_uint(), c_char_p()
         try:
             res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning("WinDivertHelperCompileFilter failed: %s", e)
         return res, pos.value, msg.value.decode() if msg.value else ""
 
     def open(self):
