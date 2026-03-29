@@ -47,11 +47,6 @@ class Header:
             ))
             self._packet.ip.packet_len = len(self._packet.raw)
 
-    def __setattr__(self, key, value):
-        if key in dir(self) or key in {"_packet", "_start"}:
-            return super().__setattr__(key, value)
-        raise AttributeError(f"AttributeError: '{type(self).__name__}' object has no attribute '{key}'")
-
 
 class PayloadMixin:
     @property
