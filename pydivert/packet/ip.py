@@ -21,11 +21,14 @@
 # and the GNU General Public License along with this program.  If not,
 # see <http://www.gnu.org/licenses/>.
 
+import logging
 import socket
 import struct
 
 from pydivert.packet.header import Header
 from pydivert.util import flag_property, raw_property
+
+logger = logging.getLogger(__name__)
 
 
 class IPHeader(Header):
@@ -40,8 +43,8 @@ class IPHeader(Header):
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())  # type: ignore[arg-type]
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as e:
+            logger.debug("Failed to parse IP address: %s", e)
 
     @src_addr.setter
     def src_addr(self, val):
@@ -54,8 +57,8 @@ class IPHeader(Header):
         """
         try:
             return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())  # type: ignore[arg-type]
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as e:
+            logger.debug("Failed to parse IP address: %s", e)
 
     @dst_addr.setter
     def dst_addr(self, val):
