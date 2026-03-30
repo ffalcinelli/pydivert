@@ -31,6 +31,7 @@ class Layer(IntEnum):
     WinDivert layers.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
+
     NETWORK = 0
     """Network layer (capture/inject IP packets)."""
     NETWORK_FORWARD = 1
@@ -49,6 +50,7 @@ class Flag(IntEnum):
     WinDivert flags.
     See https://reqrypt.org/windivert-doc.html#divert_open
     """
+
     DEFAULT = 0
     """Default flags."""
     SNIFF = 1
@@ -76,6 +78,7 @@ class RecvFlag(IntEnum):
     WinDivert receive flags.
     See https://reqrypt.org/windivert-doc.html#divert_recv
     """
+
     DEFAULT = 0
     NO_BLOCK = 1
 
@@ -85,6 +88,7 @@ class Param(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_set_param
     """
+
     QUEUE_LEN = 0  # Packet queue length 1 < default 512 (actually 1024) < 8192
     QUEUE_TIME = 1  # Packet queue time 128 < default 512 < 2048
     QUEUE_SIZE = 2  # Packet queue size (bytes)  4096 (4KB) < default 4194304 (4MB) < 33554432 (32MB)
@@ -95,6 +99,7 @@ class Direction(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_address
     """
+
     OUTBOUND = 0
     INBOUND = 1
 
@@ -104,6 +109,7 @@ class CalcChecksumsOption(IntEnum):
     """
     See https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
     """
+
     NO_IP_CHECKSUM = 1
     NO_ICMP_CHECKSUM = 2
     NO_ICMPV6_CHECKSUM = 4
@@ -117,6 +123,7 @@ class Protocol(IntEnum):
     Transport protocol values define the layout of the header that will immediately follow the IPv4 or IPv6 header.
     See http://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
     """
+
     HOPOPT = 0
     ICMP = 1
     TCP = 6

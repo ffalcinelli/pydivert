@@ -79,8 +79,25 @@ class IPHeader(Header):
 
 class IPv4Header(IPHeader):
     __repr_fields__ = (
-        "cksum", "df", "diff_serv", "dscp", "dst_addr", "ecn", "evil", "flags", "frag_offset", "hdr_len",
-        "header_len", "ident", "mf", "packet_len", "raw", "reserved", "src_addr", "tos", "ttl"
+        "cksum",
+        "df",
+        "diff_serv",
+        "dscp",
+        "dst_addr",
+        "ecn",
+        "evil",
+        "flags",
+        "frag_offset",
+        "hdr_len",
+        "header_len",
+        "ident",
+        "mf",
+        "packet_len",
+        "raw",
+        "reserved",
+        "src_addr",
+        "tos",
+        "ttl",
     )
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
@@ -104,20 +121,20 @@ class IPv4Header(IPHeader):
     def hdr_len(self, val):
         if val < 5:
             raise ValueError("IP header length must be greater or equal than 5.")
-        struct.pack_into('!B', self.raw, 0, 0x40 | val)
+        struct.pack_into("!B", self.raw, 0, 0x40 | val)
 
-    packet_len = raw_property('!H', 2, docs=IPHeader.packet_len.__doc__)
-    tos = raw_property('!B', 1, docs='The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).')
-    ident = raw_property('!H', 4, docs='The Identification field.')
+    packet_len = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)
+    tos = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")
+    ident = raw_property("!H", 4, docs="The Identification field.")
 
-    reserved = flag_property('reserved', 6, 0b10000000)
-    evil = flag_property('evil', 6, 0b10000000, docs='Just an april\'s fool joke for the RESERVED flag.')
-    df = flag_property('df', 6, 0b01000000)
-    mf = flag_property('mf', 6, 0b00100000)
+    reserved = flag_property("reserved", 6, 0b10000000)
+    evil = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")
+    df = flag_property("df", 6, 0b01000000)
+    mf = flag_property("mf", 6, 0b00100000)
 
-    ttl = raw_property('!B', 8, docs='The Time To Live field.')
-    protocol = raw_property('!B', 9, docs='The Protocol field.')
-    cksum = raw_property('!H', 10, docs='The IP header Checksum field.')
+    ttl = raw_property("!B", 8, docs="The Time To Live field.")
+    protocol = raw_property("!B", 9, docs="The Protocol field.")
+    cksum = raw_property("!H", 10, docs="The IP header Checksum field.")
 
     @property
     def flags(self):
@@ -128,7 +145,7 @@ class IPv4Header(IPHeader):
 
     @flags.setter
     def flags(self, val):
-        struct.pack_into('!B', self.raw, 6, (val << 5) | (self.frag_offset & 0xFF00))
+        struct.pack_into("!B", self.raw, 6, (val << 5) | (self.frag_offset & 0xFF00))
 
     @property
     def frag_offset(self):
@@ -150,7 +167,7 @@ class IPv4Header(IPHeader):
 
     @dscp.setter
     def dscp(self, val):
-        struct.pack_into('!B', self.raw, 1, (val << 2) | self.ecn)
+        struct.pack_into("!B", self.raw, 1, (val << 2) | self.ecn)
 
     diff_serv = dscp
 
@@ -163,22 +180,32 @@ class IPv4Header(IPHeader):
 
     @ecn.setter
     def ecn(self, val):
-        struct.pack_into('!B', self.raw, 1, (self.dscp << 2) | (val & 0x03))
+        struct.pack_into("!B", self.raw, 1, (self.dscp << 2) | (val & 0x03))
 
 
 class IPv6Header(IPHeader):
     __repr_fields__ = (
-        "diff_serv", "dst_addr", "ecn", "flow_label", "header_len", "hop_limit", "next_hdr", "packet_len",
-        "payload_len", "raw", "src_addr", "traffic_class"
+        "diff_serv",
+        "dst_addr",
+        "ecn",
+        "flow_label",
+        "header_len",
+        "hop_limit",
+        "next_hdr",
+        "packet_len",
+        "payload_len",
+        "raw",
+        "src_addr",
+        "traffic_class",
     )
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
     _af = socket.AF_INET6  # type: ignore
     header_len = 40
 
-    payload_len = raw_property('!H', 4, docs='The Payload Length field.')
-    next_hdr = raw_property('!B', 6, docs='The Next Header field. Replaces the Protocol field in IPv4.')
-    hop_limit = raw_property('!B', 7, docs='The Hop Limit field. Replaces the TTL field in IPv4.')
+    payload_len = raw_property("!H", 4, docs="The Payload Length field.")
+    next_hdr = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")
+    hop_limit = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")
 
     @property
     def packet_len(self):
@@ -193,22 +220,22 @@ class IPv6Header(IPHeader):
         """
         The Traffic Class field (six-bit DiffServ field and a two-bit ECN field).
         """
-        return (struct.unpack_from('!H', self.raw, 0)[0] >> 4) & 0x00FF
+        return (struct.unpack_from("!H", self.raw, 0)[0] >> 4) & 0x00FF
 
     @traffic_class.setter
     def traffic_class(self, val):
-        struct.pack_into('!H', self.raw, 0, 0x6000 | (val << 4) | (self.flow_label >> 16))
+        struct.pack_into("!H", self.raw, 0, 0x6000 | (val << 4) | (self.flow_label >> 16))
 
     @property
     def flow_label(self):
         """
         The Flow Label field.
         """
-        return struct.unpack_from('!I', self.raw, 0)[0] & 0x000FFFFF
+        return struct.unpack_from("!I", self.raw, 0)[0] & 0x000FFFFF
 
     @flow_label.setter
     def flow_label(self, val):
-        struct.pack_into('!I', self.raw, 0, 0x60000000 | (self.traffic_class << 20) | (val & 0x000FFFFF))
+        struct.pack_into("!I", self.raw, 0, 0x60000000 | (self.traffic_class << 20) | (val & 0x000FFFFF))
 
     @property
     def diff_serv(self):

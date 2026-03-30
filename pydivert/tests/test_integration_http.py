@@ -39,10 +39,11 @@ import pydivert
 
 def get_free_port():
     s = socket.socket()
-    s.bind(('127.0.0.1', 0))
+    s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
     return port
+
 
 def test_http_port_redirection():
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
@@ -55,7 +56,7 @@ def test_http_port_redirection():
             pass
 
     # Real port where the server is listening
-    httpd = http.server.HTTPServer(('127.0.0.1', 0), SimpleHandler)
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
     real_port = httpd.server_address[1]
 
     server_thread = threading.Thread(target=httpd.serve_forever)
@@ -111,11 +112,12 @@ def test_http_port_redirection():
         httpd.shutdown()
         divert_thread.join(timeout=1)
 
+
 def test_http_modification():
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
+            self.send_header("Content-type", "text/plain")
             self.end_headers()
             self.wfile.write(b"Hello, World!")
 
@@ -123,7 +125,7 @@ def test_http_modification():
             pass
 
     # Bind to 127.0.0.1:0 to get a random free port
-    httpd = http.server.HTTPServer(('127.0.0.1', 0), SimpleHandler)
+    httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
     port = httpd.server_address[1]
 
     server_thread = threading.Thread(target=httpd.serve_forever)

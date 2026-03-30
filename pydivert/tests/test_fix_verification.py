@@ -9,9 +9,7 @@ def test_is_registered_calls_subprocess_with_list():
     with patch("subprocess.call") as mock_call:
         mock_call.return_value = 0
         WinDivert.is_registered()
-        mock_call.assert_called_once_with(
-            ["sc", "query", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        mock_call.assert_called_once_with(["sc", "query", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 def test_unregister_calls_subprocess_with_list():
