@@ -60,9 +60,13 @@ def flag_property(name, offset, bit, docs=None):
             flags &= ~bit
         self.raw[offset] = flags
 
-    flag.__doc__ = f"""
+    flag.__doc__ = (
+        f"""
         Indicates if the {name.upper()} flag is set.
-        """ if not docs else docs
+        """
+        if not docs
+        else docs
+    )
 
     return flag  # type: ignore[misc]
 

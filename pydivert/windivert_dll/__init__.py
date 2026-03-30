@@ -25,6 +25,7 @@
 pydivert bundles the WinDivert binaries from
 https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 """
+
 import functools
 import os
 import platform
@@ -87,7 +88,7 @@ def raise_on_error(f):
         # All other functions return BOOL (False on failure).
         if f.__name__ == "WinDivertOpen":
             # INVALID_HANDLE_VALUE is -1 (or 0xFFFFFFFFFFFFFFFF for 64-bit void_p)
-            failed = (result == -1 or result == 0xFFFFFFFFFFFFFFFF or result is None)
+            failed = result == -1 or result == 0xFFFFFFFFFFFFFFFF or result is None
         else:
             failed = not result
 
@@ -103,8 +104,24 @@ def raise_on_error(f):
 
 
 WINDIVERT_FUNCTIONS = {
-    "WinDivertHelperParsePacket": ([c_void_p, c_uint, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p, c_void_p,
-                                   c_void_p, c_void_p, POINTER(c_uint), c_void_p, POINTER(c_uint)], c_int),
+    "WinDivertHelperParsePacket": (
+        [
+            c_void_p,
+            c_uint,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            POINTER(c_uint),
+            c_void_p,
+            POINTER(c_uint),
+        ],
+        c_int,
+    ),
     "WinDivertHelperParseIPv4Address": ([c_char_p, POINTER(c_uint32)], c_int),
     "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(ARRAY(c_uint8, 16))], c_int),
     "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_int),
@@ -113,10 +130,23 @@ WINDIVERT_FUNCTIONS = {
     "WinDivertOpen": ([c_char_p, c_int, c_int16, c_uint64], HANDLE),
     "WinDivertRecv": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)], c_int),
     "WinDivertSend": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)], c_int),
-    "WinDivertRecvEx": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
-                        POINTER(c_uint), POINTER(Overlapped)], c_int),
-    "WinDivertSendEx": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress),
-                        c_uint, POINTER(Overlapped)], c_int),
+    "WinDivertRecvEx": (
+        [
+            HANDLE,
+            c_void_p,
+            c_uint,
+            POINTER(c_uint),
+            c_uint64,
+            POINTER(WinDivertAddress),
+            POINTER(c_uint),
+            POINTER(Overlapped),
+        ],
+        c_int,
+    ),
+    "WinDivertSendEx": (
+        [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress), c_uint, POINTER(Overlapped)],
+        c_int,
+    ),
     "WinDivertShutdown": ([HANDLE, c_int], c_int),
     "WinDivertClose": ([HANDLE], c_int),
     "WinDivertGetParam": ([HANDLE, c_int, POINTER(c_uint64)], c_int),

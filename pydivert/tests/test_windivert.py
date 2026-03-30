@@ -108,11 +108,7 @@ def test_echo(scenario):
         assert p.is_loopback
         assert p.is_outbound
         w.send(p)
-        done = (
-            p.udp and p.dst_port == client_addr[1]
-            or
-            p.tcp and p.tcp.fin
-        )
+        done = p.udp and p.dst_port == client_addr[1] or p.tcp and p.tcp.fin
         if done:
             break
 
@@ -131,11 +127,7 @@ def test_divert(scenario):
             p.src_port = target[1]
         w.send(p)
 
-        done = (
-            p.udp and p.dst_port == client_addr[1]
-            or
-            p.tcp and p.tcp.fin
-        )
+        done = p.udp and p.dst_port == client_addr[1] or p.tcp and p.tcp.fin
         if done:
             break
 
@@ -151,11 +143,7 @@ def test_modify_payload(scenario):
         p.payload = p.payload.replace(b"echo", b"test").replace(b"TEST", b"ECHO")
         w.send(p)
 
-        done = (
-            p.udp and p.dst_port == client_addr[1]
-            or
-            p.tcp and p.tcp.fin
-        )
+        done = p.udp and p.dst_port == client_addr[1] or p.tcp and p.tcp.fin
         if done:
             break
     assert reply.get() == b"ECHO"
@@ -178,26 +166,23 @@ def test_packet_cutoff(scenario):
             if p.udp:
                 p.udp.payload_len = len(p.payload)
         w.send(p)
-        done = (
-            p.udp and p.dst_port == client_addr[1]
-            or
-            p.tcp and p.tcp.fin
-        )
+        done = p.udp and p.dst_port == client_addr[1] or p.tcp and p.tcp.fin
         if done:
             break
     assert cutoff
     assert reply.get() == b"A" * (1000 - cutoff)
 
+
 def test_check_filter():
 
-    res, pos, msg = WinDivert.check_filter('true')
+    res, pos, msg = WinDivert.check_filter("true")
     assert res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter('something wrong here')
+    res, pos, msg = WinDivert.check_filter("something wrong here")
     assert not res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter('outbound and something wrong here')
+    res, pos, msg = WinDivert.check_filter("outbound and something wrong here")
     assert not res
     assert pos == 13

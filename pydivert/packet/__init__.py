@@ -42,15 +42,54 @@ class Packet:
     """
 
     __repr_fields__ = (
-        "direction", "dst_addr", "dst_port", "event", "flow", "icmpv4", "icmpv6", "interface", "ip_checksum",
-        "ipv4", "ipv6", "is_impostor", "is_inbound", "is_loopback", "is_outbound", "is_sniffed", "layer",
-        "payload", "raw", "reflect", "socket", "src_addr", "src_port", "tcp", "tcp_checksum", "timestamp",
-        "udp", "udp_checksum"
+        "direction",
+        "dst_addr",
+        "dst_port",
+        "event",
+        "flow",
+        "icmpv4",
+        "icmpv6",
+        "interface",
+        "ip_checksum",
+        "ipv4",
+        "ipv6",
+        "is_impostor",
+        "is_inbound",
+        "is_loopback",
+        "is_outbound",
+        "is_sniffed",
+        "layer",
+        "payload",
+        "raw",
+        "reflect",
+        "socket",
+        "src_addr",
+        "src_port",
+        "tcp",
+        "tcp_checksum",
+        "timestamp",
+        "udp",
+        "udp_checksum",
     )
 
-    def __init__(self, raw, interface=None, direction=Direction.OUTBOUND, timestamp=0, loopback=False, impostor=False,
-                 sniffed=False, ip_checksum=False, tcp_checksum=False, udp_checksum=False,
-                 layer=Layer.NETWORK, event=0, flow=None, socket=None, reflect=None):
+    def __init__(
+        self,
+        raw,
+        interface=None,
+        direction=Direction.OUTBOUND,
+        timestamp=0,
+        loopback=False,
+        impostor=False,
+        sniffed=False,
+        ip_checksum=False,
+        tcp_checksum=False,
+        udp_checksum=False,
+        layer=Layer.NETWORK,
+        event=0,
+        flow=None,
+        socket=None,
+        reflect=None,
+    ):
         if isinstance(raw, (bytes, bytearray)):
             raw = memoryview(bytearray(raw))
         self.raw = raw  # type: memoryview
@@ -191,9 +230,9 @@ class Packet:
             proto = None
 
         out_of_bounds = (
-            (proto == Protocol.TCP and start + 20 > len(self.raw)) or
-            (proto == Protocol.UDP and start + 8 > len(self.raw)) or
-            (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
+            (proto == Protocol.TCP and start + 20 > len(self.raw))
+            or (proto == Protocol.UDP and start + 8 > len(self.raw))
+            or (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
         )
         if out_of_bounds:
             # special-case tcp/udp so that we can rely on .protocol for the port properties.
@@ -432,5 +471,9 @@ class Packet:
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
         addr.Layer = layer  # type: ignore
-        return windivert_dll.WinDivertHelperEvalFilter(filter.encode(), ctypes.byref(buff_), len(self.raw),  # type: ignore[attr-defined]
-                                                       ctypes.byref(addr))
+        return windivert_dll.WinDivertHelperEvalFilter(
+            filter.encode(),
+            ctypes.byref(buff_),
+            len(self.raw),  # type: ignore[attr-defined]
+            ctypes.byref(addr),
+        )

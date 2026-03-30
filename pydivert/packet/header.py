@@ -35,16 +35,14 @@ class Header:
         """
         The raw header, possibly including payload.
         """
-        return self._packet.raw[self._start:]
+        return self._packet.raw[self._start :]
 
     @raw.setter
     def raw(self, val):
         if len(val) == len(self.raw):
             self.raw[:] = val
         else:
-            self._packet.raw = memoryview(bytearray(
-                self._packet.raw[:self._start].tobytes() + val
-            ))
+            self._packet.raw = memoryview(bytearray(self._packet.raw[: self._start].tobytes() + val))
             self._packet.ip.packet_len = len(self._packet.raw)
 
 
@@ -68,14 +66,14 @@ class PayloadMixin(RawProtocol):
         """
         The packet payload data.
         """
-        return self.raw[self.header_len:].tobytes()
+        return self.raw[self.header_len :].tobytes()
 
     @payload.setter
     def payload(self, val):
         if len(val) == len(self.raw) - self.header_len:
-            self.raw[self.header_len:] = val
+            self.raw[self.header_len :] = val
         else:
-            self.raw = self.raw[:self.header_len].tobytes() + val
+            self.raw = self.raw[: self.header_len].tobytes() + val
 
 
 class PortMixin(RawProtocol):
