@@ -230,4 +230,9 @@ The full API documentation is available at [https://ffalcinelli.github.io/pydive
 
 ## License
 
-PyDivert is dual-licensed under the **LGPLv3** and **GPLv2** licenses to match the WinDivert driver's licensing strategy. See the [LICENSE](LICENSE) file for more details.
+PyDivert is dual-licensed under the **LGPL-3.0-or-later** and **GPL-2.0-or-later** licenses to match the WinDivert driver's licensing strategy.
+
+- [GNU Lesser General Public License v3.0 or later](LICENSE-LGPL-3.0-or-later)
+- [GNU General Public License v2.0 or later](LICENSE-GPL-2.0-or-later)
+
+See the [LICENSE](LICENSE) file for more details.
