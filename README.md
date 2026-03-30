@@ -7,7 +7,7 @@
 [![windows](https://img.shields.io/badge/os-windows%2011-blue.svg)](https://pypi.python.org/pypi/pydivert)
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
 
-**PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
+**PyDivert** is a high-performance Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
 
 ## Features
 
@@ -15,17 +15,16 @@
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.
 - **Inject** new or modified packets into the network stack.
-- **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
-- **Bundled Binaries**: No need to manually install WinDivert; the 64-bit DLL and driver are included.
+- **WinDivert 2.2 Support**: Full access to advanced layers (`NETWORK`, `FLOW`, `SOCKET`, `REFLECT`) and metadata.
+- **Asynchronous I/O**: High-performance packet capture and injection via Windows Overlapped I/O.
+- **Programmatic Driver Management**: Register and unregister the WinDivert driver service at runtime.
+- **Bundled Binaries**: The 64-bit WinDivert 2.2.2 DLL and driver are included.
 
 ## Requirements
 
 - **Python 3.10+** (64-bit)
 - **Windows 11** (64-bit)
 - **Administrator Privileges** (required to interact with the WinDivert driver)
-
-> [!NOTE]
-> Windows Server is currently untested but likely works if it meets the architecture requirements.
 
 ## Installation
 
@@ -43,11 +42,6 @@ uv add pydivert
 
 ## Quick Start
 
-The main entry points are `pydivert.WinDivert` for capturing and `pydivert.Packet` for manipulation.
-
-> [!TIP]
-> All code examples in this README are verified by automated integration tests in `pydivert/tests/test_readme_examples.py`.
-
 ### Basic Capture and Re-injection
 
 ```python
@@ -60,11 +54,9 @@ with pydivert.WinDivert("tcp.DstPort == 80") as w:
         w.send(packet)  # Re-inject the packet back into the stack
 ```
 
-When you call `.recv()` (or iterate over the `WinDivert` object), the packet is **taken out** of the Windows network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
+When you iterate over the `WinDivert` object, the packet is **taken out** of the Windows network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
 
 ### Packet Modification
-
-You can easily modify packet headers and recalculate checksums automatically.
 
 ```python
 import pydivert
@@ -74,122 +66,63 @@ with pydivert.WinDivert("tcp.DstPort == 1234") as w:
         # Redirect traffic to port 80
         packet.dst_port = 80
         
-        # WinDivert handles checksum recalculation by default when sending
+        # WinDivert handles checksum recalculation automatically when sending
         w.send(packet)
 ```
-
-## Common Use Cases
-
-### 1. Simple Firewall (Dropping Packets)
-By simply not calling `.send(packet)`, the packet is effectively dropped and never reaches its destination.
-
-```python
-import pydivert
-
-# Block all traffic from a specific IP address
-with pydivert.WinDivert("ip.SrcAddr == 1.2.3.4") as w:
-    for packet in w:
-        print(f"Blocking packet from {packet.src_addr}")
-        # Packet is dropped here
-```
-
-### 2. Payload Inspection and Modification
-You can inspect or modify the raw bytes of the packet payload.
-
-```python
-import pydivert
-
-# Filter for TCP packets with payload
-with pydivert.WinDivert("tcp.PayloadLength > 0") as w:
-    for packet in w:
-        if b"secret-token" in packet.payload:
-            print("Sensitive data detected!")
-            # Redact the token
-            packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
-        w.send(packet)
-```
-
-### 3. Traffic Logging
-Log detailed information about network flows.
-
-```python
-import pydivert
-
-with pydivert.WinDivert("tcp or udp") as w:
-    for packet in w:
-        direction = "OUT" if packet.is_outbound else "IN "
-        print(f"[{direction}] {packet.src_addr}:{packet.src_port} -> "
-              f"{packet.dst_addr}:{packet.dst_port} ({len(packet.payload)} bytes)")
-        w.send(packet)
-```
-
-## Common Packet Properties
-
-The `pydivert.Packet` object provides easy access to common protocol fields:
-
-- **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`
-- **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`
-- **Payload**: `packet.payload` (bytes)
-- **Metadata**: `packet.is_inbound`, `packet.is_outbound`, `packet.interface`, `packet.timestamp`
-
-Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `packet.tcp`, `packet.udp`, and `packet.icmp`.
 
 ## Advanced Usage
 
-### WinDivert Layers
+### High-Performance Asynchronous I/O
 
-WinDivert supports different layers for capturing different types of traffic:
+PyDivert supports Windows Overlapped I/O for high-performance, non-blocking packet capture:
 
-- `Layer.NETWORK` (default): Captures IP packets.
-- `Layer.FLOW`: Captures connection events (useful for logging connections without seeing every packet).
-- `Layer.SOCKET`: Captures socket-level events.
+```python
+import pydivert
+from pydivert.windivert_dll import Overlapped
+import ctypes
+
+# ... create and initialize a Windows Event ...
+overlapped = Overlapped()
+overlapped.hEvent = handle_to_windows_event
+
+with pydivert.WinDivert("true", flags=pydivert.Flag.OVERLAPPED) as w:
+    packet = w.recv_ex(overlapped=overlapped)
+    if packet is None:
+        # Operation is pending; wait for the event handle...
+        pass
+```
+
+### Connection Tracking (FLOW Layer)
+
+The `FLOW` layer allows you to capture connection events without seeing every packet, which is ideal for high-performance logging or firewalls.
 
 ```python
 from pydivert import WinDivert, Layer
 
 with WinDivert("true", layer=Layer.FLOW) as w:
     for event in w:
-        print(f"Connection event: {event}")
+        print(f"Connection: {event.src_addr}:{event.src_port} -> {event.dst_addr}:{event.dst_port}")
+        # Metadata like PIDs and Endpoint IDs are accessible via event.flow
+        print(f"Process ID: {event.flow.process_id}")
 ```
 
-### Flags
+### Programmatic Driver Management
 
-You can customize the behavior using flags:
-
-- `Flag.SNIFF`: Capture packets without diverting them (they still reach their destination).
-- `Flag.DROP`: Drop packets by default.
-- `Flag.OVERLAPPED`: Use asynchronous (overlapped) I/O.
+You can programmatically manage the WinDivert driver service from your Python code:
 
 ```python
-from pydivert import WinDivert, Flag
+from pydivert import WinDivert
 
-with WinDivert("tcp.DstPort == 80", flags=Flag.SNIFF) as w:
-    for packet in w:
-        print(f"Sniffed: {packet}")
+if not WinDivert.is_registered():
+    WinDivert.register()
+    print("Driver service registered successfully.")
+
+# ... use WinDivert ...
+
+# WinDivert.unregister()  # To remove the driver service if needed
 ```
 
-## WinDivert Version Compatibility
-
-| PyDivert | WinDivert |
-| --- | --- |
-| 0.0.7 | 1.0.x or 1.1.x |
-| 1.0.x | 1.1.8 (bundled) |
-| 2.0.x | 1.1.8 (bundled) |
-| 2.1.x | 1.3 (bundled) |
-| 3.0.0+ | 2.2.2 (bundled) - Breaking changes for full 2.2 support |
-
-## Breaking Changes in 3.0.0
-
-PyDivert 3.0.0 introduces full support for WinDivert 2.2's advanced metadata, which required several backward-incompatible changes to the internal API:
-
-- **Packet Constructor**: The `Packet` class's `__init__` now accepts additional metadata fields (`layer`, `event`, `flow`, `socket`, `reflect`). The `interface` parameter is now optional and defaults to `(0, 0)`.
-- **Internal Metadata**: When receiving packets from non-`NETWORK` layers (like `FLOW` or `SOCKET`), the `Packet` object now preserves and allows re-injecting the full metadata structure.
-- **`wd_addr` Property**: This property now returns a full `WINDIVERT_ADDRESS` for any supported layer, not just the network layer.
-
-If you are manually creating `Packet` objects or relying on the exact signature of the `Packet` constructor, you may need to update your code.
-
-## Installation
-
+## Development
 
 To set up a development environment:
 
@@ -197,36 +130,12 @@ To set up a development environment:
 2. Install dependencies: `uv sync --extra test --extra docs`
 3. Run tests (requires Admin): `uv run pytest`
 
-### Testing on other Operating Systems (using Vagrant)
+For development on Linux/macOS, a `Vagrantfile` is provided to run the test suite on a Windows 11 VM:
 
-Since PyDivert requires Windows and Administrator privileges, you can use **Vagrant** to run the test suite on a Windows 11 virtual machine from a Linux or macOS host.
-
-**Prerequisites:**
-- [Vagrant](https://www.vagrantup.com/)
-- [VirtualBox](https://www.virtualbox.org/)
-
-**Steps:**
-
-1.  **Bring up the VM:**
-    ```bash
-    vagrant up
-    ```
-    This will download a Windows 11 box, provision it with `uv`, and install all necessary dependencies.
-
-2.  **Run the tests:**
-    ```bash
-    vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
-    ```
-
-3.  **Interactive Session:**
-    If you need to explore the environment manually:
-    ```bash
-    vagrant powershell
-    ```
-
-## API Reference
-
-The full API documentation is available at [https://ffalcinelli.github.io/pydivert/](https://ffalcinelli.github.io/pydivert/).
+```bash
+vagrant up
+vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+```
 
 ## License
 
