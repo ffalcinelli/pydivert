@@ -215,7 +215,7 @@ class WinDivert:
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
-        return self._parse_packet(packet, recv_len.value, address)
+        return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
     @staticmethod
     def _parse_packet(packet, recv_len, address):
@@ -224,7 +224,7 @@ class WinDivert:
         into a pydivert.Packet instance.
         """
         return Packet(
-            memoryview(packet)[:recv_len],
+            packet[:recv_len] if isinstance(packet, memoryview) else memoryview(packet)[:recv_len],
             interface=(address.Network.IfIdx, address.Network.SubIfIdx),
             direction=Direction.OUTBOUND if address.Outbound else Direction.INBOUND,
             timestamp=address.Timestamp,
@@ -298,7 +298,10 @@ class WinDivert:
                 return None
             raise
 
-        return self._parse_packet(packet, recv_len.value, address)
+        if overlapped is None:
+            return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+        else:
+            return self._parse_packet(packet, recv_len.value, address)
 
     def send(self, packet, recalculate_checksum=True):
         """
