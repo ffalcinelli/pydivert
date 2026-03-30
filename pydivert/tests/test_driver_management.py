@@ -36,6 +36,7 @@ def test_register():
     WinDivert.register()
     assert WinDivert.is_registered()
 
+
 def test_unregister():
     w = WinDivert("false")
     w.open()

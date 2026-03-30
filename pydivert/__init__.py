@@ -26,11 +26,17 @@ from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol
 from .packet import Packet
 from .windivert import WinDivert
 
-__author__ = 'fabio'
-__version__ = '3.0.0'
+__author__ = "fabio"
+__version__ = "3.0.0"
 
 __all__ = [
     "WinDivert",
     "Packet",
-    "Layer", "Flag", "Param", "CalcChecksumsOption", "Direction", "Protocol", "RecvFlag",
+    "Layer",
+    "Flag",
+    "Param",
+    "CalcChecksumsOption",
+    "Direction",
+    "Protocol",
+    "RecvFlag",
 ]

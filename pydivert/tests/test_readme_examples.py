@@ -38,10 +38,11 @@ from pydivert import Flag, Layer
 
 def get_free_port():
     s = socket.socket()
-    s.bind(('127.0.0.1', 0))
+    s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
     return port
+
 
 def test_example_basic_capture():
     # Example: Basic Capture and Re-injection
@@ -49,7 +50,7 @@ def test_example_basic_capture():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', port))
+        s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
             conn, addr = s.accept()
@@ -63,6 +64,7 @@ def test_example_basic_capture():
     threading.Thread(target=server, daemon=True).start()
 
     stop_event = threading.Event()
+
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
             for packet in w:
@@ -74,15 +76,16 @@ def test_example_basic_capture():
     time.sleep(1.0)
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
             client.sendall(b"test")
             assert client.recv(1024) == b"test"
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+
 
 def test_example_packet_modification_redirection():
     # Example: Packet Modification (Port Redirection)
@@ -93,7 +96,7 @@ def test_example_packet_modification_redirection():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', real_port))
+        s.bind(("127.0.0.1", real_port))
         s.listen(1)
         try:
             conn, addr = s.accept()
@@ -107,6 +110,7 @@ def test_example_packet_modification_redirection():
     threading.Thread(target=server, daemon=True).start()
 
     stop_event = threading.Event()
+
     def diverter():
         # Capturing both directions
         with pydivert.WinDivert(f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}") as w:
@@ -123,15 +127,16 @@ def test_example_packet_modification_redirection():
     time.sleep(1.0)
 
     try:
-        with socket.create_connection(('127.0.0.1', fake_port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", fake_port), timeout=2) as client:
             client.sendall(b"hi")
             assert client.recv(1024) == b"redirected"
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', fake_port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", fake_port), timeout=0.1)
         except Exception:
             pass
+
 
 def test_example_firewall_drop():
     # Example: Simple Firewall (Dropping Packets)
@@ -139,7 +144,7 @@ def test_example_firewall_drop():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', port))
+        s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
             s.accept()
@@ -150,6 +155,7 @@ def test_example_firewall_drop():
     threading.Thread(target=server, daemon=True).start()
 
     stop_event = threading.Event()
+
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
             for _packet in w:
@@ -166,9 +172,10 @@ def test_example_firewall_drop():
             client.settimeout(1)
             # Connecting to port on 127.0.0.1 with Diverter dropping packets should timeout.
             with pytest.raises(socket.timeout):
-                client.connect(('127.0.0.1', port))
+                client.connect(("127.0.0.1", port))
     finally:
         stop_event.set()
+
 
 def test_example_payload_modification():
     # Example: Payload Inspection and Modification
@@ -176,7 +183,7 @@ def test_example_payload_modification():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', port))
+        s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
             conn, addr = s.accept()
@@ -189,6 +196,7 @@ def test_example_payload_modification():
     threading.Thread(target=server, daemon=True).start()
 
     stop_event = threading.Event()
+
     def diverter():
         with pydivert.WinDivert(f"tcp.SrcPort == {port} and tcp.PayloadLength > 0") as w:
             for packet in w:
@@ -202,16 +210,17 @@ def test_example_payload_modification():
     time.sleep(1.0)
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
             data = client.recv(1024)
             assert b"REDACTED" in data
             assert b"secret-token" not in data
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+
 
 def test_example_traffic_logging():
     # Example: Traffic Logging
@@ -219,7 +228,7 @@ def test_example_traffic_logging():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', port))
+        s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
             conn, addr = s.accept()
@@ -233,6 +242,7 @@ def test_example_traffic_logging():
 
     captured_info = []
     stop_event = threading.Event()
+
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
             for packet in w:
@@ -246,16 +256,17 @@ def test_example_traffic_logging():
     time.sleep(1.0)
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
             client.sendall(b"data")
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
 
     assert len(captured_info) > 0
+
 
 def flow_layer_diverter(port, stop_event, events):
     # Layer.FLOW doesn't capture packets but events.
@@ -281,7 +292,7 @@ def flow_layer_diverter(port, stop_event, events):
 
 def flow_layer_server(port):
     s = socket.socket()
-    s.bind(('127.0.0.1', port))
+    s.bind(("127.0.0.1", port))
     s.listen(1)
     try:
         conn, _ = s.accept()
@@ -307,12 +318,12 @@ def test_example_flow_layer():
     threading.Thread(target=flow_layer_server, args=(port,), daemon=True).start()
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2):
+        with socket.create_connection(("127.0.0.1", port), timeout=2):
             pass
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
 
@@ -320,7 +331,8 @@ def test_example_flow_layer():
         pytest.fail(f"Diverter thread failed: {events[0]}")
 
     assert len(events) > 0
-    assert any(hasattr(e, 'layer') and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
+    assert any(hasattr(e, "layer") and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
+
 
 def test_example_sniff_mode():
     # Example: Flags (SNIFF)
@@ -328,7 +340,7 @@ def test_example_sniff_mode():
 
     def server():
         s = socket.socket()
-        s.bind(('127.0.0.1', port))
+        s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
             conn, addr = s.accept()
@@ -343,6 +355,7 @@ def test_example_sniff_mode():
 
     sniffed_packets = []
     stop_event = threading.Event()
+
     def diverter():
         with pydivert.WinDivert(f"tcp.DstPort == {port}", flags=Flag.SNIFF) as w:
             for packet in w:
@@ -354,13 +367,13 @@ def test_example_sniff_mode():
     time.sleep(1.0)
 
     try:
-        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as client:
             client.sendall(b"sniff-me")
             assert client.recv(1024) == b"sniff-me"
     finally:
         stop_event.set()
         try:
-            socket.create_connection(('127.0.0.1', port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
 

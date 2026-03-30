@@ -30,9 +30,28 @@ from pydivert.util import flag_property, raw_property
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
     __repr_fields__ = (
-        "ack", "ack_num", "cksum", "control_bits", "cwr", "data_offset", "dst_port", "ece", "fin",
-        "header_len", "ns", "payload", "psh", "raw", "reserved", "rst", "seq_num", "src_port", "syn",
-        "urg", "urg_ptr", "window_size"
+        "ack",
+        "ack_num",
+        "cksum",
+        "control_bits",
+        "cwr",
+        "data_offset",
+        "dst_port",
+        "ece",
+        "fin",
+        "header_len",
+        "ns",
+        "payload",
+        "psh",
+        "raw",
+        "reserved",
+        "rst",
+        "seq_num",
+        "src_port",
+        "syn",
+        "urg",
+        "urg_ptr",
+        "window_size",
     )
     ns = flag_property("ns", 12, 0b00000001)
 
@@ -53,12 +72,12 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         return self.data_offset * 4
 
-    seq_num = raw_property('!I', 4, docs='The sequence number field.')
-    ack_num = raw_property('!I', 8, docs='The acknowledgement number field.')
+    seq_num = raw_property("!I", 4, docs="The sequence number field.")
+    ack_num = raw_property("!I", 8, docs="The acknowledgement number field.")
 
-    window_size = raw_property('!H', 14, docs='The size of the receive window in bytes.')
-    cksum = raw_property('!H', 16, docs='The TCP header checksum field.')
-    urg_ptr = raw_property('!H', 18, docs='The Urgent Pointer field.')
+    window_size = raw_property("!H", 14, docs="The size of the receive window in bytes.")
+    cksum = raw_property("!H", 16, docs="The TCP header checksum field.")
+    urg_ptr = raw_property("!H", 18, docs="The Urgent Pointer field.")
 
     @property
     def data_offset(self):
@@ -71,7 +90,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
     def data_offset(self, val):
         if val < 5 or val > 15:
             raise ValueError("TCP data offset must be greater or equal than 5 and less than 15.")
-        struct.pack_into('!B', self.raw, 12, (val << 4) | (self.reserved << 1) | self.ns)
+        struct.pack_into("!B", self.raw, 12, (val << 4) | (self.reserved << 1) | self.ns)
 
     @property
     def reserved(self):
@@ -82,15 +101,15 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
 
     @reserved.setter
     def reserved(self, val):
-        struct.pack_into('!B', self.raw, 12, (self.data_offset << 4) | (val << 1) | self.ns)
+        struct.pack_into("!B", self.raw, 12, (self.data_offset << 4) | (val << 1) | self.ns)
 
     @property
     def control_bits(self):
         """
         The Control Bits field.
         """
-        return struct.unpack_from('!H', self.raw, 12)[0] & 0x01FF
+        return struct.unpack_from("!H", self.raw, 12)[0] & 0x01FF
 
     @control_bits.setter
     def control_bits(self, val):
-        struct.pack_into('!H', self.raw, 12, (self.data_offset << 12) | (self.reserved << 9) | (val & 0x01FF))
+        struct.pack_into("!H", self.raw, 12, (self.data_offset << 12) | (self.reserved << 9) | (val & 0x01FF))

@@ -42,10 +42,15 @@ def windivert_handle():
         yield w
 
 
-@pytest.fixture(params=list(itertools.product(
-    ("ipv4", "ipv6"),
-    ("tcp", "udp"),
-)), ids=lambda x: ",".join(x))
+@pytest.fixture(
+    params=list(
+        itertools.product(
+            ("ipv4", "ipv6"),
+            ("tcp", "udp"),
+        )
+    ),
+    ids=lambda x: ",".join(x),
+)
 def scenario(request):
     ip_version, proto = request.param
 
@@ -68,6 +73,7 @@ def scenario(request):
     reply = Queue()
 
     if proto == "tcp":
+
         def server_echo():
             server.listen(1)
             conn, addr = server.accept()
@@ -79,6 +85,7 @@ def scenario(request):
             client.sendall(data)
             reply.put(client.recv(4096))
     else:
+
         def server_echo():
             data, addr = server.recvfrom(4096)
             server.sendto(data.upper(), addr)

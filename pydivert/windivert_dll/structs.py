@@ -30,6 +30,7 @@ class Overlapped(ctypes.Structure):
     """
     Ctypes Structure for OVERLAPPED.
     """
+
     _fields_ = [
         ("Internal", ctypes.c_void_p),
         ("InternalHigh", ctypes.c_void_p),
@@ -43,12 +44,14 @@ class WinDivertAddress(ctypes.Structure):
     """
     Ctypes Structure for WINDIVERT_ADDRESS (WinDivert 2.2).
     """
+
     class _Union(ctypes.Union):
         class _Network(ctypes.Structure):
             _fields_ = [
                 ("IfIdx", ctypes.c_uint32),
                 ("SubIfIdx", ctypes.c_uint32),
             ]
+
         class _Flow(ctypes.Structure):
             _fields_ = [
                 ("EndpointId", ctypes.c_uint64),
@@ -60,6 +63,7 @@ class WinDivertAddress(ctypes.Structure):
                 ("RemotePort", ctypes.c_uint16),
                 ("Protocol", ctypes.c_uint8),
             ]
+
         class _Socket(ctypes.Structure):
             _fields_ = [
                 ("EndpointId", ctypes.c_uint64),
@@ -71,6 +75,7 @@ class WinDivertAddress(ctypes.Structure):
                 ("RemotePort", ctypes.c_uint16),
                 ("Protocol", ctypes.c_uint8),
             ]
+
         class _Reflect(ctypes.Structure):
             _fields_ = [
                 ("Timestamp", ctypes.c_int64),
@@ -78,6 +83,7 @@ class WinDivertAddress(ctypes.Structure):
                 ("Layer", ctypes.c_uint32, 8),
                 ("Reserved2", ctypes.c_uint32, 24),
             ]
+
         _fields_ = [
             ("Network", _Network),
             ("Flow", _Flow),
@@ -85,6 +91,7 @@ class WinDivertAddress(ctypes.Structure):
             ("Reflect", _Reflect),
             ("Reserved3", ctypes.c_uint32 * 16),
         ]
+
     _anonymous_ = ("u",)
     _fields_ = [
         ("Timestamp", ctypes.c_int64),
