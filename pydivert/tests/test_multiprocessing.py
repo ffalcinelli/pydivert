@@ -79,7 +79,7 @@ def server_worker(stop_event, barrier, results_queue):
                     sock.settimeout(1.0)
                     data, addr = sock.recvfrom(4096)
                     sock.sendto(data.upper(), addr)
-                    break # Done for this test
+                    break  # Done for this test
                 except TimeoutError:
                     continue
                 except Exception as e:
@@ -122,10 +122,7 @@ def test_multiprocessing_integration_simple():
     results_queue = multiprocessing.Queue()
     barrier = multiprocessing.Barrier(2)
 
-    p = multiprocessing.Process(
-        target=server_worker,
-        args=(stop_event, barrier, results_queue)
-    )
+    p = multiprocessing.Process(target=server_worker, args=(stop_event, barrier, results_queue))
     p.start()
 
     # Get the port from the subprocess
@@ -137,7 +134,7 @@ def test_multiprocessing_integration_simple():
 
     # Sync up
     barrier.wait()
-    time.sleep(1) # Extra buffer for WinDivertOpen
+    time.sleep(1)  # Extra buffer for WinDivertOpen
 
     try:
         # Send UDP packet

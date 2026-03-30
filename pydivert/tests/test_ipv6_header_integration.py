@@ -39,12 +39,13 @@ def test_ipv6_traffic_class_flow_label_integration():
     # This test requires Windows and admin privileges.
     # We skip it if we're not on Windows.
     import platform
+
     if platform.system() != "Windows":
         pytest.skip("This test requires Windows.")
 
     # Find a free port for UDP
     s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-    s.bind(('::1', 0))
+    s.bind(("::1", 0))
     port = s.getsockname()[1]
     s.close()
 
@@ -66,12 +67,14 @@ def test_ipv6_traffic_class_flow_label_integration():
                 packet.ipv6.flow_label = 0x12345
 
                 # Store a copy for verification
-                captured_packets.append({
-                    'traffic_class': packet.ipv6.traffic_class,
-                    'flow_label': packet.ipv6.flow_label,
-                    'diff_serv': packet.ipv6.diff_serv,
-                    'ecn': packet.ipv6.ecn
-                })
+                captured_packets.append(
+                    {
+                        "traffic_class": packet.ipv6.traffic_class,
+                        "flow_label": packet.ipv6.flow_label,
+                        "diff_serv": packet.ipv6.diff_serv,
+                        "ecn": packet.ipv6.ecn,
+                    }
+                )
 
                 # Re-inject (though we don't have a listener, this tests the setter/getter consistency)
                 w.send(packet)
@@ -93,7 +96,7 @@ def test_ipv6_traffic_class_flow_label_integration():
 
     assert len(captured_packets) == 1
     cp = captured_packets[0]
-    assert cp['traffic_class'] == 0xAB
-    assert cp['flow_label'] == 0x12345
-    assert cp['diff_serv'] == 0x2A # 0xAB >> 2 = 10101011 >> 2 = 00101010 = 0x2A
-    assert cp['ecn'] == 0x03       # 0xAB & 0x03 = 10101011 & 00000011 = 0x00000011 = 0x03
+    assert cp["traffic_class"] == 0xAB
+    assert cp["flow_label"] == 0x12345
+    assert cp["diff_serv"] == 0x2A  # 0xAB >> 2 = 10101011 >> 2 = 00101010 = 0x2A
+    assert cp["ecn"] == 0x03  # 0xAB & 0x03 = 10101011 & 00000011 = 0x00000011 = 0x03
