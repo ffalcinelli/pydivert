@@ -22,6 +22,10 @@
 # and the GNU General Public License along with this program.  If not,
 # see <http://www.gnu.org/licenses/>.
 
+"""
+.. include:: ../README.md
+"""
+
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
 from .packet import Packet
 from .windivert import WinDivert
