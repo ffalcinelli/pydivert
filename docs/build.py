@@ -28,10 +28,10 @@ os.chdir(root)
 print("Building documentation with pdoc...")
 subprocess.check_call(["uv", "run", "pdoc", "pydivert", "-o", "site"])
 
-# Copy license files to site directory to fix broken links in README
-print("Copying license files to site/ directory...")
-for license_file in ["LICENSE", "LICENSE-GPL-2.0-or-later", "LICENSE-LGPL-3.0-or-later"]:
-    if os.path.exists(license_file):
-        shutil.copy(license_file, "site/")
+# Copy license and security files to site directory to fix broken links in README
+print("Copying extra files to site/ directory...")
+for extra_file in ["LICENSE", "LICENSE-GPL-2.0-or-later", "LICENSE-LGPL-3.0-or-later", "SECURITY.md"]:
+    if os.path.exists(extra_file):
+        shutil.copy(extra_file, "site/")
 
 print("Documentation built successfully in 'site/' directory.")
