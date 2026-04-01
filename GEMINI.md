@@ -69,3 +69,11 @@ Since **WinDivert** is Windows-only, a `Vagrantfile` is provided for local devel
 PyDivert is dual-licensed under the **LGPL-3.0-or-later** and **GPL-2.0-or-later** licenses, matching the WinDivert driver's licensing strategy.
 - [LICENSE-LGPL-3.0-or-later](LICENSE-LGPL-3.0-or-later)
 - [LICENSE-GPL-2.0-or-later](LICENSE-GPL-2.0-or-later)
+
+## CI/CD & Security Mandates
+
+To maintain security and reliability in the project's automation, the following rules MUST be followed:
+- **Immutable Pinning**: All GitHub Actions in `.github/workflows/` must be pinned to 40-character commit SHAs (e.g., `actions/checkout@11bd7190...`). Using mutable tags (like `@v6`) is forbidden to prevent supply-chain attacks.
+- **Modern Runtimes**: GitHub Actions must use the Node 24 runtime (or the current stable version) to avoid deprecated and insecure environments.
+- **Workflow Separation**: CI testing and Release processes must remain in separate workflow files (`ci.yml` and `release.yml`) to ensure a clear distinction between development validation and production delivery.
+- **Verification**: The distributed wheel must include the `pydivert/tests` package to enable post-installation verification on destination machines.
