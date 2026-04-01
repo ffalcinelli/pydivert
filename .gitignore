@@ -1,17 +1,38 @@
-build
-*.egg-info
-*.pyc
-.tox
-logs
-coverage
-*~
-.idea
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
 dist/
-.cache/
-venv/
+*.egg-info/
+
+# Unit test / coverage reports
+.tox/
 .coverage
-.hypothesis
-site
-.vagrant
-.venv
+.coverage.*
+.hypothesis/
+.pytest_cache/
 coverage.xml
+
+# Static analysis
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# IDEs
+.idea/
+.vscode/
+
+# Project specific
+logs/
+site/
+docs/api/
+objects.json
+.vagrant/
+.cache/
+*~
