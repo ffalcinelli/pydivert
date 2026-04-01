@@ -130,9 +130,36 @@ The `pydivert.Packet` object provides easy access to common protocol fields:
 - **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`
 - **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`
 - **Payload**: `packet.payload` (bytes)
-- **Metadata**: `packet.is_inbound`, `packet.is_outbound`, `packet.interface`, `packet.timestamp`
+- **Metadata**: Captured `Packet` objects include additional metadata provided by WinDivert 2.2:
+  - **`timestamp`**: The time when the packet was captured (uses `QueryPerformanceCounter`).
+  - **`is_loopback`**: `True` if the packet is a loopback packet.
+  - **`is_impostor`**: `True` if the packet was injected by another driver.
+  - **`is_sniffed`**: `True` if the packet was captured in sniff mode.
+  - **`interface`**: The interface index where the packet was captured.
+  - **Checksum status**: `ip_checksum`, `tcp_checksum`, and `udp_checksum` flags indicate if the hardware offloaded checksums are valid.
 
 Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `packet.tcp`, `packet.udp`, and `packet.icmp`.
+
+## Asynchronous IO
+
+PyDivert supports Windows Overlapped IO for asynchronous packet capture and injection via `recv_ex()` and `send_ex()`:
+
+```python
+import pydivert
+from pydivert.windivert_dll import Overlapped
+import ctypes
+
+# ... create event, initialize Overlapped structure ...
+overlapped = Overlapped()
+# overlapped.hEvent = ... windows event handle ...
+
+with pydivert.WinDivert("true") as w:
+    packet = w.recv_ex(overlapped=overlapped)
+    if packet is None:
+        # Operation is pending (ERROR_IO_PENDING)
+        # ... wait for event ...
+        pass
+```
 
 ## Advanced Usage
 
@@ -188,8 +215,11 @@ PyDivert 3.0.0 introduces full support for WinDivert 2.2's advanced metadata, wh
 
 If you are manually creating `Packet` objects or relying on the exact signature of the `Packet` constructor, you may need to update your code.
 
-## Installation
+## Security
 
+For information on supported versions, reporting vulnerabilities, and security best practices, please see our [Security Policy](SECURITY.md).
+
+## Development
 
 To set up a development environment:
 
