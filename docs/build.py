@@ -15,16 +15,23 @@
 
 import os
 import subprocess
+import shutil
 
 # Detect paths
 here = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(here)
 
-# Change to the project root directory to ensure mkdocs build works correctly
+# Change to the project root directory to ensure pdoc build works correctly
 os.chdir(root)
 
-# Build documentation using mkdocs
-print("Building documentation with MkDocs...")
-subprocess.check_call(["uv", "run", "mkdocs", "build"])
+# Build documentation using pdoc
+print("Building documentation with pdoc...")
+subprocess.check_call(["uv", "run", "pdoc", "pydivert", "-o", "site"])
+
+# Copy license files to site directory to fix broken links in README
+print("Copying license files to site/ directory...")
+for license_file in ["LICENSE", "LICENSE-GPL-2.0-or-later", "LICENSE-LGPL-3.0-or-later"]:
+    if os.path.exists(license_file):
+        shutil.copy(license_file, "site/")
 
 print("Documentation built successfully in 'site/' directory.")
