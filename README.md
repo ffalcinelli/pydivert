@@ -215,8 +215,11 @@ PyDivert 3.0.0 introduces full support for WinDivert 2.2's advanced metadata, wh
 
 If you are manually creating `Packet` objects or relying on the exact signature of the `Packet` constructor, you may need to update your code.
 
-## Installation
+## Security
 
+For information on supported versions, reporting vulnerabilities, and security best practices, please see our [Security Policy](SECURITY.md).
+
+## Development
 
 To set up a development environment:
 

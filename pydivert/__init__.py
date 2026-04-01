@@ -24,6 +24,7 @@
 
 """
 .. include:: ../README.md
+.. include:: ../SECURITY.md
 """
 
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag

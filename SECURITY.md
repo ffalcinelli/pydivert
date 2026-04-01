@@ -4,10 +4,10 @@
 
 Currently, the following versions of PyDivert are supported with security updates:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 3.0.x   | :white_check_mark: |
-| < 3.0   | :x:                |
+| Version | Status                |
+| ------- | --------------------- |
+| 3.0.x   | :white_check_mark: Supported   |
+| < 3.0   | :x: Unsupported       |
 
 ## Reporting a Vulnerability
 
