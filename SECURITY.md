@@ -17,6 +17,10 @@ If you discover a potential security vulnerability in PyDivert, please do **not*
 
 We aim to acknowledge receipt of your report as soon as possible (typically within a few business days). Please note that while we take security seriously, we are a community-maintained project and cannot guarantee a specific resolution timeframe. We will provide updates as we investigate the issue and work toward a fix.
 
+### WinDivert Driver Vulnerabilities
+
+PyDivert is a wrapper around the [WinDivert](https://github.com/basil00/WinDivert) driver. If you discover a vulnerability that is related to the kernel-mode driver itself (e.g., a BSOD, privilege escalation, or network stack bypass), please report it directly to the upstream WinDivert project following their security guidelines.
+
 ### What to Include in a Report
 
 To help us address the issue quickly, please include:
@@ -41,3 +45,5 @@ We follow a responsible disclosure policy:
 3.  Work on a fix.
 4.  Release a new version with the fix.
 5.  Publicly disclose the vulnerability (e.g., via GitHub Security Advisories) after a fix is available and users have had time to update.
+
+
