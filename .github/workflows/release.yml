@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+    - name: Install uv
+      uses: astral-sh/setup-uv@885a051ca639700f261205c45449a59329262059 # v7
+      with:
+        enable-cache: true
+    - name: Set up Python
+      run: uv python install 3.12
+    - name: Run linting
+      run: uv run --extra lint ruff check pydivert
+    - name: Run type checking
+      run: uv run --extra typecheck mypy pydivert
+
+  test:
+    needs: lint
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+    - name: Install uv
+      uses: astral-sh/setup-uv@885a051ca639700f261205c45449a59329262059 # v7
+      with:
+        enable-cache: true
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: uv sync --extra test
+    - name: Run tests
+      run: uv run pytest pydivert --capture=no -v
+
+  docs:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+    - name: Install uv
+      uses: astral-sh/setup-uv@885a051ca639700f261205c45449a59329262059 # v7
+      with:
+        enable-cache: true
+    - name: Set up Python
+      run: uv python install 3.12
+    - name: Install dependencies
+      run: uv sync --extra docs
+    - name: Build and Deploy Docs
+      run: uv run mkdocs gh-deploy --force
+
+  build:
+    name: Build Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v6
+    - name: Install uv
+      uses: astral-sh/setup-uv@885a051ca639700f261205c45449a59329262059 # v7
+      with:
+        enable-cache: true
+    - name: Set up Python
+      run: uv python install 3.12
+    - name: Build package
+      run: uv build
+    - name: Upload artifact
+      uses: actions/upload-artifact@bbbca2d65b6e75b540449e92b4886f43607fa02 # v6
+      with:
+        name: dist
+        path: dist/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pydivert
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+    - name: Download dist artifact
+      uses: actions/download-artifact@fa0b91be5b6e75b540449e92b4886f43607fa02 # v6
+      with:
+        name: dist
+        path: dist/
+    - name: Install uv
+      uses: astral-sh/setup-uv@885a051ca639700f261205c45449a59329262059 # v7
+    - name: Publish to PyPI
+      run: uv publish
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish-to-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download dist artifact
+      uses: actions/download-artifact@fa0b91be5b6e75b540449e92b4886f43607fa02 # v6
+      with:
+        name: dist
+        path: dist/
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@c95fe1489396fe8a21967200391e15d1ecd844ba # v2
+      with:
+        files: dist/*
+        generate_release_notes: true
