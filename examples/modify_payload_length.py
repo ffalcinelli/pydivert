@@ -44,6 +44,7 @@ def modify_payload_example():
             # so the IP/TCP/UDP checksums will be correct for the new length.
             w.send(packet)
 
+
 if __name__ == "__main__":
     print("This example requires administrative privileges and WinDivert driver.")
     # modify_payload_example()

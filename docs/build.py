@@ -11,11 +11,11 @@
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
-import subprocess
 import shutil
+import subprocess
 
 # Detect paths
 here = os.path.dirname(os.path.abspath(__file__))
