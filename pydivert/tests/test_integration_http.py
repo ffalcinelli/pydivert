@@ -45,7 +45,7 @@ def get_free_port():
     return port
 
 
-def test_http_port_redirection():
+def test_http_port_redirection():  # noqa: C901
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -59,7 +59,13 @@ def test_http_port_redirection():
     httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
     real_port = httpd.server_address[1]
 
-    server_thread = threading.Thread(target=httpd.serve_forever)
+    def serve():
+        try:
+            httpd.serve_forever()
+        except OSError:
+            pass
+
+    server_thread = threading.Thread(target=serve)
     server_thread.daemon = True
     server_thread.start()
 
@@ -106,14 +112,14 @@ def test_http_port_redirection():
         # Unblock WinDivert loop
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{fake_port}/", timeout=0.1)
-        except Exception:
+        except OSError:
             pass
 
         httpd.shutdown()
         divert_thread.join(timeout=1)
 
 
-def test_http_modification():
+def test_http_modification():  # noqa: C901
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -128,7 +134,13 @@ def test_http_modification():
     httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
     port = httpd.server_address[1]
 
-    server_thread = threading.Thread(target=httpd.serve_forever)
+    def serve():
+        try:
+            httpd.serve_forever()
+        except OSError:
+            pass
+
+    server_thread = threading.Thread(target=serve)
     server_thread.daemon = True
     server_thread.start()
 
@@ -170,7 +182,7 @@ def test_http_modification():
         # A simple way to unblock it is to make one more request that will be captured.
         try:
             urllib.request.urlopen(url, timeout=0.1)
-        except Exception:
+        except OSError:
             pass
 
         httpd.shutdown()
