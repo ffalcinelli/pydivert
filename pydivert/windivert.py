@@ -20,7 +20,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # and the GNU General Public License along with this program.  If not,
-# see <http://www.gnu.org/licenses/>.
+# see <https://www.gnu.org/licenses/>.
 
 import ctypes
 import logging
@@ -155,7 +155,7 @@ class WinDivert:
                 __in UINT64 flags
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_open
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_open
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
@@ -178,7 +178,7 @@ class WinDivert:
                 __in HANDLE handle
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_close
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_close
         """
         if not self.is_open:
             raise RuntimeError("WinDivert handle is not open.")
@@ -199,7 +199,7 @@ class WinDivert:
                 __out_opt PWINDIVERT_ADDRESS pAddr
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_recv
 
         :return: The return value is a `pydivert.Packet`.
         """
@@ -260,7 +260,7 @@ class WinDivert:
                 __inout_opt LPOVERLAPPED lpOverlapped
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_recv
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_recv
 
         :param bufsize: The size of the packet buffer.
         :param flags: WinDivert receive flags (e.g. RecvFlag.NO_BLOCK).
@@ -322,7 +322,7 @@ class WinDivert:
                 __in const PWINDIVERT_ADDRESS pAddr
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_send
 
         :return: The return value is the number of bytes actually sent.
         """
@@ -354,7 +354,7 @@ class WinDivert:
                 __inout_opt LPOVERLAPPED lpOverlapped
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_send
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_send
 
         :param packet: The packet to send.
         :param recalculate_checksum: Whether to recalculate checksums before sending.
@@ -401,7 +401,7 @@ class WinDivert:
                 __out UINT64 *pValue
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_get_param
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_get_param
 
         :return: The parameter value.
         """
@@ -421,6 +421,6 @@ class WinDivert:
                 __in UINT64 value
             );
 
-        For more info on the C call visit: http://reqrypt.org/windivert-doc.html#divert_set_param
+        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_set_param
         """
         return windivert_dll.WinDivertSetParam(self._handle, name, value)

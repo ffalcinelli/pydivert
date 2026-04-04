@@ -11,7 +11,7 @@
 # GNU Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
 from ctypes import windll
@@ -35,7 +35,6 @@ def main():
     # We use a filter that matches all traffic ("true").
     print("Opening WinDivert handle with OVERLAPPED flag...")
     with pydivert.WinDivert("true", flags=pydivert.Flag.OVERLAPPED) as w:
-
         # 2. Create a Windows event object.
         # This event will be signaled by the Windows kernel when the I/O operation completes.
         event = windll.kernel32.CreateEventW(None, False, False, None)
@@ -70,10 +69,10 @@ def main():
                     # now contain the captured packet data.
                     # We can manually reconstruct the Packet object:
                     captured_packet = pydivert.Packet(
-                        memoryview(overlapped._packet_buffer)[:overlapped._recv_len.value],
+                        memoryview(overlapped._packet_buffer)[: overlapped._recv_len.value],
                         (overlapped._address.Network.IfIdx, overlapped._address.Network.SubIfIdx),
                         pydivert.Direction.OUTBOUND if overlapped._address.Outbound else pydivert.Direction.INBOUND,
-                        timestamp=overlapped._address.Timestamp
+                        timestamp=overlapped._address.Timestamp,
                     )
                     print(f"Successfully captured packet: {captured_packet}")
 
