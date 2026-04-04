@@ -622,6 +622,11 @@ typecheck = [
     { name = "pytest" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-cov" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "codecov", marker = "extra == 'test'", specifier = ">=2.0.5" },
@@ -640,7 +645,7 @@ requires-dist = [
 provides-extras = ["docs", "lint", "test", "typecheck"]
 
 [package.metadata.requires-dev]
-dev = []
+dev = [{ name = "pytest-cov", specifier = ">=7.1.0" }]
 
 [[package]]
 name = "pygments"
