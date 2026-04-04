@@ -108,6 +108,9 @@ class Packet:
         self.flow = flow
         self.socket = socket
         self.reflect = reflect
+        self._cached_buff_len = None
+        self._cached_buff_id = None
+        self._cached_buff = None
 
     def __repr__(self):
         def dump(x):
@@ -409,11 +412,8 @@ class Packet:
         buff = self.raw.obj
         raw_len = len(self.raw)
 
-        try:
-            if self._cached_buff_len == raw_len and self._cached_buff_id == id(buff):
-                return buff, self._cached_buff
-        except AttributeError:
-            pass
+        if self._cached_buff is not None and self._cached_buff_len == raw_len and self._cached_buff_id == id(buff):
+            return buff, self._cached_buff
 
         self._cached_buff_len = raw_len
         self._cached_buff_id = id(buff)
