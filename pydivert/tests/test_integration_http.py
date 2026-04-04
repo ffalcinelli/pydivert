@@ -45,7 +45,7 @@ def get_free_port():
     return port
 
 
-def test_http_port_redirection():
+def test_http_port_redirection():  # noqa: C901
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -119,7 +119,7 @@ def test_http_port_redirection():
         divert_thread.join(timeout=1)
 
 
-def test_http_modification():
+def test_http_modification():  # noqa: C901
     class SimpleHandler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
