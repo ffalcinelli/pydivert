@@ -338,16 +338,16 @@ def test_meta():
 
 def test_bogus():
     x = p(b"")
-    with pytest.raises(AttributeError):
-        x.src_addr = "127.0.0.1"
-    with pytest.raises(AttributeError):
-        x.dst_addr = "127.0.0.1"
-    with pytest.raises(AttributeError):
-        x.src_port = 80
-    with pytest.raises(AttributeError):
-        x.dst_port = 80
-    with pytest.raises(AttributeError):
-        x.payload = b""
+    x.src_addr = "127.0.0.1"
+    x.dst_addr = "127.0.0.1"
+    x.src_port = 80
+    x.dst_port = 80
+    x.payload = b""
+    assert x.src_addr is None
+    assert x.dst_addr is None
+    assert x.src_port is None
+    assert x.dst_port is None
+    assert x.payload is None
     with pytest.raises(AttributeError):
         x.icmp.code = 42
     with pytest.raises(AttributeError):

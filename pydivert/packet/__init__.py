@@ -340,7 +340,8 @@ class Packet:
 
     @src_addr.setter
     def src_addr(self, val):
-        self.ip.src_addr = val
+        if self.ip:
+            self.ip.src_addr = val
 
     @property
     def dst_addr(self):
@@ -353,7 +354,8 @@ class Packet:
 
     @dst_addr.setter
     def dst_addr(self, val):
-        self.ip.dst_addr = val
+        if self.ip:
+            self.ip.dst_addr = val
 
     @property
     def src_port(self):
@@ -366,7 +368,8 @@ class Packet:
 
     @src_port.setter
     def src_port(self, val):
-        self._port.src_port = val  # type: ignore[attr-defined]
+        if self._port:
+            self._port.src_port = val  # type: ignore[attr-defined]
 
     @property
     def dst_port(self):
@@ -379,7 +382,8 @@ class Packet:
 
     @dst_port.setter
     def dst_port(self, val):
-        self._port.dst_port = val  # type: ignore[attr-defined]
+        if self._port:
+            self._port.dst_port = val  # type: ignore[attr-defined]
 
     @property
     def payload(self):
@@ -392,7 +396,8 @@ class Packet:
 
     @payload.setter
     def payload(self, val):
-        self._payload.payload = val  # type: ignore[attr-defined]
+        if self._payload:
+            self._payload.payload = val  # type: ignore[attr-defined]
 
     def recalculate_checksums(self, flags=0):
         """
