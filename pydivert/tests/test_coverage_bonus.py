@@ -1,7 +1,6 @@
-import pytest
-import pydivert
-from pydivert.packet import Packet
 from pydivert.consts import Layer
+from pydivert.packet import Packet
+
 
 def test_icmp_checksum_verification():
     # ICMPv4 Echo Request
@@ -14,29 +13,29 @@ def test_icmp_checksum_verification():
         b"\x08\x00\x00\x00" # ICMP type 8, code 0, cksum 0
         b"\x12\x34\x00\x01" # ID, Seq
     )
-    
+
     p = Packet(raw, layer=Layer.NETWORK)
     assert not p.is_checksum_valid
-    
+
     p.recalculate_checksums()
     assert p.is_checksum_valid
-    
+
     # Corrupt ICMP
     p.raw[20] = 0x00 # type 0 (Echo Reply)
     assert not p.is_checksum_valid
-    
+
     p.recalculate_checksums()
     assert p.is_checksum_valid
 
 def test_ip_parse_error_coverage():
     from unittest.mock import patch
+
     from pydivert.packet.ip import IPv4Header
-    import socket
-    
+
     raw = bytearray(b"\x45\x00\x00\x14\x00\x00\x00\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
     p = Packet(raw)
     header = IPv4Header(p)
-    
+
     with patch("socket.inet_ntop") as mock_ntop:
         mock_ntop.side_effect = ValueError("Mocked error")
         assert header.src_addr is None
@@ -51,7 +50,7 @@ def test_header_raw_setter_different_length():
     )
     p = Packet(raw)
     assert len(p.raw) == 40
-    
+
     # Set TCP header to a different length (impossible in reality but tests the code)
     # We just want to trigger the branch in header.py:34 (approx)
     new_tcp = bytearray(b"\x00" * 30)

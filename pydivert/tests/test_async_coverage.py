@@ -1,7 +1,10 @@
 import asyncio
+
 import pytest
+
 import pydivert
 from pydivert.packet import Packet
+
 
 @pytest.mark.asyncio
 async def test_recv_async_execution():
@@ -26,7 +29,7 @@ async def test_send_async_execution():
             raw[9] = 6 # TCP
             p = Packet(raw)
             p.ipv4.packet_len = 44
-            
+
             # Explicitly call send_async with recalculate_checksum=True (default)
             # This should cover line 326 in windivert.py
             try:
