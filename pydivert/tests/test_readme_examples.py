@@ -26,6 +26,7 @@
 Integration tests for each example provided in the README.md.
 """
 
+import asyncio
 import socket
 import threading
 import time
@@ -34,6 +35,8 @@ import pytest
 
 import pydivert
 from pydivert import Flag, Layer
+from pydivert.packet import Packet
+from pydivert.packet.tcp import TCPHeader
 
 
 def get_free_port():
@@ -369,3 +372,78 @@ def test_example_sniff_mode():
             pass
 
     assert sniffed_packets
+
+
+@pytest.mark.asyncio
+async def test_example_asyncio():
+    # Example: First-Class asyncio Support
+    port = get_free_port()
+
+    def server():
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                conn, _ = s.accept()
+                conn.recv(1024)
+                conn.close()
+            except Exception:
+                pass
+
+    threading.Thread(target=server, daemon=True).start()
+
+    captured = []
+    stop_event = asyncio.Event()
+
+    async def diverter():
+        try:
+            async with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
+                async for packet in w:
+                    captured.append(packet)
+                    await w.send_async(packet)
+                    if stop_event.is_set():
+                        break
+        except (PermissionError, OSError):
+            pass
+
+    diverter_task = asyncio.create_task(diverter())
+    await asyncio.sleep(1.0)
+
+    try:
+        _, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.write(b"async-test")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+    except (PermissionError, OSError):
+        pytest.skip("Test requires administrator privileges.")
+    finally:
+        stop_event.set()
+        # Trigger one more recv to stop the iterator
+        try:
+            _, writer = await asyncio.open_connection("127.0.0.1", port)
+            writer.close()
+        except Exception:
+            pass
+        await asyncio.sleep(0.5)
+        diverter_task.cancel()
+
+    assert captured
+
+
+def test_example_pattern_matching():
+    # Example: Structural Pattern Matching
+
+    # Mock a packet
+    raw = bytearray(40)
+    raw[0] = 0x45
+    raw[9] = 6
+    raw[22:24] = b"\x00\x50" # port 80
+    packet = Packet(raw)
+
+    matched_http = False
+    match packet:
+        case Packet(tcp=TCPHeader(dst_port=80)):
+            matched_http = True
+
+    assert matched_http
