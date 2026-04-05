@@ -34,7 +34,6 @@ import sys
 
 try:
     from ctypes import (  # type: ignore[attr-defined]
-        ARRAY,
         POINTER,
         GetLastError,
         WinDLL,

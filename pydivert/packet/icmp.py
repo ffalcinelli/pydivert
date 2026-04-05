@@ -57,6 +57,7 @@ class ICMPHeader(Header, PayloadMixin):
 
 
 class ICMPv4Header(ICMPHeader):
+    __slots__ = ()
     header_len: int = 4
 
 
