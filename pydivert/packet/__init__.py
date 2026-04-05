@@ -46,6 +46,28 @@ class Packet:
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
+    __slots__ = (
+        "raw",
+        "interface",
+        "direction",
+        "timestamp",
+        "_loopback",
+        "_impostor",
+        "_sniffed",
+        "ip_checksum",
+        "tcp_checksum",
+        "udp_checksum",
+        "layer",
+        "event",
+        "flow",
+        "socket",
+        "reflect",
+        "_cached_buff_len",
+        "_cached_buff_id",
+        "_cached_buff",
+        "__dict__",  # Needed for cached_property
+    )
+
     __repr_fields__: tuple[str, ...] = (
         "direction",
         "dst_addr",
@@ -429,9 +451,9 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num: int = windivert_dll.WinDivertHelperCalcChecksums(
+        num: int = windivert_dll.WinDivertHelperCalcChecksums(  # type: ignore[attr-defined]
             ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
-        )  # type: ignore[attr-defined]
+        )
         return num
 
     def __to_buffers(self) -> tuple[Any, Any]:

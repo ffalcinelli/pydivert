@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 
 
 class Header:
+    __slots__ = ("_packet", "_start", "__dict__")
+
     def __init__(self, packet: Packet, start: int = 0) -> None:
         self._packet = packet
         self._start = start

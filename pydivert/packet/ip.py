@@ -82,6 +82,7 @@ class IPHeader(Header):
 
 
 class IPv4Header(IPHeader):
+    __slots__ = ()
     __repr_fields__ = (
         "cksum",
         "df",
