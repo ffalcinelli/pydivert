@@ -32,6 +32,7 @@ from pydivert.util import flag_property, raw_property
 
 class TCPHeader(Header, PayloadMixin, PortMixin):
     __slots__ = ()
+    __match_args__ = ("src_port", "dst_port", "seq_num", "ack_num", "flags")
     __repr_fields__ = (
         "ack",
         "ack_num",

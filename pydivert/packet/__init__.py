@@ -68,6 +68,21 @@ class Packet:
         "__dict__",  # Needed for cached_property
     )
 
+    __match_args__ = (
+        "ipv4",
+        "ipv6",
+        "tcp",
+        "udp",
+        "icmpv4",
+        "icmpv6",
+        "payload",
+        "direction",
+        "src_addr",
+        "dst_addr",
+        "src_port",
+        "dst_port",
+    )
+
     __repr_fields__: tuple[str, ...] = (
         "direction",
         "dst_addr",
