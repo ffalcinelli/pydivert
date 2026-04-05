@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import logging
 from ctypes import byref
-from ctypes.wintypes import DWORD, LPCWSTR, HANDLE, BOOL
+from ctypes.wintypes import BOOL, DWORD, HANDLE, LPCWSTR
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +27,23 @@ class SERVICE_STATUS(ctypes.Structure):
     ]
 
 def _get_advapi32():
-    try:
+    try:  # pragma: no cover
         advapi32 = ctypes.windll.advapi32
-        
+
         advapi32.OpenSCManagerW.argtypes = [LPCWSTR, LPCWSTR, DWORD]
         advapi32.OpenSCManagerW.restype = HANDLE
-        
+
         advapi32.OpenServiceW.argtypes = [HANDLE, LPCWSTR, DWORD]
         advapi32.OpenServiceW.restype = HANDLE
-        
+
         advapi32.CloseServiceHandle.argtypes = [HANDLE]
         advapi32.CloseServiceHandle.restype = BOOL
-        
+
         advapi32.ControlService.argtypes = [HANDLE, DWORD, ctypes.POINTER(SERVICE_STATUS)]
         advapi32.ControlService.restype = BOOL
-        
+
         return advapi32
-    except (AttributeError, OSError):
+    except (AttributeError, OSError):  # pragma: no cover
         return None
 
 def is_registered(service_name: str = "WinDivert") -> bool:
