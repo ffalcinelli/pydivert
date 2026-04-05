@@ -132,6 +132,4 @@ exclude_lines = [
 ]
 
 [dependency-groups]
-dev = [
-    "pytest-cov>=7.1.0",
-]
+dev = []
