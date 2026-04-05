@@ -429,7 +429,9 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num: int = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)  # type: ignore[attr-defined]
+        num: int = windivert_dll.WinDivertHelperCalcChecksums(
+            ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
+        )  # type: ignore[attr-defined]
         return num
 
     def __to_buffers(self) -> tuple[Any, Any]:

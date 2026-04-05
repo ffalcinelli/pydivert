@@ -22,11 +22,11 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+import asyncio
 import ctypes
 import logging
 import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
-from typing import Optional
 
 from pydivert import windivert_dll
 from pydivert.consts import Direction, Flag, Layer, Param
@@ -52,7 +52,9 @@ class WinDivert:
 
     """
 
-    def __init__(self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT) -> None:
+    def __init__(
+        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+    ) -> None:
         """
         Creates a WinDivert handle.
 
@@ -89,6 +91,19 @@ class WinDivert:
 
     def __next__(self):
         return self.recv()
+
+    async def __aenter__(self) -> "WinDivert":
+        self.open()
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        self.close()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> Packet:
+        return await self.recv_async()
 
     @staticmethod
     def register():
@@ -219,6 +234,13 @@ class WinDivert:
 
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
+        """
+        Asynchronously receives a diverted packet.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.recv, bufsize)
+
     @staticmethod
     def _parse_packet(packet, recv_len, address):
         """
@@ -244,8 +266,8 @@ class WinDivert:
         )
 
     def recv_ex(
-        self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Optional[Overlapped] = None
-    ) -> Optional[Packet]:
+        self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Overlapped | None = None
+    ) -> Packet | None:
         """
         Receives a diverted packet that matched the filter (extended version).
         Supports overlapped IO.
@@ -337,9 +359,16 @@ class WinDivert:
         windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))  # type: ignore[attr-defined]
         return send_len.value
 
+    async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
+        """
+        Asynchronously injects a packet into the network stack.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.send, packet, recalculate_checksum)
+
     def send_ex(
-        self, packet: Packet, recalculate_checksum: bool = True, flags: int = 0, overlapped: Optional[Overlapped] = None
-    ) -> Optional[int]:
+        self, packet: Packet, recalculate_checksum: bool = True, flags: int = 0, overlapped: Overlapped | None = None
+    ) -> int | None:
         """
         Injects a packet into the network stack (extended version).
         Recalculates the checksum before sending unless recalculate_checksum=False is passed.
