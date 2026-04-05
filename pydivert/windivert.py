@@ -115,20 +115,22 @@ class WinDivert:
             pass
 
     @staticmethod
-    def is_registered():
+    def is_registered() -> bool:
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.run(["sc", "query", "WinDivert"], capture_output=True).returncode == 0
+        return service.is_registered()
 
     @staticmethod
-    def unregister():
+    def unregister() -> None:
         """
         Unregisters the WinDivert service.
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.run(["sc", "stop", "WinDivert"], capture_output=True, check=True)
+        if not service.stop_service():
+            # Fallback to sc.exe if direct Win32 API fails
+            subprocess.run(["sc", "stop", "WinDivert"], capture_output=True)
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
