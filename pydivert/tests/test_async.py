@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import pydivert
-from pydivert.windivert_dll import Overlapped
+from pydivert.windivert_dll import Overlapped, WinDivertAddress
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def test_send_ex_async_pending(mock_windivert_dll):
 
     packet = MagicMock(spec=pydivert.Packet)
     packet.raw = bytearray(b"test")
-    packet.wd_addr = pydivert.windivert_dll.WinDivertAddress()
+    packet.wd_addr = WinDivertAddress()
 
     result = w.send_ex(packet, overlapped=overlapped)
 

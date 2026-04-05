@@ -244,12 +244,21 @@ Since PyDivert requires Windows and Administrator privileges, you can use **Vagr
     ```
     This will download a Windows 11 box, provision it with `uv`, and install all necessary dependencies.
 
-2.  **Run the tests:**
+3.  **Run the tests:**
     ```bash
     vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
     ```
 
-3.  **Interactive Session:**
+4.  **Code Coverage:**
+    To run tests with code coverage and generate an HTML report:
+    ```bash
+    # Run tests and generate report
+    vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest --cov=pydivert --cov-report=html'
+
+    # The 'htmlcov/index.html' file will be available in your local project root.
+    ```
+
+5.  **Interactive Session:**
     If you need to explore the environment manually:
     ```bash
     vagrant powershell

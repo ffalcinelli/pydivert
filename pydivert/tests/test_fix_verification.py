@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import subprocess
 from unittest.mock import patch
 
 from pydivert.windivert import WinDivert
