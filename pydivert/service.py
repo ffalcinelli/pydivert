@@ -3,24 +3,17 @@ from __future__ import annotations
 import ctypes
 import logging
 from ctypes import byref
-from ctypes.wintypes import DWORD
+from ctypes.wintypes import DWORD, LPCWSTR, HANDLE, BOOL
 
 logger = logging.getLogger(__name__)
 
 # Service Access Rights
-SC_MANAGER_ALL_ACCESS = 0xF003F
-SERVICE_ALL_ACCESS = 0xF01FF
-SERVICE_STOP = 0x0020
+SC_MANAGER_CONNECT = 0x0001
 SERVICE_QUERY_STATUS = 0x0004
+SERVICE_STOP = 0x0020
 
 # Service Control Codes
 SERVICE_CONTROL_STOP = 0x00000001
-
-# Service State
-SERVICE_STOPPED = 0x00000001
-SERVICE_START_PENDING = 0x00000002
-SERVICE_STOP_PENDING = 0x00000003
-SERVICE_RUNNING = 0x00000004
 
 class SERVICE_STATUS(ctypes.Structure):
     _fields_ = [
@@ -35,7 +28,21 @@ class SERVICE_STATUS(ctypes.Structure):
 
 def _get_advapi32():
     try:
-        return ctypes.windll.advapi32
+        advapi32 = ctypes.windll.advapi32
+        
+        advapi32.OpenSCManagerW.argtypes = [LPCWSTR, LPCWSTR, DWORD]
+        advapi32.OpenSCManagerW.restype = HANDLE
+        
+        advapi32.OpenServiceW.argtypes = [HANDLE, LPCWSTR, DWORD]
+        advapi32.OpenServiceW.restype = HANDLE
+        
+        advapi32.CloseServiceHandle.argtypes = [HANDLE]
+        advapi32.CloseServiceHandle.restype = BOOL
+        
+        advapi32.ControlService.argtypes = [HANDLE, DWORD, ctypes.POINTER(SERVICE_STATUS)]
+        advapi32.ControlService.restype = BOOL
+        
+        return advapi32
     except (AttributeError, OSError):
         return None
 
@@ -47,7 +54,7 @@ def is_registered(service_name: str = "WinDivert") -> bool:
     if not advapi32:
         return False
 
-    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_ALL_ACCESS)
+    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)
     if not scm:
         return False
 
@@ -68,7 +75,7 @@ def stop_service(service_name: str = "WinDivert") -> bool:
     if not advapi32:
         return False
 
-    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_ALL_ACCESS)
+    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)
     if not scm:
         return False
 
