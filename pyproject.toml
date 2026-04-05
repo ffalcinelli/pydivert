@@ -90,14 +90,6 @@ disallow_incomplete_defs = false
 check_untyped_defs = false
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = [
-    "pydivert.windivert_dll.*",
-    "pydivert.windivert",
-    "pydivert.tests.*",
-]
-ignore_errors = true
-
 [tool.hatch.version]
 path = "pydivert/__init__.py"
 

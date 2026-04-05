@@ -33,7 +33,7 @@ import platform
 import sys
 
 try:
-    from ctypes import (
+    from ctypes import (  # type: ignore[attr-defined]
         ARRAY,
         POINTER,
         GetLastError,
@@ -57,10 +57,10 @@ except (ImportError, AttributeError):
     def GetLastError():
         return 0
 
-    WinError = OSError
-    WinDLL = object
-    windll = None
-    HANDLE = c_void_p
+    WinError = OSError  # type: ignore[assignment]
+    WinDLL = object  # type: ignore[assignment, misc]
+    windll = None  # type: ignore[assignment]
+    HANDLE = c_void_p  # type: ignore[misc]
 
 from .structs import Overlapped, WinDivertAddress
 
@@ -124,7 +124,7 @@ WINDIVERT_FUNCTIONS = {
         c_int,
     ),
     "WinDivertHelperParseIPv4Address": ([c_char_p, POINTER(c_uint32)], c_int),
-    "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(ARRAY(c_uint8, 16))], c_int),
+    "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(c_uint8 * 16)], c_int),
     "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_int),
     "WinDivertHelperCompileFilter": ([c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)], c_int),
     "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p], c_int),

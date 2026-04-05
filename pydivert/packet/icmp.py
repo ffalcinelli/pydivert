@@ -22,6 +22,8 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 from pydivert.packet.header import Header, PayloadMixin
 from pydivert.util import raw_property
 
@@ -30,33 +32,33 @@ class ICMPHeader(Header, PayloadMixin):
     __repr_fields__ = ("cksum", "code", "header_len", "payload", "raw", "type")
 
     @property
-    def type(self):
+    def type(self) -> int:
         """
         The ICMP message type.
         """
         return self.raw[0]
 
     @type.setter
-    def type(self, val):
+    def type(self, val: int) -> None:
         self.raw[0] = val
 
     @property
-    def code(self):
+    def code(self) -> int:
         """
         The ICMP message code.
         """
         return self.raw[1]
 
     @code.setter
-    def code(self, val):
+    def code(self, val: int) -> None:
         self.raw[1] = val
 
-    cksum = raw_property("!H", 2, docs="The ICMP header checksum field.")
+    cksum: int = raw_property("!H", 2, docs="The ICMP header checksum field.")  # type: ignore[assignment]
 
 
 class ICMPv4Header(ICMPHeader):
-    header_len = 4
+    header_len: int = 4
 
 
 class ICMPv6Header(ICMPHeader):
-    header_len = 4
+    header_len: int = 4
