@@ -22,6 +22,8 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import logging
 import socket
 import struct
@@ -33,49 +35,49 @@ logger = logging.getLogger(__name__)
 
 
 class IPHeader(Header):
-    _src_addr = slice(0, 0)
-    _dst_addr = slice(0, 0)
-    _af = None  # type: ignore
+    _src_addr: slice = slice(0, 0)
+    _dst_addr: slice = slice(0, 0)
+    _af: int = 0
 
     @property
-    def src_addr(self):
+    def src_addr(self) -> str | None:
         """
         The packet source address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())  # type: ignore[arg-type]
+            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
         except (OSError, ValueError) as e:
             logger.warning("Failed to parse IP address: %s", e)
             return None
 
     @src_addr.setter
-    def src_addr(self, val):
-        self.raw[self._src_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
+    def src_addr(self, val: str) -> None:
+        self.raw[self._src_addr] = socket.inet_pton(self._af, val)
 
     @property
-    def dst_addr(self):
+    def dst_addr(self) -> str | None:
         """
         The packet destination address.
         """
         try:
-            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())  # type: ignore[arg-type]
+            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
         except (OSError, ValueError) as e:
             logger.warning("Failed to parse IP address: %s", e)
             return None
 
     @dst_addr.setter
-    def dst_addr(self, val):
-        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)  # type: ignore[arg-type]
+    def dst_addr(self, val: str) -> None:
+        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)
 
     @property
-    def packet_len(self):
+    def packet_len(self) -> int:
         """
         The total packet length, including *all* headers, as reported by the IP header.
         """
         return len(self._packet.raw)
 
     @packet_len.setter
-    def packet_len(self, val):
+    def packet_len(self, val: int) -> None:
         raise AttributeError("can't set attribute")
 
 
@@ -103,85 +105,85 @@ class IPv4Header(IPHeader):
     )
     _src_addr = slice(12, 16)
     _dst_addr = slice(16, 20)
-    _af = socket.AF_INET  # type: ignore
+    _af = socket.AF_INET
 
     @property
-    def header_len(self):
+    def header_len(self) -> int:
         """
         The IP header length in bytes.
         """
         return self.hdr_len * 4
 
     @property
-    def hdr_len(self):
+    def hdr_len(self) -> int:
         """
         The header length in words of 32bit.
         """
         return self.raw[0] & 0x0F
 
     @hdr_len.setter
-    def hdr_len(self, val):
+    def hdr_len(self, val: int) -> None:
         if val < 5:
             raise ValueError("IP header length must be greater or equal than 5.")
         struct.pack_into("!B", self.raw, 0, 0x40 | val)
 
-    packet_len = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)
-    tos = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")
-    ident = raw_property("!H", 4, docs="The Identification field.")
+    packet_len: int = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)  # type: ignore[assignment]
+    tos: int = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")  # type: ignore[assignment]
+    ident: int = raw_property("!H", 4, docs="The Identification field.")  # type: ignore[assignment]
 
-    reserved = flag_property("reserved", 6, 0b10000000)
-    evil = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")
-    df = flag_property("df", 6, 0b01000000)
-    mf = flag_property("mf", 6, 0b00100000)
+    reserved: bool = flag_property("reserved", 6, 0b10000000)  # type: ignore[assignment]
+    evil: bool = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")  # type: ignore[assignment]
+    df: bool = flag_property("df", 6, 0b01000000)  # type: ignore[assignment]
+    mf: bool = flag_property("mf", 6, 0b00100000)  # type: ignore[assignment]
 
-    ttl = raw_property("!B", 8, docs="The Time To Live field.")
-    protocol = raw_property("!B", 9, docs="The Protocol field.")
-    cksum = raw_property("!H", 10, docs="The IP header Checksum field.")
+    ttl: int = raw_property("!B", 8, docs="The Time To Live field.")  # type: ignore[assignment]
+    protocol: int = raw_property("!B", 9, docs="The Protocol field.")  # type: ignore[assignment]
+    cksum: int = raw_property("!H", 10, docs="The IP header Checksum field.")  # type: ignore[assignment]
 
     @property
-    def flags(self):
+    def flags(self) -> int:
         """
         The flags field: RESERVED (the evil bit), DF (don't fragment), MF (more fragments).
         """
         return self.raw[6] >> 5
 
     @flags.setter
-    def flags(self, val):
+    def flags(self, val: int) -> None:
         struct.pack_into("!B", self.raw, 6, (val << 5) | (self.frag_offset & 0xFF00))
 
     @property
-    def frag_offset(self):
+    def frag_offset(self) -> int:
         """
         The Fragment Offset field in blocks of 8 bytes.
         """
         return struct.unpack_from("!H", self.raw, 6)[0] & 0x1FFF
 
     @frag_offset.setter
-    def frag_offset(self, val):
+    def frag_offset(self, val: int) -> None:
         self.raw[6:8] = struct.pack("!H", (self.flags << 13) | (val & 0x1FFF))
 
     @property
-    def dscp(self):
+    def dscp(self) -> int:
         """
         The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.
         """
         return (self.raw[1] >> 2) & 0x3F
 
     @dscp.setter
-    def dscp(self, val):
+    def dscp(self, val: int) -> None:
         struct.pack_into("!B", self.raw, 1, (val << 2) | self.ecn)
 
     diff_serv = dscp
 
     @property
-    def ecn(self):
+    def ecn(self) -> int:
         """
         The Explicit Congestion Notification field.
         """
         return self.raw[1] & 0x03
 
     @ecn.setter
-    def ecn(self, val):
+    def ecn(self, val: int) -> None:
         struct.pack_into("!B", self.raw, 1, (self.dscp << 2) | (val & 0x03))
 
 
@@ -202,63 +204,63 @@ class IPv6Header(IPHeader):
     )
     _src_addr = slice(8, 24)
     _dst_addr = slice(24, 40)
-    _af = socket.AF_INET6  # type: ignore
-    header_len = 40
+    _af = socket.AF_INET6
+    header_len: int = 40
 
-    payload_len = raw_property("!H", 4, docs="The Payload Length field.")
-    next_hdr = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")
-    hop_limit = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")
+    payload_len: int = raw_property("!H", 4, docs="The Payload Length field.")  # type: ignore[assignment]
+    next_hdr: int = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")  # type: ignore[assignment]
+    hop_limit: int = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")  # type: ignore[assignment]
 
     @property
-    def packet_len(self):
+    def packet_len(self) -> int:
         return self.payload_len + self.header_len
 
     @packet_len.setter
-    def packet_len(self, val):
+    def packet_len(self, val: int) -> None:
         self.payload_len = val - self.header_len
 
     @property
-    def traffic_class(self):
+    def traffic_class(self) -> int:
         """
         The Traffic Class field (six-bit DiffServ field and a two-bit ECN field).
         """
         return (struct.unpack_from("!H", self.raw, 0)[0] >> 4) & 0x00FF
 
     @traffic_class.setter
-    def traffic_class(self, val):
+    def traffic_class(self, val: int) -> None:
         struct.pack_into("!H", self.raw, 0, 0x6000 | (val << 4) | (self.flow_label >> 16))
 
     @property
-    def flow_label(self):
+    def flow_label(self) -> int:
         """
         The Flow Label field.
         """
         return struct.unpack_from("!I", self.raw, 0)[0] & 0x000FFFFF
 
     @flow_label.setter
-    def flow_label(self, val):
+    def flow_label(self, val: int) -> None:
         struct.pack_into("!I", self.raw, 0, 0x60000000 | (self.traffic_class << 20) | (val & 0x000FFFFF))
 
     @property
-    def diff_serv(self):
+    def diff_serv(self) -> int:
         """
         The DiffServ field.
         """
         return (self.traffic_class & 0xFC) >> 2
 
     @diff_serv.setter
-    def diff_serv(self, val):
+    def diff_serv(self, val: int) -> None:
         self.traffic_class = self.ecn | (val << 2)
 
     @property
-    def ecn(self):
+    def ecn(self) -> int:
         """
         The Explicit Congestion Notification field.
         """
         return self.traffic_class & 0x03
 
     @ecn.setter
-    def ecn(self, val):
+    def ecn(self, val: int) -> None:
         self.traffic_class = (self.diff_serv << 2) | val
 
     packet_len.__doc__ = IPHeader.packet_len.__doc__

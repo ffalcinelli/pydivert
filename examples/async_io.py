@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
-from ctypes import windll
+from ctypes import windll  # type: ignore[attr-defined]
 
 import pydivert
 from pydivert.windivert_dll import Overlapped
@@ -30,11 +30,10 @@ def main():
     with Windows Overlapped I/O.
     """
 
-    # 1. Open a WinDivert handle with the OVERLAPPED flag.
-    # This is MANDATORY for using asynchronous functions.
+    # 1. Open a WinDivert handle. All handles in WinDivert 2.2+ are overlapped by default.
     # We use a filter that matches all traffic ("true").
-    print("Opening WinDivert handle with OVERLAPPED flag...")
-    with pydivert.WinDivert("true", flags=pydivert.Flag.OVERLAPPED) as w:
+    print("Opening WinDivert handle...")
+    with pydivert.WinDivert("true") as w:
         # 2. Create a Windows event object.
         # This event will be signaled by the Windows kernel when the I/O operation completes.
         event = windll.kernel32.CreateEventW(None, False, False, None)

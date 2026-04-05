@@ -186,7 +186,9 @@ You can customize the behavior using flags:
 
 - `Flag.SNIFF`: Capture packets without diverting them (they still reach their destination).
 - `Flag.DROP`: Drop packets by default.
-- `Flag.OVERLAPPED`: Use asynchronous (overlapped) I/O.
+- `Flag.FRAGMENTS`: Capture all IP fragments.
+- `Flag.RECV_ONLY`: Capture packets but do not allow sending.
+- `Flag.SEND_ONLY`: Only allow sending packets (cannot capture).
 
 ```python
 from pydivert import WinDivert, Flag
