@@ -27,6 +27,7 @@ import pprint
 import socket
 
 from pydivert import windivert_dll
+from pydivert.windivert_dll import WinDivertAddress
 from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
 from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
@@ -191,6 +192,7 @@ class Packet:
                 return socket.AF_INET
             if v == 6:
                 return socket.AF_INET6
+        return None
 
     def _parse_ipv4_protocol(self):
         proto = self.raw[9]
@@ -253,6 +255,7 @@ class Packet:
         """
         if self.address_family == socket.AF_INET:
             return IPv4Header(self)
+        return None
 
     @cached_property
     def ipv6(self):
@@ -262,6 +265,7 @@ class Packet:
         """
         if self.address_family == socket.AF_INET6:
             return IPv6Header(self)
+        return None
 
     @cached_property
     def ip(self):
@@ -280,6 +284,7 @@ class Packet:
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMP:
             return ICMPv4Header(self, proto_start)
+        return None
 
     @cached_property
     def icmpv6(self):
@@ -290,6 +295,7 @@ class Packet:
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.ICMPV6:
             return ICMPv6Header(self, proto_start)
+        return None
 
     @cached_property
     def icmp(self):
@@ -308,6 +314,7 @@ class Packet:
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.TCP:
             return TCPHeader(self, proto_start)
+        return None
 
     @cached_property
     def udp(self):
@@ -318,6 +325,7 @@ class Packet:
         ipproto, proto_start = self.protocol
         if ipproto == Protocol.UDP:
             return UDPHeader(self, proto_start)
+        return None
 
     @cached_property
     def _port(self):
@@ -337,6 +345,7 @@ class Packet:
         """
         if self.ip:
             return self.ip.src_addr
+        return None
 
     @src_addr.setter
     def src_addr(self, val):
@@ -351,6 +360,7 @@ class Packet:
         """
         if self.ip:
             return self.ip.dst_addr
+        return None
 
     @dst_addr.setter
     def dst_addr(self, val):
@@ -365,6 +375,7 @@ class Packet:
         """
         if self._port:
             return self._port.src_port
+        return None
 
     @src_port.setter
     def src_port(self, val):
@@ -379,6 +390,7 @@ class Packet:
         """
         if self._port:
             return self._port.dst_port
+        return None
 
     @dst_port.setter
     def dst_port(self, val):
@@ -393,6 +405,7 @@ class Packet:
         """
         if self._payload:
             return self._payload.payload
+        return None
 
     @payload.setter
     def payload(self, val):
@@ -431,7 +444,7 @@ class Packet:
         Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        address = windivert_dll.WinDivertAddress()
+        address = WinDivertAddress()
         address.Timestamp = self.timestamp  # type: ignore
         address.Layer = self.layer  # type: ignore
         address.Event = self.event  # type: ignore

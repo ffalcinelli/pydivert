@@ -28,6 +28,7 @@ import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import windivert_dll
+from pydivert.windivert_dll import WinDivertAddress
 from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
 
@@ -68,13 +69,9 @@ class WinDivert:
         self._recv_buf_c = None
 
     def __repr__(self):
-        return '<WinDivert state="{}" filter="{}" layer="{}" priority="{}" flags="{}" />'.format(
-            "open" if self._handle is not None else "closed",
-            self._filter.decode(),
-            self._layer,
-            self._priority,
-            self._flags,
-        )
+        state = "open" if self._handle is not None else "closed"
+        filter_str = self._filter.decode()
+        return f'<WinDivert state="{state}" filter="{filter_str}" layer="{self._layer}" priority="{self._priority}" flags="{self._flags}" />'
 
     def __enter__(self):
         self.open()
@@ -103,7 +100,7 @@ class WinDivert:
         """
         Check if the WinDivert service is currently installed on the system.
         """
-        return subprocess.call(["sc", "query", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
+        return subprocess.run(["sc", "query", "WinDivert"], capture_output=True).returncode == 0
 
     @staticmethod
     def unregister():
@@ -112,7 +109,7 @@ class WinDivert:
         This function only requests a service stop, which may not be processed immediately if there are still open
         handles.
         """
-        subprocess.check_call(["sc", "stop", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["sc", "stop", "WinDivert"], capture_output=True, check=True)
 
     @staticmethod
     def check_filter(filter, layer=Layer.NETWORK):
@@ -280,7 +277,6 @@ class WinDivert:
             packet = bytearray(bufsize)
             packet_ = (c_char * bufsize).from_buffer(packet)
         windivert_dll._init()
-        from pydivert.windivert_dll.structs import WinDivertAddress
 
         address = WinDivertAddress()
         recv_len = c_uint(0)
@@ -369,7 +365,6 @@ class WinDivert:
         buff = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(buff)
         windivert_dll._init()
-        from pydivert.windivert_dll.structs import WinDivertAddress
 
         wd_addr = packet.wd_addr
         addr_len = ctypes.sizeof(WinDivertAddress)
