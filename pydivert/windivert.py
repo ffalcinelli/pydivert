@@ -71,7 +71,10 @@ class WinDivert:
     def __repr__(self):
         state = "open" if self._handle is not None else "closed"
         filter_str = self._filter.decode()
-        return f'<WinDivert state="{state}" filter="{filter_str}" layer="{self._layer}" priority="{self._priority}" flags="{self._flags}" />'
+        return (
+            f'<WinDivert state="{state}" filter="{filter_str}" layer="{self._layer}" '
+            f'priority="{self._priority}" flags="{self._flags}" />'
+        )
 
     def __enter__(self):
         self.open()
@@ -209,7 +212,7 @@ class WinDivert:
 
         packet = self._recv_buf
         packet_ = self._recv_buf_c
-        address = windivert_dll.WinDivertAddress()
+        address = WinDivertAddress()
         recv_len = c_uint(0)
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
@@ -261,7 +264,7 @@ class WinDivert:
 
         :param bufsize: The size of the packet buffer.
         :param flags: WinDivert receive flags (e.g. RecvFlag.NO_BLOCK).
-        :param overlapped: An optional `pydivert.windivert_dll.Overlapped` structure for overlapped IO.
+        :param overlapped: An optional `Overlapped` structure for overlapped IO.
         :return: A `pydivert.Packet` if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
         """
         if self._handle is None:
@@ -355,7 +358,7 @@ class WinDivert:
         :param packet: The packet to send.
         :param recalculate_checksum: Whether to recalculate checksums before sending.
         :param flags: WinDivert send flags (currently unused, should be 0).
-        :param overlapped: An optional `pydivert.windivert_dll.Overlapped` structure for overlapped IO.
+        :param overlapped: An optional `Overlapped` structure for overlapped IO.
         :return: The number of bytes sent if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
         """
         if recalculate_checksum:
