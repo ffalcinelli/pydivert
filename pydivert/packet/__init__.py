@@ -471,6 +471,36 @@ class Packet:
         )
         return num
 
+    @property
+    def is_checksum_valid(self) -> bool:
+        """
+        Check if all checksums in the packet (IP, TCP, UDP, ICMP) are valid.
+        This recalculates the checksums on a copy of the packet and compares the results.
+        """
+        # Create a copy of the packet
+        other = Packet(self.raw.tobytes(), layer=self.layer)
+        # We must zero out checksums before recalculating, because WinDivertHelperCalcChecksums
+        # only fills them if they are 0.
+        if other.ipv4:
+            other.ipv4.cksum = 0
+        if other.tcp:
+            other.tcp.cksum = 0
+        if other.udp:
+            other.udp.cksum = 0
+        if other.icmpv4 or other.icmpv6:
+            if other.icmp:
+                other.icmp.cksum = 0
+
+        # Set address hints for the helper
+        other.wd_addr.IPChecksum = 1 if other.ipv4 else 0
+        other.wd_addr.TCPChecksum = 1 if other.tcp else 0
+        other.wd_addr.UDPChecksum = 1 if other.udp else 0
+
+        # Recalculate checksums on the copy
+        other.recalculate_checksums()
+        # Compare raw bytes. If any checksum changed, it means the original was invalid.
+        return self.raw.tobytes() == other.raw.tobytes()
+
     def __to_buffers(self) -> tuple[Any, Any]:
         buff = self.raw.obj
         raw_len = len(self.raw)
