@@ -46,6 +46,7 @@ class IPHeader(Header):
             return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())  # type: ignore[arg-type]
         except (OSError, ValueError) as e:
             logger.warning("Failed to parse IP address: %s", e)
+            return None
 
     @src_addr.setter
     def src_addr(self, val):
@@ -60,6 +61,7 @@ class IPHeader(Header):
             return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())  # type: ignore[arg-type]
         except (OSError, ValueError) as e:
             logger.warning("Failed to parse IP address: %s", e)
+            return None
 
     @dst_addr.setter
     def dst_addr(self, val):

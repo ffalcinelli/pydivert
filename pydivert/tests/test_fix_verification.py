@@ -6,15 +6,13 @@ from pydivert.windivert import WinDivert
 
 
 def test_is_registered_calls_subprocess_with_list():
-    with patch("subprocess.call") as mock_call:
-        mock_call.return_value = 0
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
         WinDivert.is_registered()
-        mock_call.assert_called_once_with(["sc", "query", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        mock_run.assert_called_once_with(["sc", "query", "WinDivert"], capture_output=True)
 
 
 def test_unregister_calls_subprocess_with_list():
-    with patch("subprocess.check_call") as mock_check_call:
+    with patch("subprocess.run") as mock_run:
         WinDivert.unregister()
-        mock_check_call.assert_called_once_with(
-            ["sc", "stop", "WinDivert"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        mock_run.assert_called_once_with(["sc", "stop", "WinDivert"], capture_output=True, check=True)

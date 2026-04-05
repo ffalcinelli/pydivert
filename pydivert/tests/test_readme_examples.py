@@ -37,11 +37,9 @@ from pydivert import Flag, Layer
 
 
 def get_free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def test_example_basic_capture():
@@ -49,17 +47,16 @@ def test_example_basic_capture():
     port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            data = conn.recv(1024)
-            conn.sendall(data)
-            conn.close()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                conn, addr = s.accept()
+                data = conn.recv(1024)
+                conn.sendall(data)
+                conn.close()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -95,17 +92,16 @@ def test_example_packet_modification_redirection():
         fake_port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", real_port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            conn.recv(1024)
-            conn.sendall(b"redirected")
-            conn.close()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", real_port))
+            s.listen(1)
+            try:
+                conn, addr = s.accept()
+                conn.recv(1024)
+                conn.sendall(b"redirected")
+                conn.close()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -143,14 +139,13 @@ def test_example_firewall_drop():
     port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        try:
-            s.accept()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                s.accept()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -182,16 +177,15 @@ def test_example_payload_modification():
     port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            conn.sendall(b"Your secret-token is 123")
-            conn.close()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                conn, addr = s.accept()
+                conn.sendall(b"Your secret-token is 123")
+                conn.close()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -227,16 +221,15 @@ def test_example_traffic_logging():
     port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            conn.recv(1024)
-            conn.close()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                conn, addr = s.accept()
+                conn.recv(1024)
+                conn.close()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -265,7 +258,7 @@ def test_example_traffic_logging():
         except Exception:
             pass
 
-    assert len(captured_info) > 0
+    assert captured_info
 
 
 def flow_layer_diverter(port, stop_event, events):
@@ -291,15 +284,14 @@ def flow_layer_diverter(port, stop_event, events):
 
 
 def flow_layer_server(port):
-    s = socket.socket()
-    s.bind(("127.0.0.1", port))
-    s.listen(1)
-    try:
-        conn, _ = s.accept()
-        conn.close()
-    except Exception:
-        pass
-    s.close()
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        try:
+            conn, _ = s.accept()
+            conn.close()
+        except Exception:
+            pass
 
 
 def test_example_flow_layer():
@@ -327,10 +319,10 @@ def test_example_flow_layer():
         except Exception:
             pass
 
-    if len(events) > 0 and isinstance(events[0], Exception):
+    if events and isinstance(events[0], Exception):
         pytest.fail(f"Diverter thread failed: {events[0]}")
 
-    assert len(events) > 0
+    assert events
     assert any(hasattr(e, "layer") and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
 
 
@@ -339,17 +331,16 @@ def test_example_sniff_mode():
     port = get_free_port()
 
     def server():
-        s = socket.socket()
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        try:
-            conn, addr = s.accept()
-            data = conn.recv(1024)
-            conn.sendall(data)
-            conn.close()
-        except Exception:
-            pass
-        s.close()
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", port))
+            s.listen(1)
+            try:
+                conn, addr = s.accept()
+                data = conn.recv(1024)
+                conn.sendall(data)
+                conn.close()
+            except Exception:
+                pass
 
     threading.Thread(target=server, daemon=True).start()
 
@@ -377,4 +368,4 @@ def test_example_sniff_mode():
         except Exception:
             pass
 
-    assert len(sniffed_packets) > 0
+    assert sniffed_packets
