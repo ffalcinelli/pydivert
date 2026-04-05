@@ -83,6 +83,7 @@ class IPHeader(Header):
 
 class IPv4Header(IPHeader):
     __slots__ = ()
+    __match_args__ = ("src_addr", "dst_addr", "protocol", "ident", "ttl")
     __repr_fields__ = (
         "cksum",
         "df",
@@ -189,6 +190,8 @@ class IPv4Header(IPHeader):
 
 
 class IPv6Header(IPHeader):
+    __slots__ = ()
+    __match_args__ = ("src_addr", "dst_addr", "next_hdr", "hop_limit")
     __repr_fields__ = (
         "diff_serv",
         "dst_addr",

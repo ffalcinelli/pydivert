@@ -29,6 +29,8 @@ from pydivert.util import raw_property
 
 
 class ICMPHeader(Header, PayloadMixin):
+    __slots__ = ()
+    __match_args__ = ("type", "code", "cksum")
     __repr_fields__ = ("cksum", "code", "header_len", "payload", "raw", "type")
 
     @property
