@@ -63,18 +63,17 @@ def test_open():
 class TestParams:
     def test_queue_time_range(self, w):
         """
-        Tests setting the minimum value for queue time.
+        Tests setting and getting the value for queue time at its boundaries.
         From docs: 128 < default 512 < 2048
         """
-        def_range = (128, 512, 2048)
-        for value in def_range:
+        for value in (128, 512, 2048):
             w.set_param(Param.QUEUE_TIME, value)
             assert value == w.get_param(Param.QUEUE_TIME)
 
     @pytest.mark.skip(reason="Fails on Vagrant VM with WinError 87")
     def test_queue_len_range(self, w):
         """
-        Tests setting the minimum value for queue length.
+        Tests setting and getting the value for queue length at its boundaries.
         From docs: 2 <= queue length <= 16384
         """
         for value in (2, 512, 16384):
@@ -84,8 +83,8 @@ class TestParams:
     @pytest.mark.skip(reason="Fails on Vagrant VM with WinError 87")
     def test_queue_size_range(self, w):
         """
-        Tests setting the minimum value for queue size.
-        From docs: 4096 <= queue size <= 33554432
+        Tests setting and getting the value for queue size at its boundaries.
+        From docs: 4096 (4KB) < default 4194304 (4MB) < 33554432 (32MB)
         """
         for value in (4096, 4194304, 33554432):
             w.set_param(Param.QUEUE_SIZE, value)
