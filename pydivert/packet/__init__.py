@@ -135,20 +135,32 @@ class Packet:
         if isinstance(raw, (bytes, bytearray)):
             raw = memoryview(bytearray(raw))
         self.raw: memoryview = raw
+        """The raw packet bytes as a `memoryview`."""
         self.interface: tuple[int, int] = interface or (0, 0)
+        """The interface index and sub-interface index where the packet was captured."""
         self.direction: Direction = direction
+        """The packet direction (inbound or outbound)."""
         self.timestamp: int = timestamp
+        """The capture timestamp (QueryPerformanceCounter value)."""
         self._loopback: bool = loopback
         self._impostor: bool = impostor
         self._sniffed: bool = sniffed
         self.ip_checksum: bool = ip_checksum
+        """Indicates if the IP checksum was verified by hardware offloading."""
         self.tcp_checksum: bool = tcp_checksum
+        """Indicates if the TCP checksum was verified by hardware offloading."""
         self.udp_checksum: bool = udp_checksum
+        """Indicates if the UDP checksum was verified by hardware offloading."""
         self.layer: Layer = layer
+        """The WinDivert layer that captured this packet."""
         self.event: int = event
+        """The WinDivert event type."""
         self.flow: Any | None = flow
+        """The flow metadata (for Layer.FLOW)."""
         self.socket: Any | None = socket
+        """The socket metadata (for Layer.SOCKET)."""
         self.reflect: Any | None = reflect
+        """The reflect metadata (for Layer.REFLECT)."""
         self._cached_buff_len: int | None = None
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
