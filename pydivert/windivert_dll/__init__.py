@@ -52,7 +52,7 @@ try:
     from ctypes.wintypes import HANDLE
 except (ImportError, AttributeError):
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
-    from ctypes import ARRAY, POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+    from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
 
     def GetLastError():
         return 0

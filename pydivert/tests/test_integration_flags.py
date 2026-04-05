@@ -1,6 +1,7 @@
 import pytest
 
-from pydivert import WinDivert, Flag
+from pydivert import Flag, WinDivert
+
 
 def test_intflag_combinations():
     flags = Flag.SNIFF | Flag.FRAGMENTS

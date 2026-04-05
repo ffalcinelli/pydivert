@@ -41,6 +41,7 @@ test = [
     "mock>=1.0.1",
     "hypothesis>=3.5.3",
     "pytest>=7.0.0",
+    "pytest-asyncio",
     "pytest-cov>=2.2.1",
     "pytest-timeout>=2.1.0",
     "codecov>=2.0.5",

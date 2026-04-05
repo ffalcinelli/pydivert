@@ -25,12 +25,11 @@
 import itertools
 import socket
 import threading
+from queue import Queue
 
 import pytest
 
 import pydivert
-
-from queue import Queue
 
 
 @pytest.fixture
