@@ -31,7 +31,11 @@ from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 from pydivert import service, windivert_dll  # noqa: F401
 from pydivert.consts import Direction, Flag, Layer, Param
 from pydivert.packet import Packet
-from pydivert.windivert_dll import Overlapped, WinDivertAddress
+from pydivert.windivert_dll import (
+    INFINITE,
+    Overlapped,
+    WinDivertAddress,
+)
 
 DEFAULT_PACKET_BUFFER_SIZE = 65575
 
@@ -64,6 +68,7 @@ class WinDivert:
         :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
         """
         self._handle = None
+        self._event = None
         self._filter = filter.encode()
         self._layer = layer
         self._priority = priority
@@ -178,6 +183,7 @@ class WinDivert:
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
         self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)  # type: ignore[attr-defined]
+        self._event = windivert_dll.CreateEventW(None, False, False, None)  # type: ignore[attr-defined]
 
     @property
     def is_open(self):
@@ -202,6 +208,9 @@ class WinDivert:
             raise RuntimeError("WinDivert handle is not open.")
         windivert_dll.WinDivertClose(self._handle)  # type: ignore[attr-defined]
         self._handle = None
+        if self._event:
+            windivert_dll.CloseHandle(self._event)  # type: ignore[attr-defined]
+            self._event = None
 
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
         """
@@ -238,10 +247,36 @@ class WinDivert:
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
         """
-        Asynchronously receives a diverted packet.
+        Asynchronously receives a diverted packet using Windows Overlapped I/O.
         """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.recv, bufsize)
+        if self._handle is None or self._event is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+            self._recv_buf = bytearray(bufsize)
+            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+
+        packet = self._recv_buf
+        packet_ = self._recv_buf_c
+        address = WinDivertAddress()
+        recv_len = c_uint(0)
+        overlapped = Overlapped(hEvent=self._event)
+
+        # Call the async version from DLL
+        res = windivert_dll.WinDivertRecvEx(
+            self._handle, packet_, bufsize, byref(recv_len), 0, byref(address), None, byref(overlapped)
+        )  # type: ignore[attr-defined]
+
+        if not res:
+            error = windivert_dll.GetLastError()
+            if error == windivert_dll.ERROR_IO_PENDING:
+                # Wait for the event in a thread pool without blocking the main event loop
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+            else:
+                raise windivert_dll.WinError(error)
+
+        return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
     @staticmethod
     def _parse_packet(packet, recv_len, address):
@@ -363,10 +398,35 @@ class WinDivert:
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
-        Asynchronously injects a packet into the network stack.
+        Asynchronously injects a packet into the network stack using Windows Overlapped I/O.
         """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.send, packet, recalculate_checksum)
+        if self._handle is None or self._event is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        if recalculate_checksum:
+            packet.recalculate_checksums()
+
+        send_len = c_uint(0)
+        raw = packet.raw
+        buff = (c_char * len(packet.raw)).from_buffer(raw)
+        wd_addr = packet.wd_addr
+        overlapped = Overlapped(hEvent=self._event)
+
+        # Call the async version from DLL
+        res = windivert_dll.WinDivertSendEx(
+            self._handle, buff, len(packet.raw), byref(send_len), 0, byref(wd_addr), 0, byref(overlapped)
+        )  # type: ignore[attr-defined]
+
+        if not res:
+            error = windivert_dll.GetLastError()
+            if error == windivert_dll.ERROR_IO_PENDING:
+                # Wait for the event in a thread pool without blocking the main event loop
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+            else:
+                raise windivert_dll.WinError(error)
+
+        return send_len.value
 
     def send_ex(
         self, packet: Packet, recalculate_checksum: bool = True, flags: int = 0, overlapped: Overlapped | None = None
