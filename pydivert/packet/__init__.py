@@ -27,7 +27,6 @@ import pprint
 import socket
 
 from pydivert import windivert_dll
-from pydivert.windivert_dll import WinDivertAddress
 from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
 from pydivert.packet.header import Header
 from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
@@ -35,6 +34,7 @@ from pydivert.packet.ip import IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
 from pydivert.util import cached_property
+from pydivert.windivert_dll import WinDivertAddress
 
 
 class Packet:
