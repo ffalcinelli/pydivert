@@ -63,7 +63,7 @@ try:
 
     WinError = ctypes.WinError  # type: ignore[attr-defined]
     WinDLL = ctypes.WinDLL  # type: ignore[attr-defined]
-except (ImportError, AttributeError):
+except (ImportError, AttributeError):  # pragma: no cover
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
     from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
 
@@ -92,7 +92,7 @@ WAIT_OBJECT_0 = 0
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-if platform.architecture()[0] != "64bit":
+if platform.architecture()[0] != "64bit":  # pragma: no cover
     raise RuntimeError("PyDivert only supports 64-bit architecture.")
 
 DLL_PATH = os.path.join(here, "WinDivert64.dll")
@@ -191,7 +191,7 @@ def _init():
     """
     try:
         dll = WinDLL(DLL_PATH)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         raise WinError(f"Failed to load {DLL_PATH}: {e}") from e
 
     for funcname, (argtypes, restype) in WINDIVERT_FUNCTIONS.items():
