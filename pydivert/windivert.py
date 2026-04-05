@@ -28,9 +28,9 @@ import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import windivert_dll
-from pydivert.windivert_dll import WinDivertAddress
 from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
+from pydivert.windivert_dll import WinDivertAddress
 
 DEFAULT_PACKET_BUFFER_SIZE = 65575
 
