@@ -29,7 +29,7 @@ jobs:
         run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --output-file requirements.txt
       
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/python@69676639cc548ffaa0496d360841c5f0b9c757ed # v1.0.0
+        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
