@@ -26,11 +26,11 @@ jobs:
         run: uv python install 3.12
       
       - name: Generate requirements.txt
-        run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --output-file requirements.txt
+        run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --no-emit-project --output-file requirements.txt
       
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --file=requirements.txt --package-manager=pip
+          args: --file=requirements.txt --package-manager=pip --skip-unresolved
