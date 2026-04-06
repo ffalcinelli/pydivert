@@ -1,3 +1,11 @@
+Version 3.1.0
+    - Modern Python Features: Added support for Structural Pattern Matching (PEP 634) in the Packet class.
+    - First-class asyncio Support: Native async with, async for, and async methods for capture and injection.
+    - Programmatic Service Management: New WinDivert.is_registered(), unregister(), and register() methods.
+    - Advanced WinDivert 2.2 Integration: Improved metadata handling for FLOW, SOCKET, and REFLECT layers.
+    - Enhanced Security: Integrated Snyk scanning and added a formal Security Policy (SECURITY.md).
+    - Expanded test coverage and CI/CD improvements.
+
 Version 3.0.0
     - Major version bump due to backward incompatible changes in WinDivert 2.2 address handling.
     - Updated for WinDivert 2.2 address structure (Layer, Event, and new layer-specific metadata).
