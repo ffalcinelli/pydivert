@@ -28,9 +28,18 @@ jobs:
       - name: Generate requirements.txt
         run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --no-emit-project --output-file requirements.txt
       
-      - name: Run Snyk to check for vulnerabilities
+      - name: Snyk Test (CI Gate)
         uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --file=requirements.txt --package-manager=pip --skip-unresolved
+          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert
+      
+      - name: Snyk Monitor (Dashboard)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: monitor
+          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert
