@@ -38,11 +38,9 @@ import pydivert
 
 
 def get_free_port():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def test_http_port_redirection():  # noqa: C901

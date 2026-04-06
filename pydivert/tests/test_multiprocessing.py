@@ -57,39 +57,37 @@ def server_worker(stop_event, barrier, results_queue):
     Subprocess that runs a simple UDP echo server and captures traffic via WinDivert.
     """
     # Setup UDP server
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
 
-    # Tell the main process our port
-    results_queue.put(port)
+        # Tell the main process our port
+        results_queue.put(port)
 
-    # Wait for main process to be ready
-    barrier.wait()
+        # Wait for main process to be ready
+        barrier.wait()
 
-    try:
-        with pydivert.WinDivert(f"udp and udp.DstPort == {port}") as w:
-            while not stop_event.is_set():
-                try:
-                    # We expect 1 packet
-                    packet = w.recv()
-                    results_queue.put(f"Captured: {packet.dst_port}")
-                    w.send(packet)
+        try:
+            with pydivert.WinDivert(f"udp and udp.DstPort == {port}") as w:
+                while not stop_event.is_set():
+                    try:
+                        # We expect 1 packet
+                        packet = w.recv()
+                        results_queue.put(f"Captured: {packet.dst_port}")
+                        w.send(packet)
 
-                    # Also handle the socket side so the client gets a reply
-                    sock.settimeout(1.0)
-                    data, addr = sock.recvfrom(4096)
-                    sock.sendto(data.upper(), addr)
-                    break  # Done for this test
-                except TimeoutError:
-                    continue
-                except Exception as e:
-                    results_queue.put(f"WinDivert Error: {e}")
-                    break
-    except Exception as e:
-        results_queue.put(f"Worker Error: {e}")
-    finally:
-        sock.close()
+                        # Also handle the socket side so the client gets a reply
+                        sock.settimeout(1.0)
+                        data, addr = sock.recvfrom(4096)
+                        sock.sendto(data.upper(), addr)
+                        break  # Done for this test
+                    except TimeoutError:
+                        continue
+                    except Exception as e:
+                        results_queue.put(f"WinDivert Error: {e}")
+                        break
+        except Exception as e:
+            results_queue.put(f"Worker Error: {e}")
 
 
 @pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
@@ -139,12 +137,12 @@ def test_multiprocessing_integration_simple():
 
     try:
         # Send UDP packet
-        client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        client.settimeout(5)
-        client.sendto(b"hello", ("127.0.0.1", port))
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.settimeout(5)
+            client.sendto(b"hello", ("127.0.0.1", port))
 
-        data, _ = client.recvfrom(4096)
-        assert data == b"HELLO"
+            data, _ = client.recvfrom(4096)
+            assert data == b"HELLO"
 
         # Check WinDivert capture in subprocess
         capture_msg = results_queue.get(timeout=5)
@@ -153,4 +151,3 @@ def test_multiprocessing_integration_simple():
         stop_event.set()
         p.terminate()
         p.join()
-        client.close()

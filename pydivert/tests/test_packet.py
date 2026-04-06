@@ -46,9 +46,26 @@ ipv6_hdr = util.fromhex("600d684a00280640fc000002000000020000000000000001fc00000
 @example(raw=b"`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
 @example(raw=b"E\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
 def test_fuzz(raw):
-    assert repr(p(raw))
-    assert repr(p(ipv4_hdr + raw))
-    assert repr(p(ipv6_hdr + raw))
+    packets = [p(raw), p(ipv4_hdr + raw), p(ipv6_hdr + raw)]
+    for x in packets:
+        assert repr(x)
+        # Accessing properties shouldn't crash regardless of raw data
+        _ = x.src_addr
+        _ = x.dst_addr
+        _ = x.src_port
+        _ = x.dst_port
+        _ = x.payload
+        _ = x.protocol
+        _ = x.ipv4
+        _ = x.ipv6
+        _ = x.tcp
+        _ = x.udp
+        _ = x.icmp
+        try:
+            _ = x.is_checksum_valid
+        except (OSError, FileNotFoundError):
+            # This can fail if the driver is not loaded
+            pass
 
 
 def test_ipv6_tcp():

@@ -22,6 +22,8 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
@@ -29,26 +31,28 @@ from pydivert.util import raw_property
 
 
 class UDPHeader(Header, PayloadMixin, PortMixin):
+    __slots__ = ()
+    __match_args__ = ("src_port", "dst_port", "payload_len")
     __repr_fields__ = ("cksum", "dst_port", "header_len", "payload", "payload_len", "raw", "src_port")
-    header_len = 8
+    header_len: int = 8
 
     @property
-    def payload(self):
+    def payload(self) -> bytes:
         return PayloadMixin.payload.fget(self)  # type: ignore
 
     @payload.setter
-    def payload(self, val):
+    def payload(self, val: bytes | bytearray | memoryview) -> None:
         PayloadMixin.payload.fset(self, val)  # type: ignore
         self.payload_len = len(val)
 
     payload.__doc__ = PayloadMixin.payload.__doc__
 
     @property
-    def payload_len(self):
+    def payload_len(self) -> int:
         return struct.unpack_from("!H", self.raw, 4)[0] - 8
 
     @payload_len.setter
-    def payload_len(self, val):
+    def payload_len(self, val: int) -> None:
         self.raw[4:6] = struct.pack("!H", val + 8)
 
-    cksum = raw_property("!H", 6, docs="The UDP header checksum field.")
+    cksum: int = raw_property("!H", 6, docs="The UDP header checksum field.")  # type: ignore[assignment]

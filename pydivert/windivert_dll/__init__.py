@@ -27,18 +27,15 @@ pydivert bundles the WinDivert binaries from
 https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 """
 
+import ctypes
 import functools
 import os
 import platform
 import sys
 
 try:
-    from ctypes import (
-        ARRAY,
+    from ctypes import (  # type: ignore[attr-defined]
         POINTER,
-        GetLastError,
-        WinDLL,
-        WinError,
         c_char_p,
         c_int,
         c_int16,
@@ -50,25 +47,92 @@ try:
         windll,
     )
     from ctypes.wintypes import HANDLE
-except (ImportError, AttributeError):
-    # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
-    from ctypes import ARRAY, POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+
+    # kernel32 functions
+    def CreateEventW(*args, **kwargs):
+        f = windll.kernel32.CreateEventW
+        f.argtypes = [c_void_p, c_int, c_int, c_void_p]
+        f.restype = HANDLE
+        return f(*args, **kwargs)
+
+    def CloseHandle(handle):
+        f = windll.kernel32.CloseHandle
+        f.argtypes = [HANDLE]
+        f.restype = c_int
+        return f(handle)
+
+    def WaitForSingleObject(handle, timeout):
+        f = windll.kernel32.WaitForSingleObject
+        f.argtypes = [HANDLE, c_uint]
+        f.restype = c_uint
+        return f(handle, timeout)
 
     def GetLastError():
+        f = windll.kernel32.GetLastError
+        f.argtypes = []
+        f.restype = c_uint
+        return f()
+
+    def SetLastError(dwErrCode):
+        if windll:
+            f = windll.kernel32.SetLastError
+            f.argtypes = [c_uint]
+            f.restype = None
+            return f(dwErrCode)
+        return None
+
+    def WinError(code=None, desc=None):
+        return ctypes.WinError(code, desc)
+
+    WinDLL = ctypes.WinDLL  # type: ignore[attr-defined]
+except (ImportError, AttributeError):  # pragma: no cover
+    # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
+    from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+
+    def GetLastError():
+        if windll:
+            return windll.kernel32.GetLastError()
         return 0
 
-    WinError = OSError
-    WinDLL = object
-    windll = None
-    HANDLE = c_void_p
+    def CreateEventW(*args, **kwargs):
+        if windll:
+            return windll.kernel32.CreateEventW(*args, **kwargs)
+        return 0
+
+    def CloseHandle(handle):
+        if windll:
+            return windll.kernel32.CloseHandle(handle)
+        return True
+
+    def WaitForSingleObject(handle, timeout):
+        if windll:
+            return windll.kernel32.WaitForSingleObject(handle, timeout)
+        return 0
+
+    def SetLastError(dwErrCode):
+        if windll:
+            return windll.kernel32.SetLastError(dwErrCode)
+        return None
+
+    def WinError(code=None, desc=None):
+        err = OSError(code, desc)
+        if code is not None:
+            err.winerror = code
+        return err
+
+    WinDLL = object  # type: ignore[assignment, misc]
+    windll = None  # type: ignore[assignment]
+    HANDLE = c_void_p  # type: ignore[misc]
 
 from .structs import Overlapped, WinDivertAddress
 
 ERROR_IO_PENDING = 997
+INFINITE = 0xFFFFFFFF
+WAIT_OBJECT_0 = 0
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-if platform.architecture()[0] != "64bit":
+if platform.architecture()[0] != "64bit":  # pragma: no cover
     raise RuntimeError("PyDivert only supports 64-bit architecture.")
 
 DLL_PATH = os.path.join(here, "WinDivert64.dll")
@@ -97,7 +161,10 @@ def raise_on_error(f):
             retcode = GetLastError()
             if retcode and retcode != ERROR_IO_PENDING:
                 err = WinError(code=retcode)
-                windll.kernel32.SetLastError(0)  # clear error code so that we don't raise twice.
+                try:
+                    SetLastError(0)  # clear error code so that we don't raise twice.
+                except Exception:
+                    pass
                 raise err
         return result
 
@@ -124,7 +191,7 @@ WINDIVERT_FUNCTIONS = {
         c_int,
     ),
     "WinDivertHelperParseIPv4Address": ([c_char_p, POINTER(c_uint32)], c_int),
-    "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(ARRAY(c_uint8, 16))], c_int),
+    "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(c_uint8 * 16)], c_int),
     "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_int),
     "WinDivertHelperCompileFilter": ([c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)], c_int),
     "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p], c_int),
@@ -154,42 +221,34 @@ WINDIVERT_FUNCTIONS = {
     "WinDivertSetParam": ([HANDLE, c_int, c_uint64], c_int),
 }
 
-_instance = None
-
-
-def instance():
-    global _instance
-    if _instance is None:
-        _instance = WinDLL(DLL_PATH)
-        for funcname, (argtypes, restype) in WINDIVERT_FUNCTIONS.items():
-            func = getattr(_instance, funcname)
-            func.argtypes = argtypes
-            func.restype = restype
-    return _instance
-
-
-# Dark magic happens below.
-# On init, windivert_dll.WinDivertOpen is a proxy function that loads the DLL on the first invocation
-# and then replaces all existing proxy function with direct handles to the DLL's functions.
-
 
 _module = sys.modules[__name__]
 
 
 def _init():
     """
-    Lazy-load DLL, replace proxy functions with actual ones.
+    Initializes the WinDivert DLL.
     """
-    i = instance()
-    for funcname in WINDIVERT_FUNCTIONS:
-        func = getattr(i, funcname)
-        func = raise_on_error(func)
-        setattr(_module, funcname, func)
+    try:
+        dll = WinDLL(DLL_PATH)
+    except Exception as e:  # pragma: no cover
+        raise WinError(f"Failed to load {DLL_PATH}: {e}") from e
+
+    for funcname, (argtypes, restype) in WINDIVERT_FUNCTIONS.items():
+        f = getattr(dll, funcname)
+        f.argtypes = argtypes
+        f.restype = restype
+        setattr(_module, funcname, raise_on_error(f))
+
+    # Replace proxy functions with direct handles
+    _module._init = lambda: None
 
 
 def _mkprox(funcname):
     """
-    Make lazy-init proxy function.
+    Create a proxy function that will initialize the DLL on the first call.
+    windivert_dll.WinDivertOpen is a proxy function that loads the DLL on the first invocation
+    and then replaces all existing proxy function with direct handles to the DLL's functions.
     """
 
     def prox(*args, **kwargs):
