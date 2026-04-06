@@ -22,18 +22,22 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import ctypes
 import pprint
 import socket
+from functools import cached_property
+from typing import Any
 
 from pydivert import windivert_dll
 from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
-from pydivert.packet.header import Header
-from pydivert.packet.icmp import ICMPv4Header, ICMPv6Header
-from pydivert.packet.ip import IPv4Header, IPv6Header
+from pydivert.packet.header import Header, PayloadMixin, PortMixin
+from pydivert.packet.icmp import ICMPHeader, ICMPv4Header, ICMPv6Header
+from pydivert.packet.ip import IPHeader, IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
 from pydivert.packet.udp import UDPHeader
-from pydivert.util import cached_property
+from pydivert.windivert_dll import WinDivertAddress
 
 
 class Packet:
@@ -42,7 +46,44 @@ class Packet:
     Creation of packets is cheap, parsing is done on first attribute access.
     """
 
-    __repr_fields__ = (
+    __slots__ = (
+        "raw",
+        "interface",
+        "direction",
+        "timestamp",
+        "_loopback",
+        "_impostor",
+        "_sniffed",
+        "ip_checksum",
+        "tcp_checksum",
+        "udp_checksum",
+        "layer",
+        "event",
+        "flow",
+        "socket",
+        "reflect",
+        "_cached_buff_len",
+        "_cached_buff_id",
+        "_cached_buff",
+        "__dict__",  # Needed for cached_property
+    )
+
+    __match_args__ = (
+        "ipv4",
+        "ipv6",
+        "tcp",
+        "udp",
+        "icmpv4",
+        "icmpv6",
+        "payload",
+        "direction",
+        "src_addr",
+        "dst_addr",
+        "src_port",
+        "dst_port",
+    )
+
+    __repr_fields__: tuple[str, ...] = (
         "direction",
         "dst_addr",
         "dst_port",
@@ -75,45 +116,57 @@ class Packet:
 
     def __init__(
         self,
-        raw,
-        interface=None,
-        direction=Direction.OUTBOUND,
-        timestamp=0,
-        loopback=False,
-        impostor=False,
-        sniffed=False,
-        ip_checksum=False,
-        tcp_checksum=False,
-        udp_checksum=False,
-        layer=Layer.NETWORK,
-        event=0,
-        flow=None,
-        socket=None,
-        reflect=None,
-    ):
+        raw: bytes | bytearray | memoryview,
+        interface: tuple[int, int] | None = None,
+        direction: Direction = Direction.OUTBOUND,
+        timestamp: int = 0,
+        loopback: bool = False,
+        impostor: bool = False,
+        sniffed: bool = False,
+        ip_checksum: bool = False,
+        tcp_checksum: bool = False,
+        udp_checksum: bool = False,
+        layer: Layer = Layer.NETWORK,
+        event: int = 0,
+        flow: Any | None = None,
+        socket: Any | None = None,
+        reflect: Any | None = None,
+    ) -> None:
         if isinstance(raw, (bytes, bytearray)):
             raw = memoryview(bytearray(raw))
-        self.raw = raw  # type: memoryview
-        self.interface = interface or (0, 0)
-        self.direction = direction
-        self.timestamp = timestamp
-        self._loopback = loopback
-        self._impostor = impostor
-        self._sniffed = sniffed
-        self.ip_checksum = ip_checksum
-        self.tcp_checksum = tcp_checksum
-        self.udp_checksum = udp_checksum
-        self.layer = layer
-        self.event = event
-        self.flow = flow
-        self.socket = socket
-        self.reflect = reflect
-        self._cached_buff_len = None
-        self._cached_buff_id = None
-        self._cached_buff = None
+        self.raw: memoryview = raw
+        """The raw packet bytes as a `memoryview`."""
+        self.interface: tuple[int, int] = interface or (0, 0)
+        """The interface index and sub-interface index where the packet was captured."""
+        self.direction: Direction = direction
+        """The packet direction (inbound or outbound)."""
+        self.timestamp: int = timestamp
+        """The capture timestamp (QueryPerformanceCounter value)."""
+        self._loopback: bool = loopback
+        self._impostor: bool = impostor
+        self._sniffed: bool = sniffed
+        self.ip_checksum: bool = ip_checksum
+        """Indicates if the IP checksum was verified by hardware offloading."""
+        self.tcp_checksum: bool = tcp_checksum
+        """Indicates if the TCP checksum was verified by hardware offloading."""
+        self.udp_checksum: bool = udp_checksum
+        """Indicates if the UDP checksum was verified by hardware offloading."""
+        self.layer: Layer = layer
+        """The WinDivert layer that captured this packet."""
+        self.event: int = event
+        """The WinDivert event type."""
+        self.flow: Any | None = flow
+        """The flow metadata (for Layer.FLOW)."""
+        self.socket: Any | None = socket
+        """The socket metadata (for Layer.SOCKET)."""
+        self.reflect: Any | None = reflect
+        """The reflect metadata (for Layer.REFLECT)."""
+        self._cached_buff_len: int | None = None
+        self._cached_buff_id: int | None = None
+        self._cached_buff: Any | None = None
 
-    def __repr__(self):
-        def dump(x):
+    def __repr__(self) -> str:
+        def dump(x: Any) -> Any:
             if isinstance(x, (Header, Packet)):
                 d = {}
                 for k in getattr(x, "__repr_fields__", ()):
@@ -129,7 +182,7 @@ class Packet:
         return f"Packet({dump(self)})"
 
     @property
-    def is_outbound(self):
+    def is_outbound(self) -> bool:
         """
         Indicates if the packet is outbound.
         Convenience method for ``.direction``.
@@ -137,7 +190,7 @@ class Packet:
         return self.direction == Direction.OUTBOUND
 
     @property
-    def is_inbound(self):
+    def is_inbound(self) -> bool:
         """
         Indicates if the packet is inbound.
         Convenience method for ``.direction``.
@@ -145,40 +198,40 @@ class Packet:
         return self.direction == Direction.INBOUND
 
     @property
-    def is_loopback(self):
+    def is_loopback(self) -> bool:
         """
         Indicates if the packet is a loopback packet.
         """
         return self._loopback
 
     @is_loopback.setter
-    def is_loopback(self, val):
+    def is_loopback(self, val: bool) -> None:
         self._loopback = bool(val)
 
     @property
-    def is_impostor(self):
+    def is_impostor(self) -> bool:
         """
         Indicates if the packet is an impostor packet.
         """
         return self._impostor
 
     @is_impostor.setter
-    def is_impostor(self, val):
+    def is_impostor(self, val: bool) -> None:
         self._impostor = bool(val)
 
     @property
-    def is_sniffed(self):
+    def is_sniffed(self) -> bool:
         """
         Indicates if the packet is a sniffed packet.
         """
         return self._sniffed
 
     @is_sniffed.setter
-    def is_sniffed(self, val):
+    def is_sniffed(self, val: bool) -> None:
         self._sniffed = bool(val)
 
     @cached_property
-    def address_family(self):
+    def address_family(self) -> int | None:
         """
         The packet address family:
             - socket.AF_INET, if IPv4
@@ -191,13 +244,14 @@ class Packet:
                 return socket.AF_INET
             if v == 6:
                 return socket.AF_INET6
+        return None
 
-    def _parse_ipv4_protocol(self):
+    def _parse_ipv4_protocol(self) -> tuple[int, int]:
         proto = self.raw[9]
         start = (self.raw[0] & 0b1111) * 4
         return proto, start
 
-    def _parse_ipv6_protocol(self):
+    def _parse_ipv6_protocol(self) -> tuple[int | None, int | None]:
         proto = self.raw[6]
 
         # skip over well-known ipv6 headers
@@ -218,13 +272,16 @@ class Packet:
         return proto, start
 
     @cached_property
-    def protocol(self):
+    def protocol(self) -> tuple[int | None, int | None]:
         """
         - | A (ipproto, proto_start) tuple.
           | ``ipproto`` is the IP protocol in use, e.g. Protocol.TCP or Protocol.UDP.
           | ``proto_start`` denotes the beginning of the protocol data.
           | If the packet does not match our expectations, both ipproto and proto_start are None.
         """
+        proto: int | None
+        start: int | None
+
         if self.address_family == socket.AF_INET:
             proto, start = self._parse_ipv4_protocol()
         elif self.address_family == socket.AF_INET6:
@@ -234,9 +291,9 @@ class Packet:
             proto = None
 
         out_of_bounds = (
-            (proto == Protocol.TCP and start + 20 > len(self.raw))
-            or (proto == Protocol.UDP and start + 8 > len(self.raw))
-            or (proto in {Protocol.ICMP, Protocol.ICMPV6} and start + 4 > len(self.raw))
+            (proto == Protocol.TCP and start is not None and start + 20 > len(self.raw))
+            or (proto == Protocol.UDP and start is not None and start + 8 > len(self.raw))
+            or (proto in {Protocol.ICMP, Protocol.ICMPV6} and start is not None and start + 4 > len(self.raw))
         )
         if out_of_bounds:
             # special-case tcp/udp so that we can rely on .protocol for the port properties.
@@ -246,25 +303,27 @@ class Packet:
         return proto, start
 
     @cached_property
-    def ipv4(self):
+    def ipv4(self) -> IPv4Header | None:
         """
         - An IPv4Header instance, if the packet is valid IPv4.
         - None, otherwise.
         """
         if self.address_family == socket.AF_INET:
             return IPv4Header(self)
+        return None
 
     @cached_property
-    def ipv6(self):
+    def ipv6(self) -> IPv6Header | None:
         """
         - An IPv6Header instance, if the packet is valid IPv6.
         - None, otherwise.
         """
         if self.address_family == socket.AF_INET6:
             return IPv6Header(self)
+        return None
 
     @cached_property
-    def ip(self):
+    def ip(self) -> IPHeader | None:
         """
         - An IPHeader instance, if the packet is valid IPv4 or IPv6.
         - None, otherwise.
@@ -272,27 +331,29 @@ class Packet:
         return self.ipv4 or self.ipv6
 
     @cached_property
-    def icmpv4(self):
+    def icmpv4(self) -> ICMPv4Header | None:
         """
         - An ICMPv4Header instance, if the packet is valid ICMPv4.
         - None, otherwise.
         """
         ipproto, proto_start = self.protocol
-        if ipproto == Protocol.ICMP:
+        if ipproto == Protocol.ICMP and proto_start is not None:
             return ICMPv4Header(self, proto_start)
+        return None
 
     @cached_property
-    def icmpv6(self):
+    def icmpv6(self) -> ICMPv6Header | None:
         """
         - An ICMPv6Header instance, if the packet is valid ICMPv6.
         - None, otherwise.
         """
         ipproto, proto_start = self.protocol
-        if ipproto == Protocol.ICMPV6:
+        if ipproto == Protocol.ICMPV6 and proto_start is not None:
             return ICMPv6Header(self, proto_start)
+        return None
 
     @cached_property
-    def icmp(self):
+    def icmp(self) -> ICMPHeader | None:
         """
         - An ICMPHeader instance, if the packet is valid ICMPv4 or ICMPv6.
         - None, otherwise.
@@ -300,106 +361,113 @@ class Packet:
         return self.icmpv4 or self.icmpv6
 
     @cached_property
-    def tcp(self):
+    def tcp(self) -> TCPHeader | None:
         """
         - An TCPHeader instance, if the packet is valid TCP.
         - None, otherwise.
         """
         ipproto, proto_start = self.protocol
-        if ipproto == Protocol.TCP:
+        if ipproto == Protocol.TCP and proto_start is not None:
             return TCPHeader(self, proto_start)
+        return None
 
     @cached_property
-    def udp(self):
+    def udp(self) -> UDPHeader | None:
         """
         - An TCPHeader instance, if the packet is valid UDP.
         - None, otherwise.
         """
         ipproto, proto_start = self.protocol
-        if ipproto == Protocol.UDP:
+        if ipproto == Protocol.UDP and proto_start is not None:
             return UDPHeader(self, proto_start)
+        return None
 
     @cached_property
-    def _port(self):
+    def _port(self) -> PortMixin | None:
         """header that implements PortMixin"""
         return self.tcp or self.udp
 
     @cached_property
-    def _payload(self):
+    def _payload(self) -> PayloadMixin | None:
         """header that implements PayloadMixin"""
         return self.tcp or self.udp or self.icmpv4 or self.icmpv6
 
     @property
-    def src_addr(self):
+    def src_addr(self) -> str | None:
         """
         - The source address, if the packet is valid IPv4 or IPv6.
         - None, otherwise.
         """
         if self.ip:
             return self.ip.src_addr
+        return None
 
     @src_addr.setter
-    def src_addr(self, val):
+    def src_addr(self, val: str) -> None:
         if self.ip:
             self.ip.src_addr = val
 
     @property
-    def dst_addr(self):
+    def dst_addr(self) -> str | None:
         """
         - The destination address, if the packet is valid IPv4 or IPv6.
         - None, otherwise.
         """
         if self.ip:
             return self.ip.dst_addr
+        return None
 
     @dst_addr.setter
-    def dst_addr(self, val):
+    def dst_addr(self, val: str) -> None:
         if self.ip:
             self.ip.dst_addr = val
 
     @property
-    def src_port(self):
+    def src_port(self) -> int | None:
         """
         - The source port, if the packet is valid TCP or UDP.
         - None, otherwise.
         """
         if self._port:
             return self._port.src_port
+        return None
 
     @src_port.setter
-    def src_port(self, val):
+    def src_port(self, val: int) -> None:
         if self._port:
-            self._port.src_port = val  # type: ignore[attr-defined]
+            self._port.src_port = val
 
     @property
-    def dst_port(self):
+    def dst_port(self) -> int | None:
         """
         - The destination port, if the packet is valid TCP or UDP.
         - None, otherwise.
         """
         if self._port:
             return self._port.dst_port
+        return None
 
     @dst_port.setter
-    def dst_port(self, val):
+    def dst_port(self, val: int) -> None:
         if self._port:
-            self._port.dst_port = val  # type: ignore[attr-defined]
+            self._port.dst_port = val
 
     @property
-    def payload(self):
+    def payload(self) -> bytes | None:
         """
         - The payload, if the packet is valid TCP, UDP, ICMP or ICMPv6.
         - None, otherwise.
         """
         if self._payload:
             return self._payload.payload
+        return None
 
     @payload.setter
-    def payload(self, val):
+    def payload(self, val: bytes | bytearray | memoryview) -> None:
         if self._payload:
-            self._payload.payload = val  # type: ignore[attr-defined]
+            self._payload.payload = val
 
-    def recalculate_checksums(self, flags=0):
+    def recalculate_checksums(self, flags: int = 0) -> int:
         """
         (Re)calculates the checksum for any IPv4/ICMP/ICMPv6/TCP/UDP checksum present in the given packet.
         Individual checksum calculations may be disabled via the appropriate flag.
@@ -410,10 +478,42 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags)  # type: ignore[attr-defined]
+        num: int = windivert_dll.WinDivertHelperCalcChecksums(  # type: ignore[attr-defined]
+            ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
+        )
         return num
 
-    def __to_buffers(self):
+    @property
+    def is_checksum_valid(self) -> bool:
+        """
+        Check if all checksums in the packet (IP, TCP, UDP, ICMP) are valid.
+        This recalculates the checksums on a copy of the packet and compares the results.
+        """
+        # Create a copy of the packet
+        other = Packet(self.raw.tobytes(), layer=self.layer)
+        # We must zero out checksums before recalculating, because WinDivertHelperCalcChecksums
+        # only fills them if they are 0.
+        if other.ipv4:
+            other.ipv4.cksum = 0
+        if other.tcp:
+            other.tcp.cksum = 0
+        if other.udp:
+            other.udp.cksum = 0
+        if other.icmpv4 or other.icmpv6:
+            if other.icmp:
+                other.icmp.cksum = 0
+
+        # Set address hints for the helper
+        other.wd_addr.IPChecksum = 1 if other.ipv4 else 0
+        other.wd_addr.TCPChecksum = 1 if other.tcp else 0
+        other.wd_addr.UDPChecksum = 1 if other.udp else 0
+
+        # Recalculate checksums on the copy
+        other.recalculate_checksums()
+        # Compare raw bytes. If any checksum changed, it means the original was invalid.
+        return self.raw.tobytes() == other.raw.tobytes()
+
+    def __to_buffers(self) -> tuple[Any, Any]:
         buff = self.raw.obj
         raw_len = len(self.raw)
 
@@ -426,12 +526,12 @@ class Packet:
         return buff, self._cached_buff
 
     @property
-    def wd_addr(self):
+    def wd_addr(self) -> WinDivertAddress:
         """
         Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        address = windivert_dll.WinDivertAddress()
+        address = WinDivertAddress()
         address.Timestamp = self.timestamp  # type: ignore
         address.Layer = self.layer  # type: ignore
         address.Event = self.event  # type: ignore
@@ -454,7 +554,7 @@ class Packet:
 
         return address
 
-    def matches(self, filter, layer=Layer.NETWORK):
+    def matches(self, filter: str, layer: Layer = Layer.NETWORK) -> bool:
         """
         Evaluates the packet against the given packet filter string.
 
@@ -477,9 +577,10 @@ class Packet:
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
         addr.Layer = layer  # type: ignore
-        return windivert_dll.WinDivertHelperEvalFilter(
+        res: bool = windivert_dll.WinDivertHelperEvalFilter(  # type: ignore[attr-defined]
             filter.encode(),
             ctypes.byref(buff_),
-            len(self.raw),  # type: ignore[attr-defined]
+            len(self.raw),
             ctypes.byref(addr),
         )
+        return res

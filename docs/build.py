@@ -26,7 +26,7 @@ os.chdir(root)
 
 # Build documentation using pdoc
 print("Building documentation with pdoc...")
-subprocess.check_call(["uv", "run", "pdoc", "pydivert", "-o", "site"])
+subprocess.run(["uv", "run", "pdoc", "pydivert", "-o", "site"], check=True)
 
 # Copy license and security files to site directory to fix broken links in README
 print("Copying extra files to site/ directory...")

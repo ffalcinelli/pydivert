@@ -16,6 +16,7 @@
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.
 - **Inject** new or modified packets into the network stack.
+- **Modern Python Support**: Full integration with `asyncio` and Structural Pattern Matching (PEP 634).
 - **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
 - **Bundled Binaries**: No need to manually install WinDivert; the 64-bit DLL and driver are included.
 
@@ -63,26 +64,47 @@ with pydivert.WinDivert("tcp.DstPort == 80") as w:
 
 When you call `.recv()` (or iterate over the `WinDivert` object), the packet is **taken out** of the Windows network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
 
-### Packet Modification
+### First-Class `asyncio` Support
 
-You can easily modify packet headers and recalculate checksums automatically.
+PyDivert 3.0+ supports `asyncio` natively using modern `async with` and `async for` syntax.
 
 ```python
+import asyncio
 import pydivert
 
-with pydivert.WinDivert("tcp.DstPort == 1234") as w:
-    for packet in w:
-        # Redirect traffic to port 80
-        packet.dst_port = 80
-        
-        # WinDivert handles checksum recalculation by default when sending
-        w.send(packet)
+async def main():
+    # Asynchronously capture packets
+    async with pydivert.WinDivert("tcp.DstPort == 80") as w:
+        async for packet in w:
+            print(f"Async captured: {packet}")
+            await w.send_async(packet)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 ## Common Use Cases
 
-### 1. Simple Firewall (Dropping Packets)
-By simply not calling `.send(packet)`, the packet is effectively dropped and never reaches its destination.
+### 1. Structural Pattern Matching (PEP 634)
+Filter and analyze packets using clean `match/case` syntax.
+
+```python
+import pydivert
+from pydivert.packet import Packet
+from pydivert.packet.tcp import TCPHeader
+
+with pydivert.WinDivert("tcp") as w:
+    for packet in w:
+        match packet:
+            case Packet(tcp=TCPHeader(dst_port=80)):
+                print("HTTP Traffic")
+            case Packet(tcp=TCPHeader(dst_port=443)):
+                print("HTTPS Traffic")
+        w.send(packet)
+```
+
+### 2. Simple Firewall (Dropping Packets)
+By simply not calling `.send(packet)`, the packet is effectively dropped.
 
 ```python
 import pydivert
@@ -94,7 +116,7 @@ with pydivert.WinDivert("ip.SrcAddr == 1.2.3.4") as w:
         # Packet is dropped here
 ```
 
-### 2. Payload Inspection and Modification
+### 3. Payload Modification
 You can inspect or modify the raw bytes of the packet payload.
 
 ```python
@@ -104,156 +126,75 @@ import pydivert
 with pydivert.WinDivert("tcp.PayloadLength > 0") as w:
     for packet in w:
         if b"secret-token" in packet.payload:
-            print("Sensitive data detected!")
             # Redact the token
             packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
         w.send(packet)
 ```
 
-### 3. Traffic Logging
-Log detailed information about network flows.
+## Packet Integrity and Checksums
+
+PyDivert can verify and recalculate network checksums automatically.
+
+- **`packet.is_checksum_valid`**: Returns `True` if all checksums (IP, TCP, UDP, ICMP) in the packet are correct.
+- **`packet.recalculate_checksums()`**: Recalculates all checksums based on the current header and payload values.
 
 ```python
-import pydivert
-
-with pydivert.WinDivert("tcp or udp") as w:
-    for packet in w:
-        direction = "OUT" if packet.is_outbound else "IN "
-        print(f"[{direction}] {packet.src_addr}:{packet.src_port} -> "
-              f"{packet.dst_addr}:{packet.dst_port} ({len(packet.payload)} bytes)")
-        w.send(packet)
+if not packet.is_checksum_valid:
+    print("Corrupted packet detected!")
+    packet.recalculate_checksums()
 ```
 
 ## Common Packet Properties
 
-The `pydivert.Packet` object provides easy access to common protocol fields:
+The `pydivert.Packet` object provides easy access to common fields:
 
-- **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`
-- **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`
+- **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`, `packet.ip.protocol`
+- **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`, `packet.tcp.flags`
 - **Payload**: `packet.payload` (bytes)
-- **Metadata**: Captured `Packet` objects include additional metadata provided by WinDivert 2.2:
-  - **`timestamp`**: The time when the packet was captured (uses `QueryPerformanceCounter`).
-  - **`is_loopback`**: `True` if the packet is a loopback packet.
-  - **`is_impostor`**: `True` if the packet was injected by another driver.
-  - **`is_sniffed`**: `True` if the packet was captured in sniff mode.
-  - **`interface`**: The interface index where the packet was captured.
-  - **Checksum status**: `ip_checksum`, `tcp_checksum`, and `udp_checksum` flags indicate if the hardware offloaded checksums are valid.
+- **Metadata**:
+  - **`timestamp`**: Capture time (QueryPerformanceCounter).
+  - **`is_loopback`**, **`is_impostor`**, **`is_sniffed`**: Boolean flags.
+  - **`interface`**: Index of the capture interface.
+  - **`direction`**: `Direction.INBOUND` or `Direction.OUTBOUND`.
 
 Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `packet.tcp`, `packet.udp`, and `packet.icmp`.
-
-## Asynchronous IO
-
-PyDivert supports Windows Overlapped IO for asynchronous packet capture and injection via `recv_ex()` and `send_ex()`:
-
-```python
-import pydivert
-from pydivert.windivert_dll import Overlapped
-import ctypes
-
-# ... create event, initialize Overlapped structure ...
-overlapped = Overlapped()
-# overlapped.hEvent = ... windows event handle ...
-
-with pydivert.WinDivert("true") as w:
-    packet = w.recv_ex(overlapped=overlapped)
-    if packet is None:
-        # Operation is pending (ERROR_IO_PENDING)
-        # ... wait for event ...
-        pass
-```
 
 ## Advanced Usage
 
 ### WinDivert Layers
 
-WinDivert supports different layers for capturing different types of traffic:
-
-- `Layer.NETWORK` (default): Captures IP packets.
-- `Layer.FLOW`: Captures connection events (useful for logging connections without seeing every packet).
-- `Layer.SOCKET`: Captures socket-level events.
-
-```python
-from pydivert import WinDivert, Layer
-
-with WinDivert("true", layer=Layer.FLOW) as w:
-    for event in w:
-        print(f"Connection event: {event}")
-```
+- `Layer.NETWORK` (default): IP packets.
+- `Layer.FLOW`: Connection events.
+- `Layer.SOCKET`: Socket-level events.
+- `Layer.REFLECT`: Reflected events.
 
 ### Flags
 
-You can customize the behavior using flags:
-
-- `Flag.SNIFF`: Capture packets without diverting them (they still reach their destination).
+- `Flag.SNIFF`: Monitor mode (sniffing).
 - `Flag.DROP`: Drop packets by default.
-- `Flag.OVERLAPPED`: Use asynchronous (overlapped) I/O.
-
-```python
-from pydivert import WinDivert, Flag
-
-with WinDivert("tcp.DstPort == 80", flags=Flag.SNIFF) as w:
-    for packet in w:
-        print(f"Sniffed: {packet}")
-```
+- `Flag.FRAGMENTS`: Capture all IP fragments.
+- `Flag.RECV_ONLY` / `Flag.SEND_ONLY`: Restricted handles.
 
 ## WinDivert Version Compatibility
 
 | PyDivert | WinDivert |
 | --- | --- |
-| 0.0.7 | 1.0.x or 1.1.x |
-| 1.0.x | 1.1.8 (bundled) |
-| 2.0.x | 1.1.8 (bundled) |
-| 2.1.x | 1.3 (bundled) |
-| 3.0.0+ | 2.2.2 (bundled) - Breaking changes for full 2.2 support |
-
-## Breaking Changes in 3.0.0
-
-PyDivert 3.0.0 introduces full support for WinDivert 2.2's advanced metadata, which required several backward-incompatible changes to the internal API:
-
-- **Packet Constructor**: The `Packet` class's `__init__` now accepts additional metadata fields (`layer`, `event`, `flow`, `socket`, `reflect`). The `interface` parameter is now optional and defaults to `(0, 0)`.
-- **Internal Metadata**: When receiving packets from non-`NETWORK` layers (like `FLOW` or `SOCKET`), the `Packet` object now preserves and allows re-injecting the full metadata structure.
-- **`wd_addr` Property**: This property now returns a full `WINDIVERT_ADDRESS` for any supported layer, not just the network layer.
-
-If you are manually creating `Packet` objects or relying on the exact signature of the `Packet` constructor, you may need to update your code.
-
-## Security
-
-For information on supported versions, reporting vulnerabilities, and security best practices, please see our [Security Policy](SECURITY.md).
+| 3.0.0+ | 2.2.2 (bundled) - Full support for modern metadata and layers |
 
 ## Development
-
-To set up a development environment:
 
 1. Clone the repository.
 2. Install dependencies: `uv sync --extra test --extra docs`
 3. Run tests (requires Admin): `uv run pytest`
 
-### Testing on other Operating Systems (using Vagrant)
+### Testing with Vagrant
 
-Since PyDivert requires Windows and Administrator privileges, you can use **Vagrant** to run the test suite on a Windows 11 virtual machine from a Linux or macOS host.
+Since WinDivert requires Windows, use **Vagrant** to run tests on a Windows 11 VM:
 
-**Prerequisites:**
-- [Vagrant](https://www.vagrantup.com/)
-- [VirtualBox](https://www.virtualbox.org/)
-
-**Steps:**
-
-1.  **Bring up the VM:**
-    ```bash
-    vagrant up
-    ```
-    This will download a Windows 11 box, provision it with `uv`, and install all necessary dependencies.
-
-2.  **Run the tests:**
-    ```bash
-    vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
-    ```
-
-3.  **Interactive Session:**
-    If you need to explore the environment manually:
-    ```bash
-    vagrant powershell
-    ```
+```bash
+vagrant up
+vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+```
 
 ## API Reference
 
@@ -261,9 +202,4 @@ The full API documentation is available at [https://ffalcinelli.github.io/pydive
 
 ## License
 
-PyDivert is dual-licensed under the **LGPL-3.0-or-later** and **GPL-2.0-or-later** licenses to match the WinDivert driver's licensing strategy.
-
-- [GNU Lesser General Public License v3.0 or later](LICENSE-LGPL-3.0-or-later)
-- [GNU General Public License v2.0 or later](LICENSE-GPL-2.0-or-later)
-
-See the [LICENSE](LICENSE) file for more details.
+PyDivert is dual-licensed under **LGPL-3.0-or-later** and **GPL-2.0-or-later**.

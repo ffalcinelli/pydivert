@@ -14,34 +14,11 @@ def test_windivert_recv_buffer_reuse(wd_dll):
     w = WinDivert()
     w._handle = "fake_handle"
 
-    # We don't care about address internal contents as long as parse_packet doesn't crash,
-    # but let's mock the class to return an object with correct fields.
-    class MockAddrNetwork:
-        IfIdx = 0
-        SubIfIdx = 0
-
-    class MockAddress:
-        Network = MockAddrNetwork()
-        Outbound = 1
-        Timestamp = 0
-        Loopback = 0
-        Impostor = 0
-        Sniffed = 0
-        IPChecksum = 0
-        TCPChecksum = 0
-        UDPChecksum = 0
-        Layer = 0
-        Event = 0
-        Flow = 0
-        Socket = 0
-        Reflect = 0
-
-    wd_dll.WinDivertAddress.return_value = MockAddress()
-
     def fake_recv(handle, pPacket, packetLen, pRecvLen, pAddr):
         # pRecvLen here will just be the c_uint directly since we mocked byref
         pRecvLen.value = 5
         ctypes.memmove(pPacket, b"hello", 5)
+        pAddr.Outbound = 1
 
     wd_dll.WinDivertRecv.side_effect = fake_recv
 
@@ -51,6 +28,7 @@ def test_windivert_recv_buffer_reuse(wd_dll):
     def fake_recv2(handle, pPacket, packetLen, pRecvLen, pAddr):
         pRecvLen.value = 6
         ctypes.memmove(pPacket, b"world!", 6)
+        pAddr.Outbound = 1
 
     wd_dll.WinDivertRecv.side_effect = fake_recv2
 
@@ -67,31 +45,10 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
     w = WinDivert()
     w._handle = "fake_handle"
 
-    class MockAddrNetwork:
-        IfIdx = 0
-        SubIfIdx = 0
-
-    class MockAddress:
-        Network = MockAddrNetwork()
-        Outbound = 1
-        Timestamp = 0
-        Loopback = 0
-        Impostor = 0
-        Sniffed = 0
-        IPChecksum = 0
-        TCPChecksum = 0
-        UDPChecksum = 0
-        Layer = 0
-        Event = 0
-        Flow = 0
-        Socket = 0
-        Reflect = 0
-
-    wd_dll.WinDivertAddress.return_value = MockAddress()
-
     def fake_recv_ex(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):
         pRecvLen.value = 5
         ctypes.memmove(pPacket, b"hello", 5)
+        pAddr.Outbound = 1
 
     wd_dll.WinDivertRecvEx.side_effect = fake_recv_ex
 
@@ -101,6 +58,7 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
     def fake_recv_ex2(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):
         pRecvLen.value = 6
         ctypes.memmove(pPacket, b"world!", 6)
+        pAddr.Outbound = 1
 
     wd_dll.WinDivertRecvEx.side_effect = fake_recv_ex2
 

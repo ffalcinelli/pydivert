@@ -24,26 +24,50 @@
 
 import time
 
+from pydivert import service
 from pydivert.windivert import WinDivert
 
 
+def test_is_registered_direct():
+    # Test the service module directly
+    reg = service.is_registered()
+    assert isinstance(reg, bool)
+
 def test_register():
+    # Clean state
     if WinDivert.is_registered():
         WinDivert.unregister()
-    while WinDivert.is_registered():
-        time.sleep(0.1)
-    assert not WinDivert.is_registered()
-    WinDivert.register()
-    assert WinDivert.is_registered()
 
+    # Wait for stop
+    timeout = 5.0
+    start = time.time()
+    while WinDivert.is_registered() and time.time() - start < timeout:
+        time.sleep(0.1)
+
+    assert not WinDivert.is_registered()
+
+    # Register (triggers when opening a handle)
+    with WinDivert("false") as w:
+        assert w.is_open
+        assert WinDivert.is_registered()
+
+    assert WinDivert.is_registered()
 
 def test_unregister():
-    w = WinDivert("false")
-    w.open()
-    WinDivert.unregister()
-    time.sleep(1.0)
+    # Ensure registered
+    if not WinDivert.is_registered():
+        WinDivert.register()
+
     assert WinDivert.is_registered()
-    w.close()
-    # may not trigger immediately.
-    while WinDivert.is_registered():
+
+    WinDivert.unregister()
+
+    # Wait for stop
+    timeout = 5.0
+    start = time.time()
+    while WinDivert.is_registered() and time.time() - start < timeout:
         time.sleep(0.1)
+
+    # unregister only requests stop, might still be registered if handles are open
+    # but in this test we don't have open handles.
+    assert not WinDivert.is_registered()

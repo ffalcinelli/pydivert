@@ -25,15 +25,11 @@
 import itertools
 import socket
 import threading
+from queue import Queue
 
 import pytest
 
 import pydivert
-
-try:
-    from queue import Queue
-except ImportError:
-    from Queue import Queue
 
 
 @pytest.fixture
@@ -65,47 +61,44 @@ def scenario(request):
     else:
         stype = socket.SOCK_DGRAM
 
-    server = socket.socket(atype, stype)
-    server.bind((host, 0))
-    client = socket.socket(atype, stype)
-    client.bind((host, 0))
+    with socket.socket(atype, stype) as server, socket.socket(atype, stype) as client:
+        server.bind((host, 0))
+        client.bind((host, 0))
 
-    reply = Queue()
+        reply = Queue()
 
-    if proto == "tcp":
+        if proto == "tcp":
 
-        def server_echo():
-            server.listen(1)
-            conn, addr = server.accept()
-            conn.sendall(conn.recv(4096).upper())
-            conn.close()
+            def server_echo():
+                server.listen(1)
+                conn, addr = server.accept()
+                conn.sendall(conn.recv(4096).upper())
+                conn.close()
 
-        def send(addr, data):
-            client.connect(addr)
-            client.sendall(data)
-            reply.put(client.recv(4096))
-    else:
+            def send(addr, data):
+                client.connect(addr)
+                client.sendall(data)
+                reply.put(client.recv(4096))
+        else:
 
-        def server_echo():
-            data, addr = server.recvfrom(4096)
-            server.sendto(data.upper(), addr)
+            def server_echo():
+                data, addr = server.recvfrom(4096)
+                server.sendto(data.upper(), addr)
 
-        def send(addr, data):
-            client.sendto(data, addr)
-            data, recv_addr = client.recvfrom(4096)
-            assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
-            reply.put(data)
+            def send(addr, data):
+                client.sendto(data, addr)
+                data, recv_addr = client.recvfrom(4096)
+                assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
+                reply.put(data)
 
-    server_thread = threading.Thread(target=server_echo)
-    server_thread.start()
+        server_thread = threading.Thread(target=server_echo)
+        server_thread.start()
 
-    filt = f"{proto}.SrcPort == {client.getsockname()[1]} or {proto}.SrcPort == {server.getsockname()[1]}"
+        filt = f"{proto}.SrcPort == {client.getsockname()[1]} or {proto}.SrcPort == {server.getsockname()[1]}"
 
-    def send_thread(*args, **kwargs):
-        threading.Thread(target=send, args=args, kwargs=kwargs).start()
-        return reply
+        def send_thread(*args, **kwargs):
+            threading.Thread(target=send, args=args, kwargs=kwargs).start()
+            return reply
 
-    with pydivert.WinDivert(filt) as w:
-        yield client.getsockname(), server.getsockname(), w, send_thread
-    client.close()
-    server.close()
+        with pydivert.WinDivert(filt) as w:
+            yield client.getsockname(), server.getsockname(), w, send_thread
