@@ -1,0 +1,15 @@
+# Snyk ignore file to handle acceptable license issues
+version: v1.22.0
+ignore:
+  'snyk:lic:pip:pathspec:MPL-2.0':
+    - '*':
+        reason: 'MPL-2.0 is acceptable for this project'
+        expires: '2027-04-06T00:00:00.000Z'
+  'snyk:lic:pip:hypothesis:MPL-2.0':
+    - '*':
+        reason: 'MPL-2.0 is acceptable for this project'
+        expires: '2027-04-06T00:00:00.000Z'
+  'snyk:lic:pip:certifi:MPL-2.0':
+    - '*':
+        reason: 'MPL-2.0 is acceptable for this project'
+        expires: '2027-04-06T00:00:00.000Z'
