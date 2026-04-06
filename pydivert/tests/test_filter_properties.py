@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 
-import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
+
 import pydivert
 from pydivert.consts import Layer
+
 
 @given(filter_str=st.text(min_size=1, max_size=100), layer=st.sampled_from(list(Layer)))
 def test_check_filter_robustness(filter_str, layer):

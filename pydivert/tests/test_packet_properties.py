@@ -2,10 +2,12 @@
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 
 import socket
-import pytest
-from hypothesis import given, strategies as st
+
+from hypothesis import given
+from hypothesis import strategies as st
+
+from pydivert.consts import Direction
 from pydivert.packet import Packet
-from pydivert.consts import Direction, Protocol
 
 # Strategies
 st_ipv4 = st.ip_addresses(v=4).map(str)
@@ -90,7 +92,7 @@ def test_packet_metadata_properties(loopback, impostor, outbound):
     p.is_loopback = loopback
     p.is_impostor = impostor
     p.direction = Direction.OUTBOUND if outbound else Direction.INBOUND
-    
+
     assert p.is_loopback == loopback
     assert p.is_impostor == impostor
     assert p.is_outbound == outbound

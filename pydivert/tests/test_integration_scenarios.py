@@ -25,18 +25,51 @@
 import socket
 import threading
 import time
+
 import pytest
+
 import pydivert
-from pydivert.packet import Packet
+
 
 def get_free_port(proto=socket.SOCK_STREAM):
     with socket.socket(socket.AF_INET, proto) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
+def _backend_server(port):
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", port))
+        s.listen(5)
+        try:
+            conn, _ = s.accept()
+            data = conn.recv(1024)
+            # Backend appends " [Processed by Backend]"
+            conn.sendall(data + b" [Processed by Backend]")
+            conn.close()
+        except Exception:
+            pass
+
+def _proxy_server(proxy_port, backend_port):
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", proxy_port))
+        s.listen(5)
+        try:
+            client_conn, _ = s.accept()
+            data = client_conn.recv(1024)
+            # Transform data
+            transformed = data.upper()
+            # Forward to Backend
+            with socket.create_connection(("127.0.0.1", backend_port)) as backend_conn:
+                backend_conn.sendall(transformed)
+                resp = backend_conn.recv(1024)
+                client_conn.sendall(resp)
+            client_conn.close()
+        except Exception:
+            pass
+
 def test_integration_tcp_proxy_transform():
     """
-    Scenario: A client connects to a 'Public Service' port. 
+    Scenario: A client connects to a 'Public Service' port.
     PyDivert intercepts the traffic, redirects it to a 'Hidden Proxy' port,
     the proxy modifies the data and forwards it to the 'Actual Backend'.
     All transparently to the client.
@@ -46,40 +79,11 @@ def test_integration_tcp_proxy_transform():
     public_port = get_free_port()
 
     # 1. Actual Backend Server
-    def backend_server():
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", backend_port))
-            s.listen(5)
-            try:
-                conn, _ = s.accept()
-                data = conn.recv(1024)
-                # Backend appends " [Processed by Backend]"
-                conn.sendall(data + b" [Processed by Backend]")
-                conn.close()
-            except Exception:
-                pass
-    threading.Thread(target=backend_server, daemon=True).start()
+    threading.Thread(target=_backend_server, args=(backend_port,), daemon=True).start()
 
     # 2. Hidden Proxy Server (Actual TCP Proxy)
     # This proxy receives data, converts it to UPPERCASE, and sends to Backend
-    def proxy_server():
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", proxy_port))
-            s.listen(5)
-            try:
-                client_conn, _ = s.accept()
-                data = client_conn.recv(1024)
-                # Transform data
-                transformed = data.upper()
-                # Forward to Backend
-                with socket.create_connection(("127.0.0.1", backend_port)) as backend_conn:
-                    backend_conn.sendall(transformed)
-                    resp = backend_conn.recv(1024)
-                    client_conn.sendall(resp)
-                client_conn.close()
-            except Exception:
-                pass
-    threading.Thread(target=proxy_server, daemon=True).start()
+    threading.Thread(target=_proxy_server, args=(proxy_port, backend_port), daemon=True).start()
 
     # 3. WinDivert Transparent Redirection
     # Client -> public_port  => Redirect to proxy_port
@@ -93,12 +97,12 @@ def test_integration_tcp_proxy_transform():
                 for packet in w:
                     if stop_event.is_set():
                         break
-                    
+
                     if packet.dst_port == public_port:
                         packet.dst_port = proxy_port
                     elif packet.src_port == proxy_port:
                         packet.src_port = public_port
-                    
+
                     w.send(packet)
         except (PermissionError, OSError):
             pass
@@ -125,6 +129,18 @@ def test_integration_tcp_proxy_transform():
             pass
         divert_thread.join(timeout=1)
 
+def _udp_server(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.bind(("127.0.0.1", port))
+        try:
+            while True:
+                data, addr = s.recvfrom(1024)
+                if data == b"stop":
+                    break
+                s.sendto(b"Original: " + data, addr)
+        except Exception:
+            pass
+
 def test_integration_dns_modification():
     """
     Scenario: Intercept UDP DNS-like traffic and modify the response payload.
@@ -133,18 +149,7 @@ def test_integration_dns_modification():
     server_port = get_free_port(socket.SOCK_DGRAM)
 
     # 1. Simple UDP Server
-    def udp_server():
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.bind(("127.0.0.1", server_port))
-            try:
-                while True:
-                    data, addr = s.recvfrom(1024)
-                    if data == b"stop":
-                        break
-                    s.sendto(b"Original: " + data, addr)
-            except Exception:
-                pass
-    server_thread = threading.Thread(target=udp_server, daemon=True)
+    server_thread = threading.Thread(target=_udp_server, args=(server_port,), daemon=True)
     server_thread.start()
 
     # 2. WinDivert Interception
@@ -157,10 +162,10 @@ def test_integration_dns_modification():
                 for packet in w:
                     if stop_event.is_set():
                         break
-                    
+
                     if b"Original: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Original: ", b"Modified: ")
-                    
+
                     w.send(packet)
         except Exception:
             pass
@@ -190,23 +195,23 @@ def test_integration_driver_management():
     """
     try:
         # Check if already registered
-        was_registered = pydivert.WinDivert.is_registered()
-        
+        pydivert.WinDivert.is_registered()
+
         # Unregister (might fail if handles are open, but we try)
         pydivert.WinDivert.unregister()
-        
+
         # Register
         pydivert.WinDivert.register()
         assert pydivert.WinDivert.is_registered() is True
-        
+
         # Unregister again
         pydivert.WinDivert.unregister()
         # Note: unregister might return before the service is fully gone
         time.sleep(1.0)
-        
+
         # Re-register for subsequent tests
         pydivert.WinDivert.register()
         assert pydivert.WinDivert.is_registered() is True
-        
+
     except (PermissionError, OSError) as e:
         pytest.skip(f"Test failed with {type(e).__name__}: {e}")
