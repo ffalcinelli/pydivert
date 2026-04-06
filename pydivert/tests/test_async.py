@@ -41,7 +41,7 @@ def mock_windivert_dll():
 
 def test_recv_ex_async_pending(mock_windivert_dll):
     # Simulate WinDivertRecvEx raising ERROR_IO_PENDING
-    mock_windivert_dll.WinDivertRecvEx.side_effect = OSError(None, "Pending", None, 997)
+    mock_windivert_dll.WinDivertRecvEx.side_effect = pydivert.windivert_dll.WinError(997)
 
     w = pydivert.WinDivert()
     w._handle = 123
@@ -59,7 +59,7 @@ def test_recv_ex_async_pending(mock_windivert_dll):
 
 def test_send_ex_async_pending(mock_windivert_dll):
     # Simulate WinDivertSendEx raising ERROR_IO_PENDING
-    mock_windivert_dll.WinDivertSendEx.side_effect = OSError(None, "Pending", None, 997)
+    mock_windivert_dll.WinDivertSendEx.side_effect = pydivert.windivert_dll.WinError(997)
 
     w = pydivert.WinDivert()
     w._handle = 123

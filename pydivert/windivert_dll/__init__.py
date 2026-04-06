@@ -48,38 +48,78 @@ try:
     )
     from ctypes.wintypes import HANDLE
 
-    # proxies for kernel32 functions
+    # kernel32 functions
     def CreateEventW(*args, **kwargs):
-        return windll.kernel32.CreateEventW(*args, **kwargs)
+        f = windll.kernel32.CreateEventW
+        f.argtypes = [c_void_p, c_int, c_int, c_void_p]
+        f.restype = HANDLE
+        return f(*args, **kwargs)
 
-    def CloseHandle(*args, **kwargs):
-        return windll.kernel32.CloseHandle(*args, **kwargs)
+    def CloseHandle(handle):
+        f = windll.kernel32.CloseHandle
+        f.argtypes = [HANDLE]
+        f.restype = c_int
+        return f(handle)
 
-    def WaitForSingleObject(*args, **kwargs):
-        return windll.kernel32.WaitForSingleObject(*args, **kwargs)
+    def WaitForSingleObject(handle, timeout):
+        f = windll.kernel32.WaitForSingleObject
+        f.argtypes = [HANDLE, c_uint]
+        f.restype = c_uint
+        return f(handle, timeout)
 
     def GetLastError():
-        return windll.kernel32.GetLastError()
+        f = windll.kernel32.GetLastError
+        f.argtypes = []
+        f.restype = c_uint
+        return f()
 
-    WinError = ctypes.WinError  # type: ignore[attr-defined]
+    def SetLastError(dwErrCode):
+        if windll:
+            f = windll.kernel32.SetLastError
+            f.argtypes = [c_uint]
+            f.restype = None
+            return f(dwErrCode)
+        return None
+
+    def WinError(code=None, desc=None):
+        return ctypes.WinError(code, desc)
+
     WinDLL = ctypes.WinDLL  # type: ignore[attr-defined]
 except (ImportError, AttributeError):  # pragma: no cover
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
     from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
 
     def GetLastError():
+        if windll:
+            return windll.kernel32.GetLastError()
         return 0
 
     def CreateEventW(*args, **kwargs):
+        if windll:
+            return windll.kernel32.CreateEventW(*args, **kwargs)
         return 0
 
-    def CloseHandle(*args, **kwargs):
+    def CloseHandle(handle):
+        if windll:
+            return windll.kernel32.CloseHandle(handle)
         return True
 
-    def WaitForSingleObject(*args, **kwargs):
+    def WaitForSingleObject(handle, timeout):
+        if windll:
+            return windll.kernel32.WaitForSingleObject(handle, timeout)
         return 0
 
-    WinError = OSError  # type: ignore[assignment]
+    def SetLastError(dwErrCode):
+        if windll:
+            return windll.kernel32.SetLastError(dwErrCode)
+        return None
+
+    def WinError(code=None, desc=None):
+        err = OSError(code, desc)
+        if code is not None:
+            err.winerror = code
+        return err
+
     WinDLL = object  # type: ignore[assignment, misc]
     windll = None  # type: ignore[assignment]
     HANDLE = c_void_p  # type: ignore[misc]
@@ -122,7 +162,7 @@ def raise_on_error(f):
             if retcode and retcode != ERROR_IO_PENDING:
                 err = WinError(code=retcode)
                 try:
-                    windll.kernel32.SetLastError(0)  # clear error code so that we don't raise twice.
+                    SetLastError(0)  # clear error code so that we don't raise twice.
                 except Exception:
                     pass
                 raise err
