@@ -1,5 +1,5 @@
 # Snyk ignore file to handle acceptable license issues
-version: v1.22.0
+version: v1.25.0
 ignore:
   'snyk:lic:pip:pathspec:MPL-2.0':
     - '*':
@@ -12,4 +12,12 @@ ignore:
   'snyk:lic:pip:certifi:MPL-2.0':
     - '*':
         reason: 'MPL-2.0 is acceptable for this project'
+        expires: '2027-04-06T00:00:00.000Z'
+  'snyk:lic:pip:setuptools:(Apache-2.0_OR_BSD-2-Clause_OR_LGPL-3.0_OR_MIT)':
+    - '*':
+        reason: 'setuptools multiple licenses are acceptable'
+        expires: '2027-04-06T00:00:00.000Z'
+  'snyk:lic:pip:pydivert:(GPL-2.0_OR_LGPL-3.0)':
+    - '*':
+        reason: 'pydivert dual license is intentional'
         expires: '2027-04-06T00:00:00.000Z'
