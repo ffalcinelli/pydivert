@@ -64,7 +64,7 @@ jobs:
 
       - name: Snyk Monitor (Dashboard)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: snyk monitor --all-projects --project-name=pydivert
+        run: snyk monitor --project-name=pydivert
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
