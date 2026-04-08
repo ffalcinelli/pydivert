@@ -29,7 +29,7 @@ jobs:
         run: uv export --preview-features sbom-export --format cyclonedx1.5 --all-extras --no-dev --no-emit-project --output-file sbom.json
       
       - name: Set up Snyk
-        uses: snyk/actions/setup@806182742461562b67788a644100cb7c9d2e120f # v0.3.0
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
       
       - name: Snyk SBOM Test (CI Gate)
         run: snyk sbom test --file=sbom.json
