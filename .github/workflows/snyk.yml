@@ -25,21 +25,19 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       
-      - name: Generate requirements.txt
-        run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --no-emit-project --output-file requirements.txt
+      - name: Generate CycloneDX SBOM
+        run: uv export --preview-features sbom-export --format cyclonedx1.5 --all-extras --no-dev --no-emit-project --output-file sbom.json
       
-      - name: Snyk Test (CI Gate)
-        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+      - name: Set up Snyk
+        uses: snyk/actions/setup@806182742461562b67788a644100cb7c9d2e120f # v0.3.0
+      
+      - name: Snyk SBOM Test (CI Gate)
+        run: snyk sbom test --file=sbom.json
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert
       
       - name: Snyk Monitor (Dashboard)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+        run: snyk monitor --project-name=pydivert
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: monitor
-          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert

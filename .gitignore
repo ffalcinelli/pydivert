@@ -36,3 +36,5 @@ objects.json
 .vagrant/
 .cache/
 *~
+requirements.txt
+sbom.json
