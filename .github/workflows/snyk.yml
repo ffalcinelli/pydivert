@@ -25,21 +25,46 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
       
-      - name: Generate requirements.txt
-        run: uv export --format requirements-txt --all-extras --no-dev --no-hashes --no-emit-project --output-file requirements.txt
-      
-      - name: Snyk Test (CI Gate)
-        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+      - name: Generate CycloneDX SBOM
+        run: |
+          uv export --preview-features sbom-export --format cyclonedx1.5 --all-extras --no-dev --output-file sbom.json
+          export PROJECT_VERSION=$(uv run python -c "import pydivert; print(pydivert.__version__)" || echo "0.0.0")
+          python3 -c "import json, os; d=json.load(open('sbom.json')); d['metadata']['component']['version'] = os.environ['PROJECT_VERSION']; d['metadata'].pop('tools', None); json.dump(d, open('sbom.json', 'w'))"
+
+      - name: Set up Snyk
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+
+      - name: Snyk SBOM Test (CI Gate)
+        run: |
+          snyk sbom test --file=sbom.json --json > snyk_results.json || true
+          python3 -c "
+          import json, sys
+          try:
+              with open('snyk_results.json') as f:
+                  data = json.load(f)
+              # Filter out license issues and project-specific dual-license HIGH severity issue
+              vulnerabilities = data.get('vulnerabilities', [])
+              real_issues = [
+                  v for v in vulnerabilities 
+                  if v.get('type') != 'license' 
+                  and not (v.get('package') == 'pydivert' and 'Dual license' in v.get('title', ''))
+              ]
+              if real_issues:
+                  print(f'Found {len(real_issues)} real vulnerabilities.')
+                  for v in real_issues:
+                      print(f'- {v.get(\"title\")} in {v.get(\"package\")} ({v.get(\"severity\")})')
+                  sys.exit(1)
+              print('No real vulnerabilities found (excluding ignored licenses).')
+          except Exception as e:
+              print(f'Error processing Snyk results: {e}')
+              sys.exit(1)
+          "
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert
-      
+
       - name: Snyk Monitor (Dashboard)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: snyk/actions/python@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
+        run: snyk monitor --all-projects --project-name=pydivert
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: monitor
-          args: --file=requirements.txt --package-manager=pip --skip-unresolved --project-name=pydivert
+

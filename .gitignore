@@ -36,3 +36,10 @@ objects.json
 .vagrant/
 .cache/
 *~
+
+# Snyk / SBOM
+requirements.txt
+sbom.json
+
+# Local development
+node_modules/
