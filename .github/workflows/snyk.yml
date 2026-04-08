@@ -26,18 +26,22 @@ jobs:
         run: uv python install 3.12
       
       - name: Generate CycloneDX SBOM
-        run: uv export --preview-features sbom-export --format cyclonedx1.5 --all-extras --no-dev --no-emit-project --output-file sbom.json
-      
+        run: |
+          uv export --preview-features sbom-export --format cyclonedx1.5 --all-extras --no-dev --output-file sbom.json
+          export PROJECT_VERSION=$(uv run python -c "import pydivert; print(pydivert.__version__)" || echo "0.0.0")
+          python3 -c "import json, os; d=json.load(open('sbom.json')); d['metadata']['component']['version'] = os.environ['PROJECT_VERSION']; d['metadata'].pop('tools', None); json.dump(d, open('sbom.json', 'w'))"
+
       - name: Set up Snyk
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
-      
+
       - name: Snyk SBOM Test (CI Gate)
         run: snyk sbom test --file=sbom.json
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      
+
       - name: Snyk Monitor (Dashboard)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: snyk monitor --project-name=pydivert
+        run: snyk monitor --all-projects --project-name=pydivert
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
