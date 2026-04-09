@@ -30,12 +30,14 @@
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
 from .packet import Packet
 from .windivert import WinDivert
+from .pydivert import PyDivert
 
 __author__ = "fabio"
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 
 __all__ = [
     "WinDivert",
+    "PyDivert",
     "Packet",
     "Layer",
     "Flag",

@@ -34,7 +34,9 @@ classifiers = [
     "Topic :: System :: Networking :: Monitoring",
     "Topic :: Utilities",
 ]
-dependencies = []
+dependencies = [
+    "lark",
+]
 
 [project.optional-dependencies]
 test = [

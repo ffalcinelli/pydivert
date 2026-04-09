@@ -42,7 +42,9 @@ DEFAULT_PACKET_BUFFER_SIZE = 65575
 logger = logging.getLogger(__name__)
 
 
-class WinDivert:
+from pydivert.base import BaseDivert
+
+class WinDivert(BaseDivert):
     """
     A WinDivert handle that can be used to capture packets.
     The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
@@ -67,12 +69,9 @@ class WinDivert:
         :param priority: The priority of the handle (higher priority handles see packets first).
         :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
         """
+        super().__init__(filter, layer, priority, flags)
         self._handle = None
         self._event = None
-        self._filter = filter.encode()
-        self._layer = layer
-        self._priority = priority
-        self._flags = flags
         self._recv_buf = None
         self._recv_buf_c = None
         self._pending_ops: list[Overlapped] = []

@@ -9,26 +9,24 @@
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
 [![Snyk](https://snyk.io/test/github/ffalcinelli/pydivert/badge.svg)](https://snyk.io/test/github/ffalcinelli/pydivert)
 
-**PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
+**PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack. Starting from version 3.2.0, it also provides an abstract layer for cross-platform support on Linux (via NetFilterQueue) and BSD (via Divert sockets).
 
 ## Features
 
-- **Capture** network packets matching a specific filter.
+- **Cross-Platform Support**: Use the same API on Windows, Linux, and BSD.
+- **Capture** network packets matching a specific filter (with a full WinDivert filter transpiler).
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.
 - **Inject** new or modified packets into the network stack.
 - **Modern Python Support**: Full integration with `asyncio` and Structural Pattern Matching (PEP 634).
 - **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
-- **Bundled Binaries**: No need to manually install WinDivert; the 64-bit DLL and driver are included.
+- **Bundled Binaries**: No need to manually install WinDivert on Windows; the 64-bit DLL and driver are included.
 
 ## Requirements
 
 - **Python 3.10+** (64-bit)
-- **Windows 11** (64-bit)
-- **Administrator Privileges** (required to interact with the WinDivert driver)
-
-> [!NOTE]
-> Windows Server is currently untested but likely works if it meets the architecture requirements.
+- **Windows 11**, **Linux**, or **BSD/macOS**
+- **Administrator/Root Privileges** (required to interact with the network stack)
 
 ## Installation
 
@@ -46,18 +44,16 @@ uv add pydivert
 
 ## Quick Start
 
-The main entry points are `pydivert.WinDivert` for capturing and `pydivert.Packet` for manipulation.
+The main entry point for cross-platform usage is `pydivert.PyDivert`. On Windows, you can also use the specialized `pydivert.WinDivert` class.
 
-> [!TIP]
-> All code examples in this README are verified by automated integration tests in `pydivert/tests/test_readme_examples.py`.
-
-### Basic Capture and Re-injection
+### Basic Capture and Re-injection (Cross-Platform)
 
 ```python
 import pydivert
 
 # Capture only TCP packets to port 80 (HTTP requests)
-with pydivert.WinDivert("tcp.DstPort == 80") as w:
+# On Windows this uses WinDivert, on Linux it uses NetFilterQueue
+with pydivert.PyDivert("tcp.DstPort == 80") as w:
     for packet in w:
         print(f"Captured: {packet}")
         w.send(packet)  # Re-inject the packet back into the stack
