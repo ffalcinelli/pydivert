@@ -49,6 +49,8 @@ test = [
     "codecov>=2.0.5",
     "wheel>=0.29",
     "setuptools",
+    "scapy>=2.5.0",
+    "NetFilterQueue; sys_platform == 'linux'",
 ]
 docs = [
     "pdoc>=14.0.0",

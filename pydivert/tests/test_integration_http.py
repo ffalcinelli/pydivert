@@ -80,7 +80,7 @@ def test_http_port_redirection():  # noqa: C901
     stop_event = threading.Event()
 
     def divert_and_redirect():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.PyDivert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -151,7 +151,7 @@ def test_http_modification():  # noqa: C901
     stop_event = threading.Event()
 
     def divert_and_modify():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.PyDivert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break

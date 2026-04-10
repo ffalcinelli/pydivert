@@ -28,6 +28,7 @@ Integration tests for each example provided in the README.md.
 
 import asyncio
 import socket
+import sys
 import threading
 import time
 
@@ -66,7 +67,7 @@ def test_example_basic_capture():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -112,7 +113,7 @@ def test_example_packet_modification_redirection():
 
     def diverter():
         # Capturing both directions
-        with pydivert.WinDivert(f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}") as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}") as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -155,7 +156,7 @@ def test_example_firewall_drop():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
             for _packet in w:
                 if stop_event.is_set():
                     break
@@ -195,7 +196,7 @@ def test_example_payload_modification():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.WinDivert(f"tcp.SrcPort == {port} and tcp.PayloadLength > 0") as w:
+        with pydivert.PyDivert(f"tcp.SrcPort == {port} and tcp.PayloadLength > 0") as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -240,7 +241,7 @@ def test_example_traffic_logging():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -269,7 +270,7 @@ def flow_layer_diverter(port, stop_event, events):
     # Some filters are not supported on Layer.FLOW, use "true" and filter in Python.
     # Also using RECV_ONLY as FLOW re-injection is complex.
     try:
-        with pydivert.WinDivert("true", layer=Layer.FLOW, flags=Flag.RECV_ONLY) as w:
+        with pydivert.PyDivert("true", layer=Layer.FLOW, flags=Flag.RECV_ONLY) as w:
             for event in w:
                 if stop_event.is_set():
                     break
@@ -278,7 +279,7 @@ def flow_layer_diverter(port, stop_event, events):
                 if event.flow and (event.flow.LocalPort == port or event.flow.RemotePort == port):
                     events.append(event)
     except OSError as e:
-        if e.winerror == 87:
+        if hasattr(e, "winerror") and e.winerror == 87:
             events.append("SKIP_WINERROR_87")
         else:
             events.append(e)
@@ -297,6 +298,7 @@ def flow_layer_server(port):
             pass
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 def test_example_flow_layer():
     # Example: WinDivert Layers (FLOW)
     port = get_free_port()
@@ -329,6 +331,7 @@ def test_example_flow_layer():
     assert any(hasattr(e, "layer") and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 def test_example_sniff_mode():
     # Example: Flags (SNIFF)
     port = get_free_port()
@@ -351,7 +354,7 @@ def test_example_sniff_mode():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.WinDivert(f"tcp.DstPort == {port}", flags=Flag.SNIFF) as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {port}", flags=Flag.SNIFF) as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -397,7 +400,7 @@ async def test_example_asyncio():
 
     async def diverter():
         try:
-            async with pydivert.WinDivert(f"tcp.DstPort == {port}") as w:
+            async with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
                 async for packet in w:
                     captured.append(packet)
                     await w.send_async(packet)

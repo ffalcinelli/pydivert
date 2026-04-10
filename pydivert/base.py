@@ -13,46 +13,66 @@ class BaseDivert(abc.ABC):
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
-        self.filter = filter
-        self.layer = layer
-        self.priority = priority
-        self.flags = flags
+        self._filter = filter.encode() if isinstance(filter, str) else filter
+        self._layer = layer
+        self._priority = priority
+        self._flags = flags
+
+    @property
+    def filter(self) -> str:
+        """Returns the packet filter string."""
+        return self._filter.decode() if isinstance(self._filter, bytes) else self._filter
+
+    @property
+    def layer(self) -> Layer:
+        """Returns the WinDivert layer."""
+        return self._layer
+
+    @property
+    def priority(self) -> int:
+        """Returns the handle priority."""
+        return self._priority
+
+    @property
+    def flags(self) -> Flag:
+        """Returns the WinDivert flags."""
+        return self._flags
 
     @abc.abstractmethod
     def open(self) -> None:
         """Opens the divert handle."""
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def close(self) -> None:
         """Closes the divert handle."""
-        pass
+        raise NotImplementedError()
 
     @property
     @abc.abstractmethod
     def is_open(self) -> bool:
         """Returns True if the handle is open."""
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def recv(self) -> Packet:
         """Receives a packet synchronously."""
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     async def recv_async(self) -> Packet:
         """Receives a packet asynchronously."""
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """Sends a packet synchronously."""
-        pass
+        raise NotImplementedError()
 
     @abc.abstractmethod
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """Sends a packet asynchronously."""
-        pass
+        raise NotImplementedError()
 
     def __enter__(self) -> "BaseDivert":
         self.open()

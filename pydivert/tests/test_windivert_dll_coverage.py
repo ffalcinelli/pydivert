@@ -1,6 +1,9 @@
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 from pydivert import windivert_dll
 

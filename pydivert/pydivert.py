@@ -19,7 +19,7 @@ class PyDivert(BaseDivert):
         elif sys.platform.startswith("linux"):
             from pydivert.linux import NetFilterQueue
             return NetFilterQueue
-        elif sys.platform.startswith("freebsd") or sys.platform == "darwin":
+        elif sys.platform == "darwin" or sys.platform.startswith("freebsd"):
             from pydivert.bsd import Divert
             return Divert
         else:

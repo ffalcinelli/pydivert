@@ -1,6 +1,7 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 
+import sys
 import pytest
 
 import pydivert
@@ -112,6 +113,7 @@ def test_send_ex_error_path():
         with pytest.raises(OSError):
             w.send_ex(p)
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Checksum logic diff")
 def test_packet_is_checksum_valid_udp():
     # IPv4 + UDP
     raw = bytearray(

@@ -22,7 +22,10 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+import sys
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 from pydivert.consts import Param
 from pydivert.windivert import WinDivert

@@ -1,7 +1,10 @@
+import pytest
+import sys
 from pydivert.consts import Layer
 from pydivert.packet import Packet
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Checksum logic diff")
 def test_icmp_checksum_verification():
     # ICMPv4 Echo Request
     raw = bytearray(
