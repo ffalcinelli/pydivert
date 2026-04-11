@@ -9,8 +9,11 @@ from pydivert.filter import transpile
 
 def test_pydivert_factory():
     if sys.platform.startswith("linux"):
-        with PyDivert("tcp.DstPort == 80") as w:
-            assert w._impl.__class__.__name__ == "NetFilterQueue"
+        try:
+            with PyDivert("tcp.DstPort == 80") as w:
+                assert w._impl.__class__.__name__ == "NetFilterQueue"
+        except (ImportError, PermissionError, OSError):
+            pytest.skip("PyDivert not available")
     else:
         pytest.skip("Test only for Linux")
 

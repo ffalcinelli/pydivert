@@ -26,10 +26,13 @@
 .. include:: ../README.md
 .. include:: ../SECURITY.md
 
-# API Reference
+---
 """
 
+from .bsd import Divert
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
+from .linux import NetFilterQueue
+from .macos import MacOSDivert
 from .packet import Packet
 from .pydivert import PyDivert
 from .windivert import WinDivert
@@ -38,8 +41,11 @@ __author__ = "fabio"
 __version__ = "4.0.0"
 
 __all__ = [
-    "WinDivert",
     "PyDivert",
+    "WinDivert",
+    "NetFilterQueue",
+    "Divert",
+    "MacOSDivert",
     "Packet",
     "Layer",
     "Flag",

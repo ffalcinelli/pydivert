@@ -139,15 +139,45 @@ PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firew
 
 ## 🧪 Development & Testing
 
-1. **Clone & Sync**: `uv sync --all-extras`
-2. **Run Tests**: `uv run pytest` (Requires Admin/Root)
+PyDivert uses `uv` for dependency management and `pytest` for testing. Most tests require **Administrator** (Windows) or **Root** (Linux/BSD) privileges to interact with the network stack.
 
-### Cross-Platform Development (Linux/macOS)
-Since the primary development target is Windows, a `Vagrantfile` is provided to spin up a Windows 11 testing environment:
+### 1. Local Testing
+To run tests on your current machine:
 ```bash
-vagrant up
-vagrant powershell -c "uv run pytest"
+# Install dependencies
+uv sync --all-extras
+
+# Run tests (Requires Admin/Root)
+uv run pytest
 ```
+
+### 2. Multi-Platform Testing (Vagrant)
+To ensure cross-platform compatibility, PyDivert includes a `Vagrantfile` that defines testing environments for **Windows 11, Ubuntu Linux, FreeBSD, and macOS**.
+
+#### Full Automated Suite (Recommended)
+We provide a helper script that automates the entire process: spinning up VMs, running tests, and generating a **consolidated coverage report** across all operating systems.
+```bash
+uv run python scripts/run-all-tests.py
+```
+This script will:
+1. Run tests locally.
+2. Bring up each Vagrant VM (`windows`, `linux`, `freebsd`, `macos`).
+3. Execute the test suite inside each environment.
+4. Collect and combine `.coverage` files from all platforms.
+5. Generate a unified HTML report in `htmlcov/index.html`.
+
+#### Manual VM Testing
+You can also target a specific platform manually:
+```bash
+# Start a specific VM
+vagrant up linux
+
+# Run tests inside the VM
+vagrant ssh linux -c "cd /home/vagrant/pydivert && uv run pytest"
+```
+
+### 3. Continuous Integration
+The full test suite is automatically executed on every push to `main` and for all Pull Requests via GitHub Actions, covering Windows, Linux, and macOS.
 
 ---
 

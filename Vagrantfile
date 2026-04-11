@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 Vagrant.configure("2") do |config|
-  config.vm.boot_timeout = 600 # 10 minutes
+  config.vm.boot_timeout = 1200 # 20 minutes
 
   # 1. Windows 11 VM
   config.vm.define "windows" do |win|

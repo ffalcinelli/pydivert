@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
-
 import pytest
-
 from pydivert.bsd import Divert
 
+def setup_module(module):
+    """Skip all tests in this module if not running on BSD or macOS."""
+    if not (sys.platform.startswith("freebsd") or sys.platform == "darwin"):
+        pytest.skip("BSD/macOS only tests")
 
-@pytest.mark.skipif(not (sys.platform.startswith("freebsd") or sys.platform == "darwin"), reason="BSD/macOS only")
 def test_bsd_open_close():
     # This might fail if not running as root
     d = Divert("tcp.DstPort == 80")

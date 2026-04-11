@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import socket
+import logging
+
+# Suppress Scapy warning before it gets imported
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 import pytest
 from hypothesis import given, settings

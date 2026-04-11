@@ -22,6 +22,16 @@ def test_pydivert_platform_selection():
         w = PyDivert()
         assert isinstance(w._impl, Divert)
 
+    with patch("sys.platform", "darwin"):
+        if "pydivert.macos" in sys.modules: del sys.modules["pydivert.macos"]
+        from pydivert.macos import MacOSDivert
+        # Mock PF initialization or it will fail
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Status: Enabled", returncode=0)
+            with patch("socket.socket"):
+                w = PyDivert()
+                assert isinstance(w._impl, MacOSDivert)
+
     with patch("sys.platform", "win32"):
         # We need to mock WinDivert DLL loading or it will fail on Linux
         with patch("pydivert.windivert_dll.WinDivertOpen", return_value=123):
@@ -93,7 +103,7 @@ async def test_pydivert_methods_mock():
     f2.set_result(0)
     mock_impl.send_async.return_value = f2
 
-    with patch("pydivert.pydivert.PyDivert._get_implementation", return_value=lambda *a, **k: mock_impl):
+    with patch("pydivert.pydivert.PyDivert._get_implementation_class", return_value=lambda *a, **k: mock_impl):
         w = PyDivert()
         w.open()
         mock_impl.open.assert_called_once()

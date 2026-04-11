@@ -31,6 +31,15 @@ import pytest
 import pydivert
 
 
+def setup_module(module):
+    """Skip all tests in this module if PyDivert cannot be initialized."""
+    try:
+        with pydivert.PyDivert("true"):
+            pass
+    except (ImportError, PermissionError, OSError) as e:
+        pytest.skip(f"PyDivert not available: {e}")
+
+
 def get_free_port(proto=socket.SOCK_STREAM):
     with socket.socket(socket.AF_INET, proto) as s:
         s.bind(("127.0.0.1", 0))

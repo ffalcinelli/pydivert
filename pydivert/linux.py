@@ -54,15 +54,21 @@ class NetFilterQueue(BaseDivert):
         # Use priority to offset queue number to avoid collisions in parallel tests
         self._queue_num = 0 + (priority % 1000)
         self._queue = queue.Queue(maxsize=10000)
+        self._async_queue = None
+        self._loop = None
         self._thread = None
         self._translated_filter = self.filter
         self._applied_rules = []
+        self._stop_event = threading.Event()
         NetFilterQueue._instances.add(self)
 
     @classmethod
     def _cleanup_all(cls):
         for instance in list(cls._instances):
-            instance.close()
+            try:
+                instance.close()
+            except Exception:
+                pass
 
     def _parse_filter_to_iptables(self):
         rules = []
@@ -125,7 +131,7 @@ class NetFilterQueue(BaseDivert):
             except Exception as e:
                 logger.error(f"Failed to add iptables rule: {e}")
 
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
         self._thread.start()
 
     def _remove_rules(self):
@@ -142,7 +148,7 @@ class NetFilterQueue(BaseDivert):
             self._nfqueue.run()
         except Exception as e:
             # Avoid logging error if we're closing
-            if self._nfqueue:
+            if not self._stop_event.is_set():
                 logger.error(f"NFQueue loop error: {e}")
 
     def _callback(self, pkt):
@@ -154,7 +160,10 @@ class NetFilterQueue(BaseDivert):
             p._nfq_pkt = pkt
             try:
                 self._queue.put(p, block=False)
-            except queue.Full:
+                # If there's an active async loop, notify it
+                if self._loop and self._async_queue:
+                    self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+            except (queue.Full, asyncio.QueueFull):
                 logger.warning("Packet queue full, dropping intercepted packet to prevent OOM")
                 pkt.accept()
         else:
@@ -163,14 +172,13 @@ class NetFilterQueue(BaseDivert):
     def close(self) -> None:
         if self._nfqueue:
             logger.info("Closing NetFilterQueue %d", self._queue_num)
+            self._stop_event.set()
             temp_nfq = self._nfqueue
             self._nfqueue = None # Mark as closed first
             try:
                 temp_nfq.unbind()
             except Exception:
                 pass
-        if self._thread:
-            self._thread = None
         self._remove_rules()
         if self in NetFilterQueue._instances:
             NetFilterQueue._instances.remove(self)
@@ -180,15 +188,28 @@ class NetFilterQueue(BaseDivert):
         return self._nfqueue is not None
 
     def recv(self) -> Packet:
-        if not self.is_open:
-            raise RuntimeError("Queue is not open.")
-        return self._queue.get()
+        while self.is_open:
+            try:
+                return self._queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+        raise RuntimeError("Queue is not open.")
 
     async def recv_async(self) -> Packet:
         if not self.is_open:
             raise RuntimeError("Queue is not open.")
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._queue.get)
+        
+        if self._async_queue is None:
+            self._loop = asyncio.get_running_loop()
+            self._async_queue = asyncio.Queue(maxsize=10000)
+            # Drain current sync queue into async queue
+            try:
+                while True:
+                    self._async_queue.put_nowait(self._queue.get_nowait())
+            except (queue.Empty, asyncio.QueueFull):
+                pass
+
+        return await self._async_queue.get()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if not self.is_open:

@@ -34,7 +34,18 @@ import threading
 import time
 import urllib.request
 
+import pytest
+
 import pydivert
+
+
+def setup_module(module):
+    """Skip all tests in this module if PyDivert cannot be initialized."""
+    try:
+        with pydivert.PyDivert("true"):
+            pass
+    except (ImportError, PermissionError, OSError) as e:
+        pytest.skip(f"PyDivert not available: {e}")
 
 
 def get_free_port():

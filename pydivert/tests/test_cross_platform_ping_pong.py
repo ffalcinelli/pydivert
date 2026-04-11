@@ -9,6 +9,17 @@ import pytest
 from pydivert import PyDivert
 
 
+def setup_module(module):
+    """Skip all tests in this module if PyDivert cannot be initialized.
+    Requires Administrator (Windows) or Root (Linux/BSD) privileges.
+    """
+    try:
+        with PyDivert("true"):
+            pass
+    except (ImportError, PermissionError, OSError) as e:
+        pytest.skip(f"PyDivert not available: {e}. Are you running as Administrator/Root?")
+
+
 def get_free_port(proto=socket.SOCK_DGRAM):
     with socket.socket(socket.AF_INET, proto) as s:
         s.bind(("127.0.0.1", 0))

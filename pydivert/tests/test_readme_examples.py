@@ -40,6 +40,18 @@ from pydivert.packet import Packet
 from pydivert.packet.tcp import TCPHeader
 
 
+def setup_module(module):
+    """Skip all tests in this module if PyDivert cannot be initialized locally.
+    Integration tests should ideally only run on the platform they target.
+    """
+    # For README examples, they are cross-platform, but need permissions.
+    try:
+        with pydivert.PyDivert("true"):
+            pass
+    except (ImportError, PermissionError, OSError) as e:
+        pytest.skip(f"PyDivert not available: {e}. Check permissions/dependencies.")
+
+
 def get_free_port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -62,7 +74,8 @@ def test_example_basic_capture():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     stop_event = threading.Event()
 
@@ -73,7 +86,8 @@ def test_example_basic_capture():
                     break
                 w.send(packet)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -86,6 +100,8 @@ def test_example_basic_capture():
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
 
 def test_example_packet_modification_redirection():
@@ -107,7 +123,8 @@ def test_example_packet_modification_redirection():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     stop_event = threading.Event()
 
@@ -123,7 +140,8 @@ def test_example_packet_modification_redirection():
                     packet.src_port = fake_port
                 w.send(packet)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -136,6 +154,8 @@ def test_example_packet_modification_redirection():
             socket.create_connection(("127.0.0.1", fake_port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
 
 def test_example_firewall_drop():
@@ -151,7 +171,8 @@ def test_example_firewall_drop():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     stop_event = threading.Event()
 
@@ -163,7 +184,8 @@ def test_example_firewall_drop():
                 # Drop it by NOT sending
                 pass
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -174,6 +196,12 @@ def test_example_firewall_drop():
                 client.connect(("127.0.0.1", port))
     finally:
         stop_event.set()
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+        except Exception:
+            pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
 
 def test_example_payload_modification():
@@ -191,7 +219,8 @@ def test_example_payload_modification():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     stop_event = threading.Event()
 
@@ -204,7 +233,8 @@ def test_example_payload_modification():
                     packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
                 w.send(packet)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -218,6 +248,8 @@ def test_example_payload_modification():
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
 
 def test_example_traffic_logging():
@@ -235,7 +267,8 @@ def test_example_traffic_logging():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     captured_info = []
     stop_event = threading.Event()
@@ -249,7 +282,8 @@ def test_example_traffic_logging():
                 captured_info.append(f"[{direction}] {packet.src_addr}:{packet.src_port}")
                 w.send(packet)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -261,6 +295,8 @@ def test_example_traffic_logging():
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
     assert captured_info
 
@@ -306,13 +342,15 @@ def test_example_flow_layer():
     events = []
     stop_event = threading.Event()
 
-    threading.Thread(target=flow_layer_diverter, args=(port, stop_event, events), daemon=True).start()
+    t1 = threading.Thread(target=flow_layer_diverter, args=(port, stop_event, events), daemon=True)
+    t1.start()
     time.sleep(1.0)
 
     if events and events[0] == "SKIP_WINERROR_87":
         pytest.skip("Layer.FLOW is not supported on this environment (WinError 87)")
 
-    threading.Thread(target=flow_layer_server, args=(port,), daemon=True).start()
+    t2 = threading.Thread(target=flow_layer_server, args=(port,), daemon=True)
+    t2.start()
 
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=2):
@@ -323,6 +361,8 @@ def test_example_flow_layer():
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
     if events and isinstance(events[0], Exception):
         pytest.fail(f"Diverter thread failed: {events[0]}")
@@ -348,7 +388,8 @@ def test_example_sniff_mode():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     sniffed_packets = []
     stop_event = threading.Event()
@@ -360,7 +401,8 @@ def test_example_sniff_mode():
                     break
                 sniffed_packets.append(packet)
 
-    threading.Thread(target=diverter, daemon=True).start()
+    t2 = threading.Thread(target=diverter, daemon=True)
+    t2.start()
     time.sleep(1.0)
 
     try:
@@ -373,6 +415,8 @@ def test_example_sniff_mode():
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
             pass
+        t1.join(timeout=1.0)
+        t2.join(timeout=1.0)
 
     assert sniffed_packets
 
@@ -393,7 +437,8 @@ async def test_example_asyncio():
             except Exception:
                 pass
 
-    threading.Thread(target=server, daemon=True).start()
+    t1 = threading.Thread(target=server, daemon=True)
+    t1.start()
 
     captured = []
     stop_event = asyncio.Event()
@@ -430,6 +475,7 @@ async def test_example_asyncio():
             pass
         await asyncio.sleep(0.5)
         diverter_task.cancel()
+        t1.join(timeout=1.0)
 
     assert captured
 

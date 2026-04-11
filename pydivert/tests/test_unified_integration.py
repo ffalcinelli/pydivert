@@ -18,7 +18,7 @@ async def test_unified_open_close():
     try:
         with PyDivert(filter_str) as w:
             assert w.is_open or not w.is_open # Implementation dependent, but should not crash
-    except (RuntimeError, NotImplementedError, OSError) as e:
+    except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
         # On Linux/BSD this might fail if not root, or if not implemented
         pytest.skip(f"Opening handle failed on {sys.platform}: {e}")
 
@@ -31,7 +31,7 @@ async def test_unified_async_context_manager():
     try:
         async with PyDivert(filter_str) as w:
             assert w is not None
-    except (RuntimeError, NotImplementedError, OSError) as e:
+    except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
         pytest.skip(f"Async opening handle failed on {sys.platform}: {e}")
 
 def test_backend_selection():

@@ -60,7 +60,11 @@ class PyDivert(BaseDivert):
             from pydivert.linux import NetFilterQueue
 
             return NetFilterQueue
-        if sys.platform == "darwin" or sys.platform.startswith("freebsd"):
+        if sys.platform == "darwin":
+            from pydivert.macos import MacOSDivert
+
+            return MacOSDivert
+        if sys.platform.startswith("freebsd"):
             from pydivert.bsd import Divert
 
             return Divert

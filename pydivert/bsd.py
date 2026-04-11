@@ -15,14 +15,13 @@ logger = logging.getLogger(__name__)
 
 class Divert(BaseDivert):
     """
-    BSD implementation of the Divert interface using **Divert Sockets** and **ipfw**.
+    FreeBSD implementation of the Divert interface using **Divert Sockets** and **ipfw**.
 
-    This implementation targets FreeBSD and macOS systems that support `IPPROTO_DIVERT`
+    This implementation targets FreeBSD systems that support `IPPROTO_DIVERT`
     sockets and the `ipfw` firewall.
 
     **Requirements:**
     - FreeBSD with a kernel compiled with `IPFW` and `IPDIVERT` support.
-    - macOS (Intel-based, SIP might need to be disabled for some operations).
     - Root privileges to modify `ipfw` rules and open raw sockets.
 
     **How it works:**
