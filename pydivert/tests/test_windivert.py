@@ -103,9 +103,8 @@ class TestParams:
             w.get_param(42)
 
 
-def test_echo(scenario):
+def test_echo(scenario) -> None:
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
     reply = send(server_addr, b"echo")
 
     for p in w:
@@ -119,9 +118,8 @@ def test_echo(scenario):
     assert reply.get() == b"ECHO"
 
 
-def test_divert(scenario):
+def test_divert(scenario) -> None:
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
     target = (server_addr[0], 80)
     reply = send(target, b"echo")
     for p in w:
@@ -138,9 +136,8 @@ def test_divert(scenario):
     assert reply.get() == b"ECHO"
 
 
-def test_modify_payload(scenario):
+def test_modify_payload(scenario) -> None:
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
     reply = send(server_addr, b"echo")
 
     for p in w:
@@ -154,9 +151,8 @@ def test_modify_payload(scenario):
 
 
 @pytest.mark.skip(reason="Fails on Vagrant VM: packets are not truncated as expected")
-def test_packet_cutoff(scenario):
+def test_packet_cutoff(scenario) -> None:
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
     reply = send(server_addr, b"a" * 1000)
 
     cutoff = None

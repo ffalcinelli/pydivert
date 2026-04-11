@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from __future__ import annotations
+
 import asyncio
 import atexit
 import logging
@@ -38,16 +40,16 @@ class Divert(BaseDivert):
     - It only supports `Layer.NETWORK`.
     - macOS support for divert sockets is largely deprecated in newer versions.
     """
-    _instances = set()
+    _instances: set["Divert"] = set()
 
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
         super().__init__(filter, layer, priority, flags)
-        self._socket = None
+        self._socket: socket.socket | None = None
         self._port = 8888 + (priority % 1000)
         self._translated_filter = self.filter
-        self._applied_rules = []
+        self._applied_rules: list[int] = []
         Divert._instances.add(self)
 
     @classmethod
@@ -141,19 +143,19 @@ class Divert(BaseDivert):
         return self._socket is not None
 
     def recv(self) -> Packet:
-        if not self.is_open:
+        if self._socket is None:
             raise RuntimeError("Socket is not open.")
 
         while True:
             try:
                 data, addr = self._socket.recvfrom(65535)
             except OSError as e:
-                if not self.is_open:
+                if self._socket is None:
                     raise RuntimeError("Socket closed during recv") from e
                 raise e
 
             p = Packet(data)
-            p._bsd_addr = addr
+            setattr(p, "_bsd_addr", addr)
 
             # User space filtering
             if p.matches(self._translated_filter):
@@ -171,7 +173,7 @@ class Divert(BaseDivert):
         return await loop.run_in_executor(None, self.recv)
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        if not self.is_open:
+        if self._socket is None:
             raise RuntimeError("Socket is not open.")
 
         if recalculate_checksum:

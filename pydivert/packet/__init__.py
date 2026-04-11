@@ -505,11 +505,11 @@ class Packet:
         if other.ipv4:
             other.ipv4.cksum = 0
         if other.tcp:
-            other.tcp.cksum = 0
+            other.tcp.cksum = 0  # type: ignore[attr-defined]
         if other.udp:
-            other.udp.cksum = 0
+            other.udp.cksum = 0  # type: ignore[attr-defined]
         if other.icmp:
-            other.icmp.cksum = 0
+            other.icmp.cksum = 0  # type: ignore[attr-defined]
 
         # Set address hints for the helper
         other.wd_addr.IPChecksum = 1 if other.ipv4 else 0

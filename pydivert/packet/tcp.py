@@ -80,7 +80,18 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
     ack_num: int = raw_property("!I", 8, docs="The acknowledgement number field.")  # type: ignore[assignment]
 
     window_size: int = raw_property("!H", 14, docs="The size of the receive window in bytes.")  # type: ignore[assignment]
-    cksum: int = raw_property("!H", 16, docs="The TCP header checksum field.")  # type: ignore[assignment]
+
+    @property
+    def cksum(self) -> int:
+        """
+        The TCP header checksum field.
+        """
+        return struct.unpack_from("!H", self.raw, 16)[0]
+
+    @cksum.setter
+    def cksum(self, val: int) -> None:
+        struct.pack_into("!H", self.raw, 16, val)
+
     urg_ptr: int = raw_property("!H", 18, docs="The Urgent Pointer field.")  # type: ignore[assignment]
 
     @property

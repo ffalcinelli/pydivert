@@ -69,10 +69,10 @@ class WinDivert(BaseDivert):
         :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
         """
         super().__init__(filter, layer, priority, flags)
-        self._handle = None
-        self._event = None
-        self._recv_buf = None
-        self._recv_buf_c = None
+        self._handle: ctypes.c_void_p | None = None
+        self._event: ctypes.c_void_p | None = None
+        self._recv_buf: bytearray | None = None
+        self._recv_buf_c: ctypes.Array[ctypes.c_char] | None = None
         self._pending_ops: list[Overlapped] = []
 
     @staticmethod
@@ -147,7 +147,8 @@ class WinDivert(BaseDivert):
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
+        filter_bytes = self._filter if isinstance(self._filter, bytes) else self._filter.encode()
+        self._handle = windivert_dll.WinDivertOpen(filter_bytes, self._layer, self._priority, self._flags)
         self._event = windivert_dll.CreateEventW(None, False, False, None)
 
     @property
@@ -169,7 +170,7 @@ class WinDivert(BaseDivert):
 
         For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_close
         """
-        if not self.is_open:
+        if self._handle is None:
             raise RuntimeError("WinDivert handle is not open.")
         windivert_dll.WinDivertClose(self._handle)
         self._handle = None
@@ -199,17 +200,17 @@ class WinDivert(BaseDivert):
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+        if self._recv_buf is None or self._recv_buf_c is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
-            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+            self._recv_buf_c = (ctypes.c_char * bufsize).from_buffer(self._recv_buf)
 
         packet = self._recv_buf
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
-        recv_len = c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
+        recv_len = ctypes.c_uint(0)
+        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, ctypes.byref(recv_len), ctypes.byref(address))
 
-        return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+        return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
         """
@@ -218,14 +219,14 @@ class WinDivert(BaseDivert):
         if self._handle is None or self._event is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+        if self._recv_buf is None or self._recv_buf_c is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
-            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+            self._recv_buf_c = (ctypes.c_char * bufsize).from_buffer(self._recv_buf)
 
         packet = self._recv_buf
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
-        recv_len = c_uint(0)
+        recv_len = ctypes.c_uint(0)
         overlapped = Overlapped(hEvent=self._event)
 
         # Keep references to objects used in overlapped I/O
@@ -251,7 +252,7 @@ class WinDivert(BaseDivert):
                     raise windivert_dll.WinError(error)
             # Operation completed successfully (either synchronously or after waiting)
             self._pending_ops.remove(overlapped)
-            return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+            return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
         except asyncio.CancelledError:
             # If cancelled, the overlapped object remains in _pending_ops to prevent GC
             # until the handle is closed, which will cancel the pending operation.
@@ -316,23 +317,23 @@ class WinDivert(BaseDivert):
             raise RuntimeError("WinDivert handle is not open")
 
         if overlapped is None:
-            if self._recv_buf is None or len(self._recv_buf) != bufsize:
+            if self._recv_buf is None or self._recv_buf_c is None or len(self._recv_buf) != bufsize:
                 self._recv_buf = bytearray(bufsize)
-                self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+                self._recv_buf_c = (ctypes.c_char * bufsize).from_buffer(self._recv_buf)
             packet = self._recv_buf
             packet_ = self._recv_buf_c
         else:
             packet = bytearray(bufsize)
-            packet_ = (c_char * bufsize).from_buffer(packet)
+            packet_ = (ctypes.c_char * bufsize).from_buffer(packet)
         windivert_dll._init()
 
         address = WinDivertAddress()
-        recv_len = c_uint(0)
-        addr_len = c_uint(ctypes.sizeof(WinDivertAddress))
+        recv_len = ctypes.c_uint(0)
+        addr_len = ctypes.c_uint(ctypes.sizeof(WinDivertAddress))
 
         try:
             windivert_dll.WinDivertRecvEx(
-                self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), byref(addr_len), overlapped
+                self._handle, packet_, bufsize, ctypes.byref(recv_len), flags, ctypes.byref(address), ctypes.byref(addr_len), overlapped
             )
         except OSError as e:
             if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:
@@ -344,9 +345,9 @@ class WinDivert(BaseDivert):
             raise
 
         if overlapped is None:
-            return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+            return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
         else:
-            return self._parse_packet(packet, recv_len.value, address)
+            return self._parse_packet(bytes(packet), recv_len.value, address)
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
@@ -372,6 +373,9 @@ class WinDivert(BaseDivert):
         """
         if recalculate_checksum:
             packet.recalculate_checksums()
+
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open.")
 
         send_len = c_uint(0)
         raw = packet.raw
@@ -469,6 +473,9 @@ class WinDivert(BaseDivert):
         if recalculate_checksum:
             packet.recalculate_checksums()
 
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open.")
+
         send_len = c_uint(0)
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
@@ -508,6 +515,8 @@ class WinDivert(BaseDivert):
 
         :return: The parameter value.
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open.")
         value = c_uint64(0)
         windivert_dll.WinDivertGetParam(self._handle, name, byref(value))
         return value.value
@@ -526,4 +535,6 @@ class WinDivert(BaseDivert):
 
         For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_set_param
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open.")
         return windivert_dll.WinDivertSetParam(self._handle, name, value)

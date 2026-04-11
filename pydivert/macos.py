@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from __future__ import annotations
+
 import asyncio
 import atexit
 import logging
@@ -37,14 +39,14 @@ class MacOSDivert(BaseDivert):
     - Only supports IPv4 (limitation of macOS `pf` divert sockets).
     - Advanced WinDivert features (Flow/Socket/Reflect) are not supported.
     """
-    _instances = set()
+    _instances: set["MacOSDivert"] = set()
     _anchor_base = "com.apple/pydivert"
 
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
         super().__init__(filter, layer, priority, flags)
-        self._socket = None
+        self._socket: socket.socket | None = None
         self._port = 8888 + (priority % 1000)
         self._anchor_name = f"{self._anchor_base}.{self._port}"
         self._is_pf_enabled_by_us = False
@@ -188,14 +190,14 @@ class MacOSDivert(BaseDivert):
         return self._socket is not None
 
     def recv(self) -> Packet:
-        if not self.is_open:
+        if self._socket is None:
             raise RuntimeError("Socket is not open.")
 
         while True:
             try:
                 data, addr = self._socket.recvfrom(65535)
             except OSError as e:
-                if not self.is_open:
+                if self._socket is None:
                     raise RuntimeError("Socket closed during recv") from e
                 raise e
 
@@ -205,7 +207,7 @@ class MacOSDivert(BaseDivert):
             direction = Direction.OUTBOUND if addr[0] == "0.0.0.0" else Direction.INBOUND
 
             p = Packet(data, direction=direction)
-            p._bsd_addr = addr
+            setattr(p, "_bsd_addr", addr)
 
             # User space filtering if needed (e.g. for v6 or complex filters)
             if p.matches(self.filter):
@@ -223,7 +225,7 @@ class MacOSDivert(BaseDivert):
         return await loop.run_in_executor(None, self.recv)
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        if not self.is_open:
+        if self._socket is None:
             raise RuntimeError("Socket is not open.")
 
         if recalculate_checksum:

@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from __future__ import annotations
+
 import asyncio
 import atexit
 import logging
@@ -7,6 +9,7 @@ import re
 import socket
 import subprocess
 import threading
+from typing import Any
 
 from pydivert.base import BaseDivert
 from pydivert.consts import Flag, Layer
@@ -46,21 +49,21 @@ class NetFilterQueue(BaseDivert):
        disconnect your session if not handled properly. This implementation automatically
        tries to exclude port 22 traffic for safety.
     """
-    _instances = set()
+    _instances: set["NetFilterQueue"] = set()
 
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
         super().__init__(filter, layer, priority, flags)
-        self._nfqueue = None
+        self._nfqueue: Any = None
         # Use priority to offset queue number to avoid collisions in parallel tests
         self._queue_num = 0 + (priority % 1000)
-        self._queue = queue.Queue(maxsize=10000)
-        self._async_queue = None
-        self._loop = None
-        self._thread = None
+        self._queue: queue.Queue[Packet] = queue.Queue(maxsize=10000)
+        self._async_queue: asyncio.Queue[Packet] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._translated_filter = self.filter
-        self._applied_rules = []
+        self._applied_rules: list[list[str]] = []
         self._stop_event = threading.Event()
         NetFilterQueue._instances.add(self)
 

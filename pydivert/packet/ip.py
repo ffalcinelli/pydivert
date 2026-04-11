@@ -140,7 +140,17 @@ class IPv4Header(IPHeader):
 
     ttl: int = raw_property("!B", 8, docs="The Time To Live field.")  # type: ignore[assignment]
     protocol: int = raw_property("!B", 9, docs="The Protocol field.")  # type: ignore[assignment]
-    cksum: int = raw_property("!H", 10, docs="The IP header Checksum field.")  # type: ignore[assignment]
+
+    @property
+    def cksum(self) -> int:
+        """
+        The IP header Checksum field.
+        """
+        return struct.unpack_from("!H", self.raw, 10)[0]
+
+    @cksum.setter
+    def cksum(self, val: int) -> None:
+        struct.pack_into("!H", self.raw, 10, val)
 
     @property
     def flags(self) -> int:
