@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import asyncio
+import atexit
 import logging
 import queue
-import threading
-import socket
-import asyncio
-import subprocess
 import re
-import atexit
+import socket
+import subprocess
+import threading
+
 from pydivert.base import BaseDivert
+from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
-from pydivert.consts import Layer, Flag
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,8 @@ class NetFilterQueue(BaseDivert):
     def __init__(self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT) -> None:
         super().__init__(filter, layer, priority, flags)
         self._nfqueue = None
-        self._queue_num = 0 if priority == 0 else priority # Use priority as queue number if specified
+        # Use priority to offset queue number to avoid collisions in parallel tests
+        self._queue_num = 0 + (priority % 1000)
         self._queue = queue.Queue(maxsize=10000)
         self._thread = None
         self._translated_filter = self.filter
@@ -43,11 +45,13 @@ class NetFilterQueue(BaseDivert):
         rules = []
         filter_str = self._translated_filter
         if filter_str.lower() == "true":
-            # If true, we could intercept everything, but that breaks SSH in Vagrant.
-            # So we don't intercept everything blindly.
-            return []
+            # Intercept everything EXCEPT SSH to avoid breaking Vagrant
+            rules.append(["-p", "tcp", "!", "--dport", "22"])
+            rules.append(["-p", "tcp", "!", "--sport", "22"])
+            rules.append(["-p", "udp"])
+            rules.append(["-p", "icmp"])
         elif filter_str.lower() == "tcp":
-            rules.append(["-p", "tcp"])
+            rules.append(["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"])
         elif filter_str.lower() == "udp":
             rules.append(["-p", "udp"])
         else:
@@ -63,28 +67,40 @@ class NetFilterQueue(BaseDivert):
                         rules.append(["-p", proto, "--dport", port])
                     else:
                         rules.append(["-p", proto, "--sport", port])
+                elif part.lower() == "loopback":
+                    rules.append(["-i", "lo"])
+                elif part.lower() == "outbound":
+                    # Hard to express 'outbound' generically in iptables without more context
+                    pass
         return rules
 
     def open(self) -> None:
         if NFQ is None:
             raise ImportError("netfilterqueue library not found. Install it with 'pip install NetFilterQueue'.")
+
+        # Try a few queue numbers if busy
+        nfq = NFQ()
+        for _i in range(10):
+            try:
+                nfq.bind(self._queue_num, self._callback)
+                self._nfqueue = nfq
+                break
+            except OSError:
+                self._queue_num += 1
+                continue
+        else:
+             raise OSError("Failed to bind to any NFQueue. Are you root?")
+
         logger.info("Opening NetFilterQueue %d with filter: %s", self._queue_num, self._translated_filter)
-        
+
         self._applied_rules = self._parse_filter_to_iptables()
         for r in self._applied_rules:
             try:
-                subprocess.run(["iptables", "-I", "INPUT"] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=True)
-                subprocess.run(["iptables", "-I", "OUTPUT"] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=True)
+                # Intercept on INPUT, OUTPUT and FORWARD to be thorough (esp. for loopback)
+                for chain in ["INPUT", "OUTPUT", "FORWARD"]:
+                    subprocess.run(["iptables", "-I", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=True)
             except Exception as e:
                 logger.error(f"Failed to add iptables rule: {e}")
-
-        self._nfqueue = NFQ()
-        try:
-            self._nfqueue.bind(self._queue_num, self._callback)
-        except OSError as e:
-            self._nfqueue = None
-            self._remove_rules()
-            raise OSError(f"Failed to bind to NFQueue {self._queue_num}: {e}. Are you root?")
 
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
@@ -92,8 +108,8 @@ class NetFilterQueue(BaseDivert):
     def _remove_rules(self):
         for r in self._applied_rules:
             try:
-                subprocess.run(["iptables", "-D", "INPUT"] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=False, stderr=subprocess.DEVNULL)
-                subprocess.run(["iptables", "-D", "OUTPUT"] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=False, stderr=subprocess.DEVNULL)
+                for chain in ["INPUT", "OUTPUT", "FORWARD"]:
+                    subprocess.run(["iptables", "-D", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=False, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
         self._applied_rules = []
@@ -102,12 +118,14 @@ class NetFilterQueue(BaseDivert):
         try:
             self._nfqueue.run()
         except Exception as e:
-            logger.error(f"NFQueue loop error: {e}")
+            # Avoid logging error if we're closing
+            if self._nfqueue:
+                logger.error(f"NFQueue loop error: {e}")
 
     def _callback(self, pkt):
         raw = pkt.get_payload()
         p = Packet(raw)
-        
+
         # User space filtering
         if p.matches(self._translated_filter):
             p._nfq_pkt = pkt
@@ -121,12 +139,13 @@ class NetFilterQueue(BaseDivert):
 
     def close(self) -> None:
         if self._nfqueue:
-            logger.info("Closing NetFilterQueue")
+            logger.info("Closing NetFilterQueue %d", self._queue_num)
+            temp_nfq = self._nfqueue
+            self._nfqueue = None # Mark as closed first
             try:
-                self._nfqueue.unbind()
+                temp_nfq.unbind()
             except Exception:
                 pass
-            self._nfqueue = None
         if self._thread:
             self._thread = None
         self._remove_rules()
@@ -151,19 +170,24 @@ class NetFilterQueue(BaseDivert):
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if not self.is_open:
             raise RuntimeError("Queue is not open.")
-        
+
         if recalculate_checksum:
             packet.recalculate_checksums()
 
         nfq_pkt = getattr(packet, '_nfq_pkt', None)
         if nfq_pkt:
             raw = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
-            nfq_pkt.set_payload(raw)
-            nfq_pkt.accept()
+            try:
+                nfq_pkt.set_payload(raw)
+                nfq_pkt.accept()
+            except Exception as e:
+                logger.error(f"Failed to accept/modify NFQ packet: {e}")
         else:
             # Inject new packet using raw socket
             try:
                 if packet.ipv4:
+                    # For loopback injection on Linux, we might need a different approach
+                    # if the destination is 127.0.0.1
                     with socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW) as s:
                         s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
                         raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw

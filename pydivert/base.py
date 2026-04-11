@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import abc
-import asyncio
-from typing import Any, AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
+
+from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
-from pydivert.consts import Layer, Flag
+
 
 class BaseDivert(abc.ABC):
     """
@@ -13,15 +15,25 @@ class BaseDivert(abc.ABC):
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
-        self._filter = filter.encode() if isinstance(filter, str) else filter
+        if isinstance(filter, str):
+            filter = filter.strip()
+        self._filter: bytes | str = filter.encode() if isinstance(filter, str) else filter
         self._layer = layer
         self._priority = priority
         self._flags = flags
 
+    def __repr__(self) -> str:
+        state = "open" if self.is_open else "closed"
+        filter_str = self.filter
+        return (
+            f'<{self.__class__.__name__} state="{state}" filter="{filter_str}" layer="{self._layer}" '
+            f'priority="{self._priority}" flags="{self._flags}" />'
+        )
+
     @property
     def filter(self) -> str:
         """Returns the packet filter string."""
-        return self._filter.decode() if isinstance(self._filter, bytes) else self._filter
+        return self._filter.decode() if isinstance(self._filter, bytes) else str(self._filter)
 
     @property
     def layer(self) -> Layer:

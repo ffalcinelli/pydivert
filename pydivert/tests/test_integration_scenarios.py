@@ -93,7 +93,7 @@ def test_integration_tcp_proxy_transform():
 
     def diverter():
         try:
-            with pydivert.WinDivert(filt) as w:
+            with pydivert.PyDivert(filt) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -158,7 +158,7 @@ def test_integration_dns_modification():
 
     def diverter():
         try:
-            with pydivert.WinDivert(filt) as w:
+            with pydivert.PyDivert(filt) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break

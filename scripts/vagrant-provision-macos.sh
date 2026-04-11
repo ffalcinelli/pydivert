@@ -4,17 +4,20 @@ set -e
 
 echo "Provisioning macOS..."
 
-# Install Homebrew if not present
+# Check if brew is installed, if not, it's problematic on CI but should be on dev boxes
 if ! command -v brew >/dev/null 2>&1; then
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    (echo; echo 'eval "$(/usr/local/bin/brew shellenv)"') >> /Users/vagrant/.zprofile
-    eval "$(/usr/local/bin/brew shellenv)"
+    echo "Warning: Homebrew not found. Trying to install dependencies via pip..."
 fi
 
-# Install prerequisites
-brew install python@3.11 uv git
+# Use a local virtual environment for macOS
+VENV_PATH="/Users/vagrant/pydivert_venv"
+python3 -m venv "$VENV_PATH"
+"$VENV_PATH/bin/pip" install --upgrade pip
+"$VENV_PATH/bin/pip" install -e /Users/vagrant/pydivert[test]
 
-# Sync dependencies
-export PATH="/usr/local/bin:$PATH"
-cd /Users/vagrant/pydivert
-uv sync --extra test
+# Install uv if possible
+if command -v brew >/dev/null 2>&1; then
+    brew install uv
+else
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+fi

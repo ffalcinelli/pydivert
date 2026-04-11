@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
-
 from pydivert import windivert_dll
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 
 def test_raise_on_error_set_last_error_failure():

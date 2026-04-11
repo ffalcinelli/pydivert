@@ -1,5 +1,7 @@
-import pytest
 import sys
+
+import pytest
+
 from pydivert.consts import Layer
 from pydivert.packet import Packet
 

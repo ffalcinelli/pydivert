@@ -25,8 +25,8 @@
 from __future__ import annotations
 
 import ctypes
-import pprint
 import socket
+import sys
 from functools import cached_property
 from typing import Any
 
@@ -166,20 +166,24 @@ class Packet:
         self._cached_buff: Any | None = None
 
     def __repr__(self) -> str:
-        def dump(x: Any) -> Any:
-            if isinstance(x, (Header, Packet)):
-                d = {}
-                for k in getattr(x, "__repr_fields__", ()):
-                    v = getattr(x, k)
-                    if k == "payload" and v and len(v) > 20:
+        fields = []
+        for k in self.__repr_fields__:
+            try:
+                v = getattr(self, k)
+                if v is None:
+                    continue
+                if k == "payload":
+                    if v and len(v) > 20:
                         v = v[:20] + b"..."
-                    d[k] = dump(v)
-                if isinstance(x, Packet):
-                    return pprint.pformat(d)
-                return d
-            return x
-
-        return f"Packet({dump(self)})"
+                elif isinstance(v, Header):
+                    # For nested headers, just show their class name or a summary
+                    v = f"{v.__class__.__name__}(...)"
+                elif isinstance(v, memoryview):
+                    v = f"<memoryview of {len(v)} bytes>"
+                fields.append(f"{k}={v!r}")
+            except (AttributeError, ValueError):
+                continue
+        return f"Packet({', '.join(fields)})"
 
     @property
     def is_outbound(self) -> bool:
@@ -477,84 +481,13 @@ class Packet:
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         import sys
-        import struct
-        import socket
-        
         if sys.platform != 'win32':
-            from pydivert.consts import CalcChecksumsOption
-            # Fallback for non-Windows platforms. Basic recalculation of IPv4, TCP, UDP checksums.
-            def calc_csum(data):
-                if len(data) % 2 == 1:
-                    data += b'\0'
-                s = sum(struct.unpack("!%dH" % (len(data) // 2), data))
-                s = (s >> 16) + (s & 0xffff)
-                s += s >> 16
-                return (~s) & 0xffff
+            from pydivert.util import fallback_recalculate_checksums
+            return fallback_recalculate_checksums(self, flags)
 
-            count = 0
-            ipproto, proto_start = self.protocol
-            
-            if self.ipv4:
-                # IPv4 Header Checksum
-                if not (flags & CalcChecksumsOption.NO_IP_CHECKSUM):
-                    ip_hdr = bytearray(self.ipv4.raw[:self.ipv4.header_len])
-                    ip_hdr[10:12] = b'\x00\x00'
-                    csum = calc_csum(ip_hdr)
-                    struct.pack_into("!H", self.raw, self.ipv4._start + 10, csum)
-                    count += 1
-                
-                # Pseudo-header for IPv4
-                pseudo_hdr = struct.pack("!4s4sBBH", 
-                    socket.inet_aton(self.ipv4.src_addr),
-                    socket.inet_aton(self.ipv4.dst_addr),
-                    0, ipproto or 0, len(self.raw) - (proto_start or 0))
-            elif self.ipv6:
-                # IPv6 doesn't have a header checksum
-                # Pseudo-header for IPv6
-                pseudo_hdr = struct.pack("!16s16sI3xB", 
-                    socket.inet_pton(socket.AF_INET6, self.ipv6.src_addr),
-                    socket.inet_pton(socket.AF_INET6, self.ipv6.dst_addr),
-                    len(self.raw) - (proto_start or 0),
-                    0, ipproto or 0)
-            else:
-                return 0
-
-            if self.tcp and proto_start is not None:
-                if not (flags & CalcChecksumsOption.NO_TCP_CHECKSUM):
-                    tcp_hdr_payload = bytearray(self.tcp.raw)
-                    tcp_hdr_payload[16:18] = b'\x00\x00'
-                    csum = calc_csum(pseudo_hdr + tcp_hdr_payload)
-                    struct.pack_into("!H", self.raw, proto_start + 16, csum)
-                    count += 1
-            elif self.udp and proto_start is not None:
-                if not (flags & CalcChecksumsOption.NO_UDP_CHECKSUM):
-                    udp_hdr_payload = bytearray(self.udp.raw)
-                    udp_hdr_payload[6:8] = b'\x00\x00'
-                    csum = calc_csum(pseudo_hdr + udp_hdr_payload)
-                    if csum == 0: csum = 0xFFFF
-                    struct.pack_into("!H", self.raw, proto_start + 6, csum)
-                    count += 1
-            elif self.icmpv4 and proto_start is not None:
-                if not (flags & CalcChecksumsOption.NO_ICMP_CHECKSUM):
-                    icmp_hdr_payload = bytearray(self.icmpv4.raw)
-                    icmp_hdr_payload[2:4] = b'\x00\x00'
-                    csum = calc_csum(icmp_hdr_payload)
-                    struct.pack_into("!H", self.raw, proto_start + 2, csum)
-                    count += 1
-            elif self.icmpv6 and proto_start is not None:
-                if not (flags & CalcChecksumsOption.NO_ICMPV6_CHECKSUM):
-                    # ICMPv6 uses pseudo-header
-                    icmp_hdr_payload = bytearray(self.icmpv6.raw)
-                    icmp_hdr_payload[2:4] = b'\x00\x00'
-                    csum = calc_csum(pseudo_hdr + icmp_hdr_payload)
-                    struct.pack_into("!H", self.raw, proto_start + 2, csum)
-                    count += 1
-                
-            return count
-            
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num: int = windivert_dll.WinDivertHelperCalcChecksums(  # type: ignore[attr-defined]
+        num: int = windivert_dll.WinDivertHelperCalcChecksums(
             ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
         )
         return num
@@ -575,9 +508,8 @@ class Packet:
             other.tcp.cksum = 0
         if other.udp:
             other.udp.cksum = 0
-        if other.icmpv4 or other.icmpv6:
-            if other.icmp:
-                other.icmp.cksum = 0
+        if other.icmp:
+            other.icmp.cksum = 0
 
         # Set address hints for the helper
         other.wd_addr.IPChecksum = 1 if other.ipv4 else 0
@@ -608,19 +540,19 @@ class Packet:
         :return: The `WINDIVERT_ADDRESS` structure.
         """
         address = WinDivertAddress()
-        address.Timestamp = self.timestamp  # type: ignore
-        address.Layer = self.layer  # type: ignore
-        address.Event = self.event  # type: ignore
-        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0  # type: ignore
-        address.Loopback = 1 if self.is_loopback else 0  # type: ignore
-        address.Impostor = 1 if self.is_impostor else 0  # type: ignore
-        address.Sniffed = 1 if self.is_sniffed else 0  # type: ignore
-        address.IPChecksum = 1 if self.ip_checksum else 0  # type: ignore
-        address.TCPChecksum = 1 if self.tcp_checksum else 0  # type: ignore
-        address.UDPChecksum = 1 if self.udp_checksum else 0  # type: ignore
+        address.Timestamp = self.timestamp
+        address.Layer = self.layer
+        address.Event = self.event
+        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
+        address.Loopback = 1 if self.is_loopback else 0
+        address.Impostor = 1 if self.is_impostor else 0
+        address.Sniffed = 1 if self.is_sniffed else 0
+        address.IPChecksum = 1 if self.ip_checksum else 0
+        address.TCPChecksum = 1 if self.tcp_checksum else 0
+        address.UDPChecksum = 1 if self.udp_checksum else 0
 
         if self.layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
-            address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
+            address.Network.IfIdx, address.Network.SubIfIdx = self.interface
         elif self.layer == Layer.FLOW and self.flow:
             ctypes.pointer(address.Flow)[0] = self.flow
         elif self.layer == Layer.SOCKET and self.socket:
@@ -634,57 +566,24 @@ class Packet:
         """
         Evaluates the packet against the given packet filter string.
         """
-        import sys
-        if sys.platform != 'win32':
-            # Fallback for non-Windows platforms (limited to basic patterns used in tests)
-            import re
-            filter_lower = filter.lower()
-            if filter_lower == "true": return True
-            if filter_lower == "false": return False
-            
-            # Simple eval logic for tests
-            # Replace operators
-            py_filter = re.sub(r'\b(or)\b', ' or ', filter_lower)
-            py_filter = re.sub(r'\b(and)\b', ' and ', py_filter)
-            py_filter = py_filter.replace('||', ' or ').replace('&&', ' and ')
-            
-            # Replace fields
-            mapping = {
-                'tcp.dstport': str(self.dst_port) if self.tcp else 'None',
-                'tcp.srcport': str(self.src_port) if self.tcp else 'None',
-                'udp.dstport': str(self.dst_port) if self.udp else 'None',
-                'udp.srcport': str(self.src_port) if self.udp else 'None',
-                'ip.dstaddr': f"'{self.dst_addr}'",
-                'ip.srcaddr': f"'{self.src_addr}'",
-                'tcp': 'True' if self.tcp else 'False',
-                'udp': 'True' if self.udp else 'False',
-                'icmp': 'True' if self.icmp else 'False',
-                'ipv4': 'True' if self.ipv4 else 'False',
-                'ipv6': 'True' if self.ipv6 else 'False',
-                'outbound': 'True' if self.is_outbound else 'False',
-                'inbound': 'True' if self.is_inbound else 'False',
-                'loopback': 'True' if self.is_loopback else 'False'
-            }
-            
-            # Very basic token replacement
-            for k, v in mapping.items():
-                py_filter = py_filter.replace(k, v)
-                
-            try:
-                # Safely evaluate simple python expressions
-                return bool(eval(py_filter, {"__builtins__": {}}))
-            except Exception:
-                # Fallback to True if we can't parse it to avoid dropping packets incorrectly
-                # during testing, or just match what we can.
-                return True
+        if sys.platform == "win32":
+            return self._matches_win32(filter, layer)
+        return self._matches_fallback(filter)
 
-        buff, buff_ = self.__to_buffers()
+    def _matches_win32(self, filter: str, layer: Layer) -> bool:
+        _, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        addr.Layer = layer  # type: ignore
-        res: bool = windivert_dll.WinDivertHelperEvalFilter(  # type: ignore[attr-defined]
-            filter.encode(),
-            ctypes.byref(buff_),
-            len(self.raw),
-            ctypes.byref(addr),
+        addr.Layer = layer
+        return bool(
+            windivert_dll.WinDivertHelperEvalFilter(
+                filter.encode(),
+                ctypes.byref(buff_),
+                len(self.raw),
+                ctypes.byref(addr),
+            )
         )
-        return res
+
+    def _matches_fallback(self, filter: str) -> bool:
+        from pydivert.util import fallback_matches
+
+        return fallback_matches(self, filter)

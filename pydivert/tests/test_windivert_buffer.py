@@ -1,12 +1,12 @@
-import sys
-import pytest
-
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
-
 import ctypes
+import sys
 from unittest.mock import patch
 
+import pytest
+
 from pydivert import WinDivert
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 
 class MockOverlapped:

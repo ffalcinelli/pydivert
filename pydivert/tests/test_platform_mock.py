@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import sys
-import pytest
 import asyncio
-import ctypes
+import sys
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from pydivert import PyDivert
-from pydivert.consts import Layer, Flag
+
 
 def test_pydivert_platform_selection():
     with patch("sys.platform", "linux2"):

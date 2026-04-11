@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from unittest.mock import MagicMock, patch
+
 import pytest
+
 from pydivert.filter import transpile
 from pydivert.packet import Packet
-from unittest.mock import MagicMock, patch
+
 
 def test_transpile_errors():
     with pytest.raises(Exception):
@@ -14,7 +17,7 @@ def test_packet_edge_cases():
           b"\x00\x35\x00\x35\x00\x08\x00\x00"
     p = Packet(raw)
     assert p.udp is not None
-    
+
     # Checksum for packet with unknown protocol
     p2 = Packet(b"\x45\x00\x00\x14\x00\x01\x00\x00\x40\xff\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
     p2.ip.protocol = 254 # Unknown

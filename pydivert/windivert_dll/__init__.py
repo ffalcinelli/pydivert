@@ -32,6 +32,65 @@ import functools
 import os
 import platform
 import sys
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ctypes.wintypes import HANDLE
+
+    from .structs import Overlapped, WinDivertAddress
+
+    # Define function signatures for type checking
+    def WinDivertHelperParsePacket(
+        pPacket: Any,
+        packetLen: int,
+        pIPv4Header: Any,
+        pIPv6Header: Any,
+        pICMPHeader: Any,
+        pICMPv6Header: Any,
+        pTCPHeader: Any,
+        pUDPHeader: Any,
+        pData: Any,
+        pDataLen: Any,
+        pNextHeader: Any,
+        pNextHeaderLen: Any,
+        pFlags: Any,
+    ) -> int: ...
+
+    def WinDivertHelperParseIPv4Address(addrStr: bytes, pAddr: Any) -> int: ...
+    def WinDivertHelperParseIPv6Address(addrStr: bytes, pAddr: Any) -> int: ...
+    def WinDivertHelperCalcChecksums(pPacket: Any, packetLen: int, pAddr: Any, flags: int) -> int: ...
+    def WinDivertHelperCompileFilter(
+        filter: bytes, layer: int, errorStr: Any, errorPos: Any, pMsg: Any, pPos: Any
+    ) -> int: ...
+    def WinDivertHelperEvalFilter(filter: bytes, pPacket: Any, packetLen: int, pAddr: Any) -> bool: ...
+    def WinDivertOpen(filter: bytes, layer: int, priority: int, flags: int) -> HANDLE: ...
+    def WinDivertRecv(pHandle: HANDLE, pPacket: Any, packetLen: int, pRecvLen: Any, pAddr: Any) -> int: ...
+    def WinDivertSend(pHandle: HANDLE, pPacket: Any, packetLen: int, pSendLen: Any, pAddr: Any) -> int: ...
+    def WinDivertRecvEx(
+        pHandle: HANDLE,
+        pPacket: Any,
+        packetLen: int,
+        pRecvLen: Any,
+        flags: int,
+        pAddr: Any,
+        pAddrLen: Any,
+        pOverlapped: Any,
+    ) -> int: ...
+    def WinDivertSendEx(
+        pHandle: HANDLE,
+        pPacket: Any,
+        packetLen: int,
+        pSendLen: Any,
+        flags: int,
+        pAddr: Any,
+        addrLen: int,
+        pOverlapped: Any,
+    ) -> int: ...
+    def WinDivertShutdown(pHandle: HANDLE, how: int) -> int: ...
+    def WinDivertClose(pHandle: HANDLE) -> int: ...
+    def WinDivertGetParam(pHandle: HANDLE, param: int, pValue: Any) -> int: ...
+    def WinDivertSetParam(pHandle: HANDLE, param: int, value: int) -> int: ...
 
 try:
     from ctypes import (  # type: ignore[attr-defined]

@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
+
 import pytest
-import asyncio
-from pydivert import PyDivert, Layer
+
+from pydivert import PyDivert
+
 
 @pytest.mark.asyncio
 async def test_unified_open_close():
@@ -11,7 +13,7 @@ async def test_unified_open_close():
     on any supported platform.
     """
     filter_str = "tcp.DstPort == 80"
-    
+
     # Use as a context manager
     try:
         with PyDivert(filter_str) as w:
@@ -38,7 +40,7 @@ def test_backend_selection():
     """
     w = PyDivert()
     impl_class = w._impl.__class__.__name__
-    
+
     if sys.platform == "win32":
         assert impl_class == "WinDivert"
     elif sys.platform.startswith("linux"):

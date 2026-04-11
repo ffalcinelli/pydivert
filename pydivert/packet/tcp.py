@@ -62,7 +62,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
     cwr: bool = flag_property("cwr", 13, 0b10000000)  # type: ignore[assignment]
     ece: bool = flag_property("ece", 13, 0b01000000)  # type: ignore[assignment]
 
-    urg: bool = flag_property("syn", 13, 0b00100000)  # type: ignore[assignment]
+    urg: bool = flag_property("urg", 13, 0b00100000)  # type: ignore[assignment]
     ack: bool = flag_property("ack", 13, 0b00010000)  # type: ignore[assignment]
     psh: bool = flag_property("psh", 13, 0b00001000)  # type: ignore[assignment]
     rst: bool = flag_property("rst", 13, 0b00000100)  # type: ignore[assignment]

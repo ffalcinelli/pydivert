@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+
 import pytest
-import asyncio
+
 from pydivert.base import BaseDivert
-from pydivert.packet import Packet
-from pydivert.consts import Layer, Flag
+from pydivert.consts import Flag, Layer
+
 
 class MockDivert(BaseDivert):
     def __init__(self, filter="true", layer=Layer.NETWORK, priority=0, flags=Flag.DEFAULT):

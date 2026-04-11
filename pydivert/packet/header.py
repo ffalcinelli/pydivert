@@ -33,10 +33,25 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class Header:
     __slots__ = ("_packet", "_start")
+    __repr_fields__: tuple[str, ...] = ()
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         self._packet = packet
         self._start = start
+
+    def __repr__(self) -> str:
+        fields = []
+        for k in self.__repr_fields__:
+            try:
+                v = getattr(self, k)
+                if v is None:
+                    continue
+                if k == "raw" and isinstance(v, memoryview):
+                    v = f"<memoryview of {len(v)} bytes>"
+                fields.append(f"{k}={v!r}")
+            except (AttributeError, ValueError):
+                continue
+        return f"{self.__class__.__name__}({', '.join(fields)})"
 
     @property
     def raw(self) -> memoryview:

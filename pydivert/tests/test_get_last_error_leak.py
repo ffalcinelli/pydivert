@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
-
 from pydivert import WinDivert
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 
 def test_get_last_error_leak_mock():

@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import logging
-import socket
 import asyncio
+import atexit
+import logging
+import re
+import socket
 import subprocess
 import sys
-import re
-import atexit
+
 from pydivert.base import BaseDivert
+from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
-from pydivert.consts import Layer, Flag
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +35,13 @@ class Divert(BaseDivert):
     def _parse_filter_to_ipfw(self):
         rules = []
         filter_str = self._translated_filter
+
+        # Base rule for broad interception
         if filter_str.lower() == "true":
-            rules.append(f"divert {self._port} ip from any to any")
+            # Avoid port 22 (SSH)
+            rules.append(f"divert {self._port} ip from any to any not port 22")
         elif filter_str.lower() == "tcp":
-            rules.append(f"divert {self._port} tcp from any to any")
+            rules.append(f"divert {self._port} tcp from any to any not port 22")
         elif filter_str.lower() == "udp":
             rules.append(f"divert {self._port} udp from any to any")
         else:
@@ -51,49 +55,63 @@ class Divert(BaseDivert):
                     port = m.group(3)
                     if port_type == 'dstport':
                         rules.append(f"divert {self._port} {proto} from any to any {port}")
-                        # Also need the return path if loopback or stateful?
                     else:
                         rules.append(f"divert {self._port} {proto} from any {port} to any")
+                elif part.lower() == "loopback":
+                    rules.append(f"divert {self._port} ip from any to any via lo0")
+                elif part.lower() == "outbound":
+                    rules.append(f"divert {self._port} ip from any to any out")
         return rules
 
     def open(self) -> None:
         logger.info("Opening BSD divert socket on port %d with filter: %s", self._port, self._translated_filter)
-        try:
-            # IPPROTO_DIVERT isn't in all Python versions' socket module by name
-            IPPROTO_DIVERT = getattr(socket, 'IPPROTO_DIVERT', 258) 
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
-            self._socket.bind(('0.0.0.0', self._port))
-        except (OSError, PermissionError) as e:
-            self._socket = None
-            raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?")
+
+        # IPPROTO_DIVERT isn't in all Python versions' socket module by name
+        IPPROTO_DIVERT = getattr(socket, 'IPPROTO_DIVERT', 258)
+
+        # Try a few ports if busy
+        for _i in range(10):
+            try:
+                self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
+                self._socket.bind(('0.0.0.0', self._port))
+                break
+            except (OSError, PermissionError) as e:
+                if getattr(e, 'errno', None) == 48 or "Address already in use" in str(e):
+                    self._port += 1
+                    continue
+                self._socket = None
+                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?")
+        else:
+             raise OSError("Failed to find a free port for divert socket. Are you root?")
 
         if sys.platform.startswith("freebsd"):
             self._applied_rules = self._parse_filter_to_ipfw()
+            self._applied_rules_with_numbers = []
             for r in self._applied_rules:
                 try:
-                    subprocess.run(["ipfw", "add", "100", *r.split()], check=True)
+                    # Use a range of rules to avoid overlap in parallel tests
+                    rule_num = 100 + (self._port % 1000)
+                    subprocess.run(["ipfw", "add", str(rule_num), *r.split()], check=True, capture_output=True)
+                    self._applied_rules_with_numbers.append((rule_num, r))
                 except Exception as e:
                     logger.error(f"Failed to apply ipfw rule: {e}")
 
     def close(self) -> None:
         if self._socket:
-            logger.info("Closing BSD divert socket")
-            try:
-                self._socket.close()
-            except Exception:
-                pass
+            logger.info("Closing BSD divert socket on port %d", self._port)
+            if sys.platform.startswith("freebsd"):
+                if hasattr(self, '_applied_rules_with_numbers'):
+                    for num, _r in self._applied_rules_with_numbers:
+                        try:
+                            subprocess.run(["ipfw", "delete", str(num)], check=False, capture_output=True)
+                        except Exception:
+                            pass
+            self._socket.close()
             self._socket = None
-        
-        if sys.platform.startswith("freebsd"):
-            for r in self._applied_rules:
-                try:
-                    # Very crude way to delete rules
-                    subprocess.run(["ipfw", "delete", "100"], check=False, stderr=subprocess.DEVNULL)
-                except Exception:
-                    pass
-        self._applied_rules = []
+
         if self in Divert._instances:
             Divert._instances.remove(self)
+        self._applied_rules = []
 
     @property
     def is_open(self) -> bool:
@@ -102,18 +120,26 @@ class Divert(BaseDivert):
     def recv(self) -> Packet:
         if not self.is_open:
             raise RuntimeError("Socket is not open.")
-        
+
         while True:
-            data, addr = self._socket.recvfrom(65535)
+            try:
+                data, addr = self._socket.recvfrom(65535)
+            except OSError as e:
+                if not self.is_open:
+                    raise RuntimeError("Socket closed during recv")
+                raise e
+
             p = Packet(data)
-            p._bsd_addr = addr # Store original addr for re-injection
-            
+            p._bsd_addr = addr
+
             # User space filtering
             if p.matches(self._translated_filter):
                 return p
             else:
-                # If it doesn't match, we must re-inject it so we don't break traffic!
-                self._socket.sendto(data, addr)
+                try:
+                    self._socket.sendto(data, addr)
+                except Exception:
+                    pass
 
     async def recv_async(self) -> Packet:
         if not self.is_open:
@@ -124,13 +150,16 @@ class Divert(BaseDivert):
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if not self.is_open:
             raise RuntimeError("Socket is not open.")
-        
+
         if recalculate_checksum:
             packet.recalculate_checksums()
-            
+
         addr = getattr(packet, '_bsd_addr', (packet.dst_addr, 0))
-        raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
-        return self._socket.sendto(raw_bytes, addr)
+        try:
+            return self._socket.sendto(packet.raw, addr)
+        except Exception as e:
+            logger.error(f"Failed to send packet: {e}")
+            return 0
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)

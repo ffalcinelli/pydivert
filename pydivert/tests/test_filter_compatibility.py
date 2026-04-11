@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import pytest
 import sys
+
+import pytest
+
 from pydivert import PyDivert
 
 FILTERS = [
@@ -25,6 +27,7 @@ FILTERS = [
     # Parentheses (stripped by transpiler)
     "(tcp.DstPort == 80)",
     "(tcp.DstPort == 80) or (tcp.DstPort == 443)",
+    "loopback",
 ]
 
 UNSUPPORTED_FILTERS = [
@@ -32,7 +35,6 @@ UNSUPPORTED_FILTERS = [
     "icmp",
     "tcp.PayloadLength > 0",
     "ip.SrcAddr == 127.0.0.1",
-    "loopback",
     "outbound",
     "tcp.Flags.Syn",
 ]
@@ -46,7 +48,7 @@ def test_filter_compatibility_supported(filter_str):
     try:
         w = PyDivert(filter_str)
         assert w.filter == filter_str.strip()
-        
+
         # Check if transpilation produced something (Linux/BSD specific)
         if sys.platform.startswith("linux"):
             rules = w._impl._parse_filter_to_iptables()
@@ -55,7 +57,7 @@ def test_filter_compatibility_supported(filter_str):
         elif sys.platform.startswith("freebsd"):
             rules = w._impl._parse_filter_to_ipfw()
             assert len(rules) > 0
-            
+
     except Exception as e:
         pytest.fail(f"Filter '{filter_str}' failed on {sys.platform}: {e}")
 
@@ -64,17 +66,17 @@ def test_filter_compatibility_unsupported(filter_str):
     """
     On Linux/BSD, some filters are known to be unsupported by the transpiler.
     They should currently not raise an error during construction (they'll just
-    produce no firewall rules, relying on user-space filtering), but we 
+    produce no firewall rules, relying on user-space filtering), but we
     document this behavior here.
     """
     w = PyDivert(filter_str)
-    
+
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         if sys.platform.startswith("linux"):
             rules = w._impl._parse_filter_to_iptables()
         else:
             rules = w._impl._parse_filter_to_ipfw()
-            
+
         # These filters currently result in 0 rules, meaning they intercept NOTHING
         # at the kernel level, which is a known limitation.
         assert len(rules) == 0

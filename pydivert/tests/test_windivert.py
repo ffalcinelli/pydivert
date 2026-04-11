@@ -23,15 +23,16 @@
 # see <https://www.gnu.org/licenses/>.
 
 import sys
-import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+import pytest
 
 from pydivert.consts import Param
 from pydivert.windivert import WinDivert
 
 from .fixtures import scenario
 from .fixtures import windivert_handle as w
+
+pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
 
 assert scenario, w  # keep fixtures
 

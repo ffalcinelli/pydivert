@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import socket
+import sys
 import threading
 import time
+
 import pytest
-import sys
+
 from pydivert import PyDivert
+
 
 def get_free_port(proto=socket.SOCK_DGRAM):
     with socket.socket(socket.AF_INET, proto) as s:
@@ -24,7 +27,7 @@ def udp_echo_server(port, stop_event):
                 if data == b"STOP":
                     break
                 s.sendto(b"Echo: " + data, addr)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except Exception:
                 break
@@ -40,7 +43,7 @@ def test_ping_pong_modification(use_async):
     """
     server_port = get_free_port()
     stop_event = threading.Event()
-    
+
     # Start Echo Server
     server_thread = threading.Thread(target=udp_echo_server, args=(server_port, stop_event), daemon=True)
     server_thread.start()
@@ -56,14 +59,14 @@ def test_ping_pong_modification(use_async):
             with PyDivert(filter_str) as w:
                 while not divert_stop_event.is_set():
                     try:
-                        # Try to receive with a short timeout if possible, 
+                        # Try to receive with a short timeout if possible,
                         # but recv() is blocking. For tests, we rely on the client sending a packet.
                         packet = w.recv()
                         captured_count[0] += 1
-                        
+
                         if packet.payload and b"Echo: " in packet.payload:
                             packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
-                        
+
                         w.send(packet)
                     except Exception as e:
                         if not divert_stop_event.is_set():
@@ -83,10 +86,10 @@ def test_ping_pong_modification(use_async):
                         # recv_async might not have a timeout, so we use wait_for
                         packet = await asyncio.wait_for(w.recv_async(), timeout=1.0)
                         captured_count[0] += 1
-                        
+
                         if packet.payload and b"Echo: " in packet.payload:
                             packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
-                        
+
                         await w.send_async(packet)
                     except asyncio.TimeoutError:
                         continue
@@ -106,7 +109,7 @@ def test_ping_pong_modification(use_async):
         divert_thread = threading.Thread(target=run_async_diverter, daemon=True)
     else:
         divert_thread = threading.Thread(target=diverter, daemon=True)
-        
+
     divert_thread.start()
     time.sleep(1.0) # Wait for diverter to initialize
 
@@ -115,14 +118,14 @@ def test_ping_pong_modification(use_async):
             client.settimeout(2.0)
             message = b"Hello PyDivert"
             client.sendto(message, ("127.0.0.1", server_port))
-            
+
             try:
                 resp, _ = client.recvfrom(1024)
                 # Normal echo would be b"Echo: Hello PyDivert"
                 # Modified should be b"Modified: Hello PyDivert"
                 assert resp == b"Modified: Hello PyDivert"
                 assert captured_count[0] > 0
-            except socket.timeout:
+            except TimeoutError:
                 # If we timeout, PyDivert might not be working (e.g. not root)
                 # We check if it was even opened.
                 pytest.skip(f"Timeout on {sys.platform}. Are you running as root/admin?")
