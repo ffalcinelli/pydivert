@@ -48,7 +48,9 @@ class NetFilterQueue(BaseDivert):
     """
     _instances = set()
 
-    def __init__(self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT) -> None:
+    def __init__(
+        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+    ) -> None:
         super().__init__(filter, layer, priority, flags)
         self._nfqueue = None
         # Use priority to offset queue number to avoid collisions in parallel tests
@@ -127,7 +129,10 @@ class NetFilterQueue(BaseDivert):
             try:
                 # Intercept on INPUT, OUTPUT and FORWARD to be thorough (esp. for loopback)
                 for chain in ["INPUT", "OUTPUT", "FORWARD"]:
-                    subprocess.run(["iptables", "-I", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=True)
+                    subprocess.run(
+                        ["iptables", "-I", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                        check=True
+                    )
             except Exception as e:
                 logger.error(f"Failed to add iptables rule: {e}")
 
@@ -138,7 +143,10 @@ class NetFilterQueue(BaseDivert):
         for r in self._applied_rules:
             try:
                 for chain in ["INPUT", "OUTPUT", "FORWARD"]:
-                    subprocess.run(["iptables", "-D", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)], check=False, stderr=subprocess.DEVNULL)
+                    subprocess.run(
+                        ["iptables", "-D", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                        check=False, stderr=subprocess.DEVNULL
+                    )
             except Exception:
                 pass
         self._applied_rules = []
@@ -198,7 +206,7 @@ class NetFilterQueue(BaseDivert):
     async def recv_async(self) -> Packet:
         if not self.is_open:
             raise RuntimeError("Queue is not open.")
-        
+
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()
             self._async_queue = asyncio.Queue(maxsize=10000)

@@ -5,6 +5,7 @@ import subprocess
 # Define all targets, including 'local' for the host OS
 TARGETS = ["local", "windows", "linux", "freebsd", "macos"]
 
+
 def run_cmd(cmd, shell=False, check=True):
     print(f"Executing: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
     try:
@@ -13,6 +14,7 @@ def run_cmd(cmd, shell=False, check=True):
     except subprocess.CalledProcessError as e:
         print(f"Command failed with exit code {e.returncode}")
         return e
+
 
 def main():
     coverage_files = []
@@ -25,25 +27,44 @@ def main():
         elif target == "windows":
             run_cmd(["vagrant", "up", "windows"], check=False)
             # Use PowerShell to execute pytest and explicitly exit with its exit code.
-            # We also try to suppress Scapy's warning by setting log level if possible, 
+            # We also try to suppress Scapy's warning by setting log level if possible,
             # or just ignore it.
-            cmd = ["vagrant", "powershell", "windows", "-c", "$env:UV_PROJECT_ENVIRONMENT='C:\\pydivert_venv'; cd C:\\pydivert; $env:PYTHONWARNINGS='ignore'; C:\\pydivert_venv\\Scripts\\python.exe -m pytest --cov=pydivert --cov-report=; exit $LASTEXITCODE"]
+            ps_cmd = (
+                "$env:UV_PROJECT_ENVIRONMENT='C:\\pydivert_venv'; "
+                "cd C:\\pydivert; $env:PYTHONWARNINGS='ignore'; "
+                "C:\\pydivert_venv\\Scripts\\python.exe -m pytest --cov=pydivert --cov-report=; "
+                "exit $LASTEXITCODE"
+            )
+            cmd = ["vagrant", "powershell", "windows", "-c", ps_cmd]
         elif target == "linux":
             run_cmd(["vagrant", "up", "linux"], check=False)
             run_cmd(["vagrant", "ssh", "linux", "-c", "sudo ethtool -K lo rx off tx off"], check=False)
-            cmd = ["vagrant", "ssh", "linux", "-c", "cd /home/vagrant/pydivert && echo 'vagrant' | sudo -S /home/vagrant/pydivert_venv/bin/python -m pytest --cov=pydivert --cov-report="]
+            linux_cmd = (
+                "cd /home/vagrant/pydivert && "
+                "echo 'vagrant' | sudo -S /home/vagrant/pydivert_venv/bin/python -m pytest "
+                "--cov=pydivert --cov-report="
+            )
+            cmd = ["vagrant", "ssh", "linux", "-c", linux_cmd]
         elif target == "freebsd":
             run_cmd(["vagrant", "up", "freebsd"], check=False)
             run_cmd(["vagrant", "ssh", "freebsd", "-c", "sudo kldload ipdivert || true"], check=False)
             run_cmd(["vagrant", "rsync", "freebsd"], check=False)
-            cmd = ["vagrant", "ssh", "freebsd", "-c", "cd /vagrant && echo 'vagrant' | sudo -S /home/vagrant/pydivert_venv/bin/python -m pytest --cov=pydivert --cov-report="]
+            freebsd_cmd = (
+                "cd /vagrant && echo 'vagrant' | sudo -S /home/vagrant/pydivert_venv/bin/python -m pytest "
+                "--cov=pydivert --cov-report="
+            )
+            cmd = ["vagrant", "ssh", "freebsd", "-c", freebsd_cmd]
         elif target == "macos":
             # Best effort for macOS
             res = run_cmd(["vagrant", "up", "macos"], check=False)
             if res.returncode != 0:
                 print("Skipping real macOS (VM failed to start).")
                 continue
-            cmd = ["vagrant", "ssh", "macos", "-c", "cd /Users/vagrant/pydivert && /Users/vagrant/pydivert_venv/bin/python -m pytest --cov=pydivert --cov-report="]
+            macos_cmd = (
+                "cd /Users/vagrant/pydivert && "
+                "/Users/vagrant/pydivert_venv/bin/python -m pytest --cov=pydivert --cov-report="
+            )
+            cmd = ["vagrant", "ssh", "macos", "-c", macos_cmd]
 
         res = run_cmd(cmd, check=False)
         if res.returncode != 0:
@@ -66,6 +87,7 @@ def main():
         print("Consolidated report generated. See htmlcov/index.html")
     else:
         print("No coverage files collected.")
+
 
 if __name__ == "__main__":
     main()

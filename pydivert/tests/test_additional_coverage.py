@@ -2,13 +2,14 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from lark import LarkError
 
 from pydivert.filter import transpile
 from pydivert.packet import Packet
 
 
 def test_transpile_errors():
-    with pytest.raises(Exception):
+    with pytest.raises(LarkError):
         transpile("invalid[[]")
 
 def test_packet_edge_cases():

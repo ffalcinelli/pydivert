@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
+
 import pytest
+
 from pydivert.bsd import Divert
+
 
 def setup_module(module):
     """Skip all tests in this module if not running on BSD or macOS."""

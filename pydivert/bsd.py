@@ -40,7 +40,9 @@ class Divert(BaseDivert):
     """
     _instances = set()
 
-    def __init__(self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT) -> None:
+    def __init__(
+        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+    ) -> None:
         super().__init__(filter, layer, priority, flags)
         self._socket = None
         self._port = 8888 + (priority % 1000)
@@ -101,7 +103,7 @@ class Divert(BaseDivert):
                     self._port += 1
                     continue
                 self._socket = None
-                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?")
+                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
         else:
              raise OSError("Failed to find a free port for divert socket. Are you root?")
 
@@ -147,7 +149,7 @@ class Divert(BaseDivert):
                 data, addr = self._socket.recvfrom(65535)
             except OSError as e:
                 if not self.is_open:
-                    raise RuntimeError("Socket closed during recv")
+                    raise RuntimeError("Socket closed during recv") from e
                 raise e
 
             p = Packet(data)

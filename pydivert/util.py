@@ -80,7 +80,8 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
             udp_hdr_payload = bytearray(packet.udp.raw)
             udp_hdr_payload[6:8] = b'\x00\x00'
             csum = calc_csum(pseudo_hdr + udp_hdr_payload)
-            if csum == 0: csum = 0xFFFF
+            if csum == 0:
+                csum = 0xFFFF
             struct.pack_into("!H", packet.raw, proto_start + 6, csum)
             count += 1
     elif packet.icmpv4 and proto_start is not None:
@@ -103,8 +104,10 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
 def fallback_matches(packet, filter: str) -> bool:
     """Non-Windows fallback for filter evaluation."""
     filter_lower = filter.lower()
-    if filter_lower == "true": return True
-    if filter_lower == "false": return False
+    if filter_lower == "true":
+        return True
+    if filter_lower == "false":
+        return False
 
     # Simple eval logic for tests
     py_filter = re.sub(r'\b(or)\b', ' or ', filter_lower)

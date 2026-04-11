@@ -11,19 +11,22 @@ from pydivert import PyDivert
 def test_pydivert_platform_selection():
     with patch("sys.platform", "linux2"):
         # Force re-import of linux to ensure NetFilterQueue is used
-        if "pydivert.linux" in sys.modules: del sys.modules["pydivert.linux"]
+        if "pydivert.linux" in sys.modules:
+            del sys.modules["pydivert.linux"]
         from pydivert.linux import NetFilterQueue
         w = PyDivert()
         assert isinstance(w._impl, NetFilterQueue)
 
     with patch("sys.platform", "freebsd14"):
-        if "pydivert.bsd" in sys.modules: del sys.modules["pydivert.bsd"]
+        if "pydivert.bsd" in sys.modules:
+            del sys.modules["pydivert.bsd"]
         from pydivert.bsd import Divert
         w = PyDivert()
         assert isinstance(w._impl, Divert)
 
     with patch("sys.platform", "darwin"):
-        if "pydivert.macos" in sys.modules: del sys.modules["pydivert.macos"]
+        if "pydivert.macos" in sys.modules:
+            del sys.modules["pydivert.macos"]
         from pydivert.macos import MacOSDivert
         # Mock PF initialization or it will fail
         with patch("subprocess.run") as mock_run:
@@ -130,7 +133,7 @@ def test_windivert_dll_init_mock():
             from pydivert import windivert_dll
             try:
                 windivert_dll._init()
-            except:
+            except Exception:
                 pass
 
 def test_linux_nfq_errors():

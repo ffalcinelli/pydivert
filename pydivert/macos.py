@@ -40,7 +40,9 @@ class MacOSDivert(BaseDivert):
     _instances = set()
     _anchor_base = "com.apple/pydivert"
 
-    def __init__(self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT) -> None:
+    def __init__(
+        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+    ) -> None:
         super().__init__(filter, layer, priority, flags)
         self._socket = None
         self._port = 8888 + (priority % 1000)
@@ -135,7 +137,7 @@ class MacOSDivert(BaseDivert):
                     self._port += 1
                     self._anchor_name = f"{self._anchor_base}.{self._port}"
                     continue
-                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?")
+                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
         else:
              raise OSError("Failed to find a free port for divert socket.")
 
@@ -154,14 +156,17 @@ class MacOSDivert(BaseDivert):
 
             logger.debug("Loading PF rules into anchor %s:\n%s", self._anchor_name, rules_str)
 
-            process = subprocess.Popen(["pfctl", "-a", self._anchor_name, "-f", "-"], stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            process = subprocess.Popen(
+                ["pfctl", "-a", self._anchor_name, "-f", "-"],
+                stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+            )
             stdout, stderr = process.communicate(input=rules_str)
             if process.returncode != 0:
                 raise RuntimeError(f"Failed to load PF rules: {stderr}")
 
         except Exception as e:
             self.close()
-            raise RuntimeError(f"Failed to configure PF: {e}")
+            raise RuntimeError(f"Failed to configure PF: {e}") from e
 
     def close(self) -> None:
         if self._socket:
@@ -195,7 +200,7 @@ class MacOSDivert(BaseDivert):
                 data, addr = self._socket.recvfrom(65535)
             except OSError as e:
                 if not self.is_open:
-                    raise RuntimeError("Socket closed during recv")
+                    raise RuntimeError("Socket closed during recv") from e
                 raise e
 
             # For divert sockets:
