@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Header:
-    __slots__ = ("_packet", "_start", "__dict__")
+    __slots__ = ("_packet", "_start")
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         self._packet = packet
@@ -56,6 +56,8 @@ class Header:
 
 
 class RawProtocol:
+    __slots__ = ()
+
     @property
     def raw(self) -> memoryview:
         raise NotImplementedError()
@@ -66,6 +68,8 @@ class RawProtocol:
 
 
 class PayloadMixin(RawProtocol):
+    __slots__ = ()
+
     @property
     def header_len(self) -> int:
         raise NotImplementedError()  # pragma: no cover
@@ -79,6 +83,8 @@ class PayloadMixin(RawProtocol):
 
     @payload.setter
     def payload(self, val: bytes | bytearray | memoryview) -> None:
+        if not isinstance(val, (bytes, bytearray, memoryview)):
+            raise AttributeError("payload must be bytes-like")
         if len(val) == len(self.raw) - self.header_len:
             self.raw[self.header_len :] = val
         else:
@@ -86,6 +92,8 @@ class PayloadMixin(RawProtocol):
 
 
 class PortMixin(RawProtocol):
+    __slots__ = ()
+
     @property
     def src_port(self) -> int:
         """

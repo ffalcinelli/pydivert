@@ -481,6 +481,7 @@ class Packet:
         import socket
         
         if sys.platform != 'win32':
+            from pydivert.consts import CalcChecksumsOption
             # Fallback for non-Windows platforms. Basic recalculation of IPv4, TCP, UDP checksums.
             def calc_csum(data):
                 if len(data) % 2 == 1:
@@ -495,11 +496,12 @@ class Packet:
             
             if self.ipv4:
                 # IPv4 Header Checksum
-                ip_hdr = bytearray(self.ipv4.raw[:self.ipv4.header_len])
-                ip_hdr[10:12] = b'\x00\x00'
-                csum = calc_csum(ip_hdr)
-                struct.pack_into("!H", self.raw, self.ipv4._start + 10, csum)
-                count += 1
+                if not (flags & CalcChecksumsOption.NO_IP_CHECKSUM):
+                    ip_hdr = bytearray(self.ipv4.raw[:self.ipv4.header_len])
+                    ip_hdr[10:12] = b'\x00\x00'
+                    csum = calc_csum(ip_hdr)
+                    struct.pack_into("!H", self.raw, self.ipv4._start + 10, csum)
+                    count += 1
                 
                 # Pseudo-header for IPv4
                 pseudo_hdr = struct.pack("!4s4sBBH", 
@@ -518,31 +520,35 @@ class Packet:
                 return 0
 
             if self.tcp and proto_start is not None:
-                tcp_hdr_payload = bytearray(self.tcp.raw)
-                tcp_hdr_payload[16:18] = b'\x00\x00'
-                csum = calc_csum(pseudo_hdr + tcp_hdr_payload)
-                struct.pack_into("!H", self.raw, proto_start + 16, csum)
-                count += 1
+                if not (flags & CalcChecksumsOption.NO_TCP_CHECKSUM):
+                    tcp_hdr_payload = bytearray(self.tcp.raw)
+                    tcp_hdr_payload[16:18] = b'\x00\x00'
+                    csum = calc_csum(pseudo_hdr + tcp_hdr_payload)
+                    struct.pack_into("!H", self.raw, proto_start + 16, csum)
+                    count += 1
             elif self.udp and proto_start is not None:
-                udp_hdr_payload = bytearray(self.udp.raw)
-                udp_hdr_payload[6:8] = b'\x00\x00'
-                csum = calc_csum(pseudo_hdr + udp_hdr_payload)
-                if csum == 0: csum = 0xFFFF
-                struct.pack_into("!H", self.raw, proto_start + 6, csum)
-                count += 1
+                if not (flags & CalcChecksumsOption.NO_UDP_CHECKSUM):
+                    udp_hdr_payload = bytearray(self.udp.raw)
+                    udp_hdr_payload[6:8] = b'\x00\x00'
+                    csum = calc_csum(pseudo_hdr + udp_hdr_payload)
+                    if csum == 0: csum = 0xFFFF
+                    struct.pack_into("!H", self.raw, proto_start + 6, csum)
+                    count += 1
             elif self.icmpv4 and proto_start is not None:
-                icmp_hdr_payload = bytearray(self.icmpv4.raw)
-                icmp_hdr_payload[2:4] = b'\x00\x00'
-                csum = calc_csum(icmp_hdr_payload)
-                struct.pack_into("!H", self.raw, proto_start + 2, csum)
-                count += 1
+                if not (flags & CalcChecksumsOption.NO_ICMP_CHECKSUM):
+                    icmp_hdr_payload = bytearray(self.icmpv4.raw)
+                    icmp_hdr_payload[2:4] = b'\x00\x00'
+                    csum = calc_csum(icmp_hdr_payload)
+                    struct.pack_into("!H", self.raw, proto_start + 2, csum)
+                    count += 1
             elif self.icmpv6 and proto_start is not None:
-                # ICMPv6 uses pseudo-header
-                icmp_hdr_payload = bytearray(self.icmpv6.raw)
-                icmp_hdr_payload[2:4] = b'\x00\x00'
-                csum = calc_csum(pseudo_hdr + icmp_hdr_payload)
-                struct.pack_into("!H", self.raw, proto_start + 2, csum)
-                count += 1
+                if not (flags & CalcChecksumsOption.NO_ICMPV6_CHECKSUM):
+                    # ICMPv6 uses pseudo-header
+                    icmp_hdr_payload = bytearray(self.icmpv6.raw)
+                    icmp_hdr_payload[2:4] = b'\x00\x00'
+                    csum = calc_csum(pseudo_hdr + icmp_hdr_payload)
+                    struct.pack_into("!H", self.raw, proto_start + 2, csum)
+                    count += 1
                 
             return count
             

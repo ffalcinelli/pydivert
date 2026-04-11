@@ -42,6 +42,8 @@ class ICMPHeader(Header, PayloadMixin):
 
     @type.setter
     def type(self, val: int) -> None:
+        if not isinstance(val, int):
+            raise AttributeError("type must be an integer")
         self.raw[0] = val
 
     @property
@@ -53,6 +55,8 @@ class ICMPHeader(Header, PayloadMixin):
 
     @code.setter
     def code(self, val: int) -> None:
+        if not isinstance(val, int):
+            raise AttributeError("code must be an integer")
         self.raw[1] = val
 
     cksum: int = raw_property("!H", 2, docs="The ICMP header checksum field.")  # type: ignore[assignment]
@@ -60,8 +64,8 @@ class ICMPHeader(Header, PayloadMixin):
 
 class ICMPv4Header(ICMPHeader):
     __slots__ = ()
-    header_len: int = 4
+    header_len: int = 8
 
 
 class ICMPv6Header(ICMPHeader):
-    header_len: int = 4
+    header_len: int = 8
