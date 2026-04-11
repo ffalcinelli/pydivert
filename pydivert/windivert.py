@@ -333,7 +333,8 @@ class WinDivert(BaseDivert):
 
         try:
             windivert_dll.WinDivertRecvEx(
-                self._handle, packet_, bufsize, ctypes.byref(recv_len), flags, ctypes.byref(address), ctypes.byref(addr_len), overlapped
+                self._handle, packet_, bufsize, ctypes.byref(recv_len), flags, ctypes.byref(address),
+                ctypes.byref(addr_len), overlapped
             )
         except OSError as e:
             if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:

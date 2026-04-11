@@ -49,7 +49,7 @@ class NetFilterQueue(BaseDivert):
        disconnect your session if not handled properly. This implementation automatically
        tries to exclude port 22 traffic for safety.
     """
-    _instances: set["NetFilterQueue"] = set()
+    _instances: set[NetFilterQueue] = set()
 
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT

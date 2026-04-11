@@ -40,7 +40,7 @@ class Divert(BaseDivert):
     - It only supports `Layer.NETWORK`.
     - macOS support for divert sockets is largely deprecated in newer versions.
     """
-    _instances: set["Divert"] = set()
+    _instances: set[Divert] = set()
 
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
@@ -155,7 +155,7 @@ class Divert(BaseDivert):
                 raise e
 
             p = Packet(data)
-            setattr(p, "_bsd_addr", addr)
+            p._bsd_addr = addr
 
             # User space filtering
             if p.matches(self._translated_filter):

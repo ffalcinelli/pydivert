@@ -27,7 +27,6 @@ from __future__ import annotations
 import struct
 
 from pydivert.packet.header import Header, PayloadMixin
-from pydivert.util import raw_property
 
 
 class ICMPHeader(Header, PayloadMixin):

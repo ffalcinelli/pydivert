@@ -39,7 +39,7 @@ class MacOSDivert(BaseDivert):
     - Only supports IPv4 (limitation of macOS `pf` divert sockets).
     - Advanced WinDivert features (Flow/Socket/Reflect) are not supported.
     """
-    _instances: set["MacOSDivert"] = set()
+    _instances: set[MacOSDivert] = set()
     _anchor_base = "com.apple/pydivert"
 
     def __init__(
@@ -207,7 +207,7 @@ class MacOSDivert(BaseDivert):
             direction = Direction.OUTBOUND if addr[0] == "0.0.0.0" else Direction.INBOUND
 
             p = Packet(data, direction=direction)
-            setattr(p, "_bsd_addr", addr)
+            p._bsd_addr = addr
 
             # User space filtering if needed (e.g. for v6 or complex filters)
             if p.matches(self.filter):

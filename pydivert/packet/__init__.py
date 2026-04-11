@@ -62,6 +62,7 @@ class Packet:
         "flow",
         "socket",
         "reflect",
+        "_bsd_addr",
         "_cached_buff_len",
         "_cached_buff_id",
         "_cached_buff",
@@ -160,8 +161,11 @@ class Packet:
         self.socket: Any | None = socket
         """The socket metadata (for Layer.SOCKET)."""
         self.reflect: Any | None = reflect
-        """The reflect metadata (for Layer.REFLECT)."""
+        """The reflect metadata (for Layer.FLOW)."""
+        self._bsd_addr: Any | None = None
+        """Internal storage for BSD/macOS divert socket address."""
         self._cached_buff_len: int | None = None
+
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
 
