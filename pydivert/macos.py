@@ -59,48 +59,53 @@ class MacOSDivert(BaseDivert):
         """
         Translates a WinDivert filter string into macOS PF (packet filter) rules.
         """
-        rules = []
         filter_str = self.filter.strip()
+        directions = self._get_pf_directions(filter_str)
+        proto, pf_from, pf_to = self._get_pf_components(filter_str)
+        pf_extra = " on lo0" if re.search(r'\bloopback\b', filter_str, re.I) else ""
 
-        # Determine directions
-        directions = ["in", "out"]
-        if re.search(r'\binbound\b', filter_str, re.I) and not re.search(r'\boutbound\b', filter_str, re.I):
-            directions = ["in"]
-        elif re.search(r'\boutbound\b', filter_str, re.I) and not re.search(r'\binbound\b', filter_str, re.I):
-            directions = ["out"]
+        rules = []
+        for direction in directions:
+            rule = f"pass {direction} quick proto {proto} from {pf_from} to {pf_to} {pf_extra} divert {self._port}"
+            # Clean up double spaces
+            rule = re.sub(r'\s+', ' ', rule).strip()
+            rules.append(rule)
+        return rules
 
-        # Basic translation logic
-        # Remove direction keywords and extra connectors
+    def _get_pf_directions(self, filter_str):
+        inbound = re.search(r'\binbound\b', filter_str, re.I)
+        outbound = re.search(r'\boutbound\b', filter_str, re.I)
+        if inbound and not outbound:
+            return ["in"]
+        if outbound and not inbound:
+            return ["out"]
+        return ["in", "out"]
+
+    def _get_pf_components(self, filter_str):
         clean_filter = re.sub(r'\b(inbound|outbound|and|or)\b', ' ', filter_str, flags=re.IGNORECASE).strip()
         clean_filter = re.sub(r'\s+', ' ', clean_filter)
 
-        pf_proto = "ip"
-        pf_from = "any"
-        pf_to = "any"
-        pf_extra = ""
-
-        # Check for protocols
+        proto = "ip"
         if re.search(r'\btcp\b', clean_filter, re.I):
-            pf_proto = "tcp"
+            proto = "tcp"
         elif re.search(r'\budp\b', clean_filter, re.I):
-            pf_proto = "udp"
+            proto = "udp"
         elif re.search(r'\bicmp\b', clean_filter, re.I):
-            pf_proto = "icmp"
+            proto = "icmp"
 
-        # Handle IP addresses
-        # Matches ip.SrcAddr == "1.2.3.4" or ip.DstAddr == "5.6.7.8"
+        pf_from = "any"
         src_match = re.search(r'ip\.SrcAddr\s*==\s*["\']?([\d\.]+)["\']?', filter_str, re.I)
         if src_match:
             pf_from = src_match.group(1)
 
+        pf_to = "any"
         dst_match = re.search(r'ip\.DstAddr\s*==\s*["\']?([\d\.]+)["\']?', filter_str, re.I)
         if dst_match:
             pf_to = dst_match.group(1)
 
-        # Check for port matches (only if not already set via ip match)
         m = re.search(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', filter_str, flags=re.IGNORECASE)
         if m:
-            pf_proto = m.group(1).lower()
+            proto = m.group(1).lower()
             port_type = m.group(2).lower()
             port = m.group(3)
             if port_type == 'dstport':
@@ -108,16 +113,7 @@ class MacOSDivert(BaseDivert):
             else:
                 pf_from += f" port {port}"
 
-        if re.search(r'\bloopback\b', filter_str, re.I):
-            pf_extra += " on lo0"
-
-        for direction in directions:
-            rule = f"pass {direction} quick proto {pf_proto} from {pf_from} to {pf_to} {pf_extra} divert {self._port}"
-            # Clean up double spaces
-            rule = re.sub(r'\s+', ' ', rule).strip()
-            rules.append(rule)
-
-        return rules
+        return proto, pf_from, pf_to
 
     def open(self) -> None:
         if self.is_open:

@@ -68,14 +68,21 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
     else:
         return 0
 
-    if packet.tcp and proto_start is not None:
+    if proto_start is not None:
+        count += _recalc_proto_checksums(packet, pseudo_hdr, proto_start, flags)
+
+    return count
+
+def _recalc_proto_checksums(packet, pseudo_hdr, proto_start, flags):
+    count = 0
+    if packet.tcp:
         if not (flags & CalcChecksumsOption.NO_TCP_CHECKSUM):
             tcp_hdr_payload = bytearray(packet.tcp.raw)
             tcp_hdr_payload[16:18] = b'\x00\x00'
             csum = calc_csum(pseudo_hdr + tcp_hdr_payload)
             struct.pack_into("!H", packet.raw, proto_start + 16, csum)
             count += 1
-    elif packet.udp and proto_start is not None:
+    elif packet.udp:
         if not (flags & CalcChecksumsOption.NO_UDP_CHECKSUM):
             udp_hdr_payload = bytearray(packet.udp.raw)
             udp_hdr_payload[6:8] = b'\x00\x00'
@@ -84,21 +91,20 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
                 csum = 0xFFFF
             struct.pack_into("!H", packet.raw, proto_start + 6, csum)
             count += 1
-    elif packet.icmpv4 and proto_start is not None:
+    elif packet.icmpv4:
         if not (flags & CalcChecksumsOption.NO_ICMP_CHECKSUM):
             icmp_hdr_payload = bytearray(packet.icmpv4.raw)
             icmp_hdr_payload[2:4] = b'\x00\x00'
             csum = calc_csum(icmp_hdr_payload)
             struct.pack_into("!H", packet.raw, proto_start + 2, csum)
             count += 1
-    elif packet.icmpv6 and proto_start is not None:
+    elif packet.icmpv6:
         if not (flags & CalcChecksumsOption.NO_ICMPV6_CHECKSUM):
             icmp_hdr_payload = bytearray(packet.icmpv6.raw)
             icmp_hdr_payload[2:4] = b'\x00\x00'
             csum = calc_csum(pseudo_hdr + icmp_hdr_payload)
             struct.pack_into("!H", packet.raw, proto_start + 2, csum)
             count += 1
-
     return count
 
 def fallback_matches(packet, filter: str) -> bool:

@@ -43,6 +43,45 @@ def udp_echo_server(port, stop_event):
             except Exception:
                 break
 
+def _run_diverter(filter_str, stop_event, captured_count):
+    try:
+        with PyDivert(filter_str) as w:
+            while not stop_event.is_set():
+                try:
+                    packet = w.recv()
+                    captured_count[0] += 1
+                    if packet.payload and b"Echo: " in packet.payload:
+                        packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
+                    w.send(packet)
+                except Exception as e:
+                    if not stop_event.is_set():
+                        print(f"Diverter error: {e}")
+                    break
+    except (PermissionError, OSError) as e:
+        print(f"Failed to open PyDivert: {e}")
+
+
+async def _run_diverter_async(filter_str, stop_event, captured_count):
+    import asyncio
+    try:
+        async with PyDivert(filter_str) as w:
+            while not stop_event.is_set():
+                try:
+                    packet = await asyncio.wait_for(w.recv_async(), timeout=1.0)
+                    captured_count[0] += 1
+                    if packet.payload and b"Echo: " in packet.payload:
+                        packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
+                    await w.send_async(packet)
+                except asyncio.TimeoutError:
+                    continue
+                except Exception as e:
+                    if not stop_event.is_set():
+                        print(f"Diverter async error: {e}")
+                    break
+    except (PermissionError, OSError) as e:
+        print(f"Failed to open PyDivert Async: {e}")
+
+
 @pytest.mark.parametrize("use_async", [False, True])
 def test_ping_pong_modification(use_async):
     """
@@ -60,66 +99,24 @@ def test_ping_pong_modification(use_async):
     server_thread.start()
 
     # PyDivert Interception
-    # We intercept the packets coming FROM the server port
     filter_str = f"udp.SrcPort == {server_port}"
     divert_stop_event = threading.Event()
     captured_count = [0]
 
-    def diverter():
-        try:
-            with PyDivert(filter_str) as w:
-                while not divert_stop_event.is_set():
-                    try:
-                        # Try to receive with a short timeout if possible,
-                        # but recv() is blocking. For tests, we rely on the client sending a packet.
-                        packet = w.recv()
-                        captured_count[0] += 1
-
-                        if packet.payload and b"Echo: " in packet.payload:
-                            packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
-
-                        w.send(packet)
-                    except Exception as e:
-                        if not divert_stop_event.is_set():
-                            print(f"Diverter error: {e}")
-                        break
-        except (PermissionError, OSError) as e:
-            print(f"Failed to open PyDivert: {e}")
-            pass
-
-    import asyncio
-    async def diverter_async():
-        try:
-            async with PyDivert(filter_str) as w:
-                # We need a way to stop the async loop
-                while not divert_stop_event.is_set():
-                    try:
-                        # recv_async might not have a timeout, so we use wait_for
-                        packet = await asyncio.wait_for(w.recv_async(), timeout=1.0)
-                        captured_count[0] += 1
-
-                        if packet.payload and b"Echo: " in packet.payload:
-                            packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
-
-                        await w.send_async(packet)
-                    except asyncio.TimeoutError:
-                        continue
-                    except Exception as e:
-                        if not divert_stop_event.is_set():
-                            print(f"Diverter async error: {e}")
-                        break
-        except (PermissionError, OSError) as e:
-            print(f"Failed to open PyDivert Async: {e}")
-            pass
-
     if use_async:
+        import asyncio
+
         def run_async_diverter():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(diverter_async())
+            loop.run_until_complete(_run_diverter_async(filter_str, divert_stop_event, captured_count))
         divert_thread = threading.Thread(target=run_async_diverter, daemon=True)
     else:
-        divert_thread = threading.Thread(target=diverter, daemon=True)
+        divert_thread = threading.Thread(
+            target=_run_diverter,
+            args=(filter_str, divert_stop_event, captured_count),
+            daemon=True
+        )
 
     divert_thread.start()
     time.sleep(1.0) # Wait for diverter to initialize
@@ -132,18 +129,13 @@ def test_ping_pong_modification(use_async):
 
             try:
                 resp, _ = client.recvfrom(1024)
-                # Normal echo would be b"Echo: Hello PyDivert"
-                # Modified should be b"Modified: Hello PyDivert"
                 assert resp == b"Modified: Hello PyDivert"
                 assert captured_count[0] > 0
             except TimeoutError:
-                # If we timeout, PyDivert might not be working (e.g. not root)
-                # We check if it was even opened.
                 pytest.skip(f"Timeout on {sys.platform}. Are you running as root/admin?")
     finally:
         divert_stop_event.set()
         stop_event.set()
-        # Wake up blocking recv by sending one more packet if needed
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"STOP", ("127.0.0.1", server_port))
         divert_thread.join(timeout=2.0)
