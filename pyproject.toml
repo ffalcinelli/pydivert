@@ -36,6 +36,7 @@ classifiers = [
 ]
 dependencies = [
     "lark",
+    "pdoc[docs]>=16.0.0",
 ]
 
 [project.optional-dependencies]

@@ -21,7 +21,30 @@ except ImportError:
 
 class NetFilterQueue(BaseDivert):
     """
-    Linux implementation using NetFilterQueue and iptables.
+    Linux implementation of the Divert interface using **NetFilterQueue** (NFQUEUE) and **iptables**.
+
+    This class provides a WinDivert-compatible API on Linux systems. It achieves packet interception
+    by dynamically adding `iptables` rules that target specific traffic and redirect it to a
+    user-space queue.
+
+    **Requirements:**
+    - `libnetfilter-queue` installed on the system.
+    - `NetFilterQueue` Python library.
+    - Root/Administrator privileges to modify `iptables` and bind to NFQUEUE.
+
+    **How it works:**
+    1.  When `.open()` is called, it translates the WinDivert-style `filter` string into `iptables` rules.
+    2.  It inserts these rules at the top of the `INPUT`, `OUTPUT`, and `FORWARD` chains.
+    3.  A background thread runs the NFQUEUE event loop, which places intercepted packets into a thread-safe queue.
+    4.  `.recv()` and `.recv_async()` read from this internal queue.
+    5.  `.send()` and `.send_async()` either accept/modify the original packet (if it was intercepted)
+        or inject a new packet using a raw socket.
+    6.  `.close()` removes the `iptables` rules and unbinds the queue.
+
+    .. warning::
+       Be careful with broad filters (like "true") as they might intercept SSH traffic and
+       disconnect your session if not handled properly. This implementation automatically
+       tries to exclude port 22 traffic for safety.
     """
     _instances = set()
 

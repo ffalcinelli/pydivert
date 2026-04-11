@@ -52,38 +52,70 @@ class BaseDivert(abc.ABC):
 
     @abc.abstractmethod
     def open(self) -> None:
-        """Opens the divert handle."""
+        """
+        Opens a connection to the Divert subsystem (WinDivert, NFQUEUE, or Divert socket).
+        Matches packets according to the `filter` provided at initialization.
+
+        :raises RuntimeError: If the handle is already open.
+        :raises OSError: If the connection fails (e.g. insufficient permissions).
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
     def close(self) -> None:
-        """Closes the divert handle."""
+        """
+        Closes the connection to the Divert subsystem and cleans up any
+        firewall rules or resources.
+        """
         raise NotImplementedError()
 
     @property
     @abc.abstractmethod
     def is_open(self) -> bool:
-        """Returns True if the handle is open."""
+        """Indicates if the Divert handle is currently open."""
         raise NotImplementedError()
 
     @abc.abstractmethod
     def recv(self) -> Packet:
-        """Receives a packet synchronously."""
+        """
+        Receives an intercepted packet that matched the filter.
+        This method blocks until a packet is available.
+
+        :return: A `pydivert.Packet` instance.
+        :raises RuntimeError: If the handle is closed.
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
     async def recv_async(self) -> Packet:
-        """Receives a packet asynchronously."""
+        """
+        Asynchronous version of `recv()`.
+        Yields control while waiting for a packet.
+
+        :return: A `pydivert.Packet` instance.
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        """Sends a packet synchronously."""
+        """
+        Injects a packet into the network stack or accepts a modified intercepted packet.
+
+        :param packet: The `pydivert.Packet` to send.
+        :param recalculate_checksum: If `True`, recalculate IP, TCP, UDP, and ICMP checksums before sending.
+        :return: Number of bytes sent.
+        """
         raise NotImplementedError()
 
     @abc.abstractmethod
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        """Sends a packet asynchronously."""
+        """
+        Asynchronous version of `send()`.
+
+        :param packet: The `pydivert.Packet` to send.
+        :param recalculate_checksum: If `True`, recalculate checksums.
+        :return: Number of bytes sent.
+        """
         raise NotImplementedError()
 
     def __enter__(self) -> "BaseDivert":

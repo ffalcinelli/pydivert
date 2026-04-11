@@ -15,7 +15,29 @@ logger = logging.getLogger(__name__)
 
 class Divert(BaseDivert):
     """
-    BSD implementation using divert sockets.
+    BSD implementation of the Divert interface using **Divert Sockets** and **ipfw**.
+
+    This implementation targets FreeBSD and macOS systems that support `IPPROTO_DIVERT`
+    sockets and the `ipfw` firewall.
+
+    **Requirements:**
+    - FreeBSD with a kernel compiled with `IPFW` and `IPDIVERT` support.
+    - macOS (Intel-based, SIP might need to be disabled for some operations).
+    - Root privileges to modify `ipfw` rules and open raw sockets.
+
+    **How it works:**
+    1.  On FreeBSD, `.open()` translates the WinDivert-style `filter` to `ipfw divert` rules.
+    2.  It opens a raw `IPPROTO_DIVERT` socket bound to a specific port (derived from `priority`).
+    3.  FreeBSD redirects packets matching the `ipfw` rules to the divert socket.
+    4.  `.recv()` reads raw IP packets from the socket.
+    5.  `.send()` writes raw packets back to the divert socket, which are then re-injected
+        into the networking stack after the rule that diverted them.
+    6.  `.close()` removes the `ipfw` rules and closes the socket.
+
+    **Limitations:**
+    - This implementation is less feature-rich than WinDivert (no Flow/Socket/Reflect layers).
+    - It only supports `Layer.NETWORK`.
+    - macOS support for divert sockets is largely deprecated in newer versions.
     """
     _instances = set()
 

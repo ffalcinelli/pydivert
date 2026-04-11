@@ -625,6 +625,7 @@ name = "pydivert"
 source = { editable = "." }
 dependencies = [
     { name = "lark" },
+    { name = "pdoc" },
 ]
 
 [package.optional-dependencies]
@@ -661,6 +662,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'typecheck'", specifier = ">=1.0.0" },
     { name = "netfilterqueue", marker = "sys_platform == 'linux' and extra == 'test'" },
     { name = "pdoc", marker = "extra == 'docs'", specifier = ">=14.0.0" },
+    { name = "pdoc", extras = ["docs"], specifier = ">=16.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest", marker = "extra == 'typecheck'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'" },

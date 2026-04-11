@@ -8,8 +8,35 @@ from pydivert.packet import Packet
 
 class PyDivert(BaseDivert):
     """
-    Cross-platform interface for Divert operations.
-    Delegates to the appropriate implementation based on the current operating system.
+    A cross-platform facade for capturing, filtering, and modifying network packets.
+
+    `PyDivert` provides a unified interface for WinDivert operations across multiple
+    operating systems by delegating to OS-specific implementations:
+
+    - **Windows:** Delegates to `pydivert.windivert.WinDivert`.
+    - **Linux:** Delegates to `pydivert.linux.NetFilterQueue`.
+    - **FreeBSD/macOS:** Delegates to `pydivert.bsd.Divert`.
+
+    Use it as a context manager to ensure handles and firewall rules are properly cleaned up:
+
+    ```python
+    import pydivert
+
+    # Divert all inbound TCP traffic on port 80
+    with pydivert.PyDivert("tcp.DstPort == 80 and inbound") as w:
+        for packet in w:
+            print(f"Intercepted: {packet}")
+            # Modify or just forward
+            w.send(packet)
+    ```
+
+    The `PyDivert` class implements the `BaseDivert` interface. Most methods are
+    common across platforms, but some advanced WinDivert features (like `Layer.FLOW`
+    or `recv_ex`) are only available on Windows. On non-Windows platforms,
+    accessing these features through `PyDivert` will raise `AttributeError`.
+
+    .. note::
+       Most implementations require administrator or root privileges to function.
     """
 
     def __init__(
