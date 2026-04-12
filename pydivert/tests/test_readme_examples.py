@@ -48,7 +48,7 @@ def setup_module(module):
     try:
         with pydivert.PyDivert("true"):
             pass
-    except (ImportError, PermissionError, OSError) as e:
+    except (ImportError, PermissionError, OSError, RuntimeError) as e:
         pytest.skip(f"PyDivert not available: {e}. Check permissions/dependencies.")
 
 

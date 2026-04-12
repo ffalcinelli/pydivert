@@ -122,7 +122,8 @@ class Divert(BaseDivert):
                     subprocess.run(["ipfw", "add", str(rule_num), *r.split()], check=True, capture_output=True)
                     self._applied_rules_with_numbers.append((rule_num, r))
                 except Exception as e:
-                    logger.error(f"Failed to apply ipfw rule: {e}")
+                    self.close()
+                    raise RuntimeError(f"Failed to apply ipfw rule: {e}") from e
 
     def close(self) -> None:
         if self._socket:

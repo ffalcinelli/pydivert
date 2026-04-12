@@ -16,7 +16,7 @@ def setup_module(module):
     try:
         with PyDivert("true"):
             pass
-    except (ImportError, PermissionError, OSError) as e:
+    except (ImportError, PermissionError, OSError, RuntimeError) as e:
         pytest.skip(f"PyDivert not available: {e}. Are you running as Administrator/Root?")
 
 

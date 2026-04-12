@@ -134,10 +134,11 @@ class NetFilterQueue(BaseDivert):
                 for chain in ["INPUT", "OUTPUT", "FORWARD"]:
                     subprocess.run(
                         ["iptables", "-I", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
-                        check=True
+                        check=True, capture_output=True
                     )
             except Exception as e:
-                logger.error(f"Failed to add iptables rule: {e}")
+                self.close()
+                raise RuntimeError(f"Failed to add iptables rule: {e}") from e
 
         self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
         self._thread.start()
