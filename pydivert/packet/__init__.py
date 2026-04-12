@@ -25,9 +25,9 @@
 from __future__ import annotations
 
 import ctypes
-from ctypes import byref
 import socket
 import sys
+from ctypes import byref
 from functools import cached_property
 from typing import Any
 

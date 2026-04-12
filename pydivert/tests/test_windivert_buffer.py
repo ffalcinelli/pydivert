@@ -26,9 +26,9 @@ def test_windivert_recv_buffer_reuse(wd_dll):
         else:
             # Fallback if byref wasn't successfully mocked to return the object
             ctypes.cast(pRecvLen, ctypes.POINTER(ctypes.c_uint)).contents.value = 5
-        
+
         ctypes.memmove(pPacket, b"hello", 5)
-        
+
         if hasattr(pAddr, "Outbound"):
             pAddr.Outbound = 1
         else:
@@ -65,9 +65,9 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
             pRecvLen.value = 5
         else:
             ctypes.cast(pRecvLen, ctypes.POINTER(ctypes.c_uint)).contents.value = 5
-            
+
         ctypes.memmove(pPacket, b"hello", 5)
-        
+
         if hasattr(pAddr, "Outbound"):
             pAddr.Outbound = 1
 

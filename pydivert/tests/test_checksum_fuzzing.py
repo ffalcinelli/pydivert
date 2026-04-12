@@ -12,7 +12,7 @@ from pydivert.packet import Packet
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 try:
-    from scapy.all import ICMP, IP, TCP, UDP, ICMPv6EchoRequest, IPv6, Raw
+    from scapy.all import ICMP, IP, TCP, UDP, ICMPv6EchoRequest, IPv6, Raw  # type: ignore
     SCAPY_AVAILABLE = True
 except ImportError:
     SCAPY_AVAILABLE = False
