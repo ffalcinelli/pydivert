@@ -37,7 +37,7 @@ Vagrant.configure("2") do |config|
       vb.cpus = 2
     end
     # Synchronize current directory for FreeBSD using rsync
-    freebsd.vm.synced_folder ".", "/vagrant", type: "rsync"
+    freebsd.vm.synced_folder ".", "/vagrant", type: "rsync", rsync__exclude: [".git/", ".venv/", ".vagrant/"]
     freebsd.vm.provision "shell", path: "scripts/vagrant-provision-freebsd.sh"
   end
 

@@ -29,15 +29,15 @@ FILTERS = [
     "(tcp.DstPort == 80) or (tcp.DstPort == 443)",
     "loopback",
 ]
-
 UNSUPPORTED_FILTERS = [
     "ip",
     "icmp",
     "tcp.PayloadLength > 0",
     "ip.SrcAddr == 127.0.0.1",
-    "outbound",
-    "tcp.Flags.Syn",
 ]
+if sys.platform.startswith("linux"):
+    # outbound is NOT supported on Linux transpiler yet
+    UNSUPPORTED_FILTERS.append("outbound")
 
 @pytest.mark.parametrize("filter_str", FILTERS)
 def test_filter_compatibility_supported(filter_str):

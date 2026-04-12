@@ -5,7 +5,7 @@ set -e
 echo "Provisioning FreeBSD..."
 
 pkg update
-pkg install -y python311 py311-pip py311-sqlite3 curl git
+pkg install -y python311 py311-pip py311-sqlite3 curl git rsync
 
 # Create symlink for python if it doesn't exist
 if ! [ -x "$(command -v python)" ]; then
@@ -34,7 +34,8 @@ service ipfw start || true
 VENV_PATH="/home/vagrant/pydivert_venv"
 python3.11 -m venv "$VENV_PATH"
 "$VENV_PATH/bin/pip" install --upgrade pip
-"$VENV_PATH/bin/pip" install -e /vagrant[test]
+"$VENV_PATH/bin/pip" install hypothesis mock pytest pytest-asyncio pytest-cov pytest-timeout scapy
+"$VENV_PATH/bin/pip" install -e /vagrant
 
 # Add venv to path for convenience
 echo "export PATH=\"$VENV_PATH/bin:\$PATH\"" >> /home/vagrant/.bash_profile

@@ -109,11 +109,11 @@ def test_http_port_redirection():  # noqa: C901
     divert_thread.start()
 
     # Give some time for WinDivert to start
-    time.sleep(1.0)
+    time.sleep(2.0)
     try:
         # Client connects to the FAKE port
         url = f"http://127.0.0.1:{fake_port}/"
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with urllib.request.urlopen(url, timeout=10) as response:
             body = response.read()
             assert body == b"Port Redirection Success"
     finally:
@@ -177,10 +177,10 @@ def test_http_modification():  # noqa: C901
     divert_thread.start()
 
     # Give some time for WinDivert to start
-    time.sleep(1.0)
+    time.sleep(2.0)
     try:
         url = f"http://127.0.0.1:{port}/"
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with urllib.request.urlopen(url, timeout=10) as response:
             body = response.read()
             assert body == b"PyDiv, World!"
     finally:

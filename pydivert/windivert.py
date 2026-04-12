@@ -208,7 +208,7 @@ class WinDivert(BaseDivert):
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = ctypes.c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, ctypes.byref(recv_len), ctypes.byref(address))
+        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
         return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
 
@@ -219,12 +219,10 @@ class WinDivert(BaseDivert):
         if self._handle is None or self._event is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        if self._recv_buf is None or self._recv_buf_c is None or len(self._recv_buf) != bufsize:
-            self._recv_buf = bytearray(bufsize)
-            self._recv_buf_c = (ctypes.c_char * bufsize).from_buffer(self._recv_buf)
-
-        packet = self._recv_buf
-        packet_ = self._recv_buf_c
+        # For async operations, we use a fresh buffer each time to avoid race conditions
+        # and "underlying buffer is not writable" errors if multiple recvs are pending.
+        packet = bytearray(bufsize)
+        packet_ = (ctypes.c_char * bufsize).from_buffer(packet)
         address = WinDivertAddress()
         recv_len = ctypes.c_uint(0)
         overlapped = Overlapped(hEvent=self._event)
@@ -333,8 +331,8 @@ class WinDivert(BaseDivert):
 
         try:
             windivert_dll.WinDivertRecvEx(
-                self._handle, packet_, bufsize, ctypes.byref(recv_len), flags, ctypes.byref(address),
-                ctypes.byref(addr_len), overlapped
+                self._handle, packet_, bufsize, byref(recv_len), flags, byref(address),
+                byref(addr_len), overlapped
             )
         except OSError as e:
             if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:

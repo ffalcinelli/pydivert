@@ -63,10 +63,13 @@ class Divert(BaseDivert):
 
         # Base rule for broad interception
         if filter_str.lower() == "true":
-            # Avoid port 22 (SSH)
-            rules.append(f"divert {self._port} ip from any to any not port 22")
+            # Avoid port 22 (SSH) to prevent locking ourselves out
+            # Note: ipfw needs protocol-specific port checks
+            rules.append(f"divert {self._port} tcp from any to any not dst-port 22 not src-port 22")
+            rules.append(f"divert {self._port} udp from any to any")
+            rules.append(f"divert {self._port} icmp from any to any")
         elif filter_str.lower() == "tcp":
-            rules.append(f"divert {self._port} tcp from any to any not port 22")
+            rules.append(f"divert {self._port} tcp from any to any not dst-port 22 not src-port 22")
         elif filter_str.lower() == "udp":
             rules.append(f"divert {self._port} udp from any to any")
         else:

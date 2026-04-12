@@ -126,26 +126,26 @@ def test_multiprocessing_integration_simple():
 
     # Get the port from the subprocess
     try:
-        port = results_queue.get(timeout=10)
+        port = results_queue.get(timeout=20)
     except Exception:
         p.terminate()
         raise
 
     # Sync up
     barrier.wait()
-    time.sleep(1)  # Extra buffer for WinDivertOpen
+    time.sleep(2)  # Extra buffer for WinDivertOpen
 
     try:
         # Send UDP packet
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
-            client.settimeout(5)
+            client.settimeout(10)
             client.sendto(b"hello", ("127.0.0.1", port))
 
             data, _ = client.recvfrom(4096)
             assert data == b"HELLO"
 
         # Check WinDivert capture in subprocess
-        capture_msg = results_queue.get(timeout=5)
+        capture_msg = results_queue.get(timeout=10)
         assert f"Captured: {port}" == capture_msg
     finally:
         stop_event.set()

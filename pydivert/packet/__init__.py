@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import ctypes
+from ctypes import byref
 import socket
 import sys
 from functools import cached_property
@@ -133,9 +134,13 @@ class Packet:
         socket: Any | None = None,
         reflect: Any | None = None,
     ) -> None:
-        if isinstance(raw, (bytes, bytearray)):
-            raw = memoryview(bytearray(raw))
-        self.raw: memoryview = raw
+        if isinstance(raw, memoryview):
+            if raw.readonly:
+                raw = bytearray(raw)
+        elif not isinstance(raw, bytearray):
+            raw = bytearray(raw)
+
+        self.raw: memoryview = memoryview(raw)
         """The raw packet bytes as a `memoryview`."""
         self.interface: tuple[int, int] = interface or (0, 0)
         """The interface index and sub-interface index where the packet was captured."""
@@ -492,7 +497,7 @@ class Packet:
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
         num: int = windivert_dll.WinDivertHelperCalcChecksums(
-            ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
+            byref(buff_), len(self.raw), byref(addr), flags
         )
         return num
 
@@ -581,9 +586,9 @@ class Packet:
         return bool(
             windivert_dll.WinDivertHelperEvalFilter(
                 filter.encode(),
-                ctypes.byref(buff_),
+                byref(buff_),
                 len(self.raw),
-                ctypes.byref(addr),
+                byref(addr),
             )
         )
 

@@ -140,7 +140,7 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Test in FreeBSD
-      uses: vmactions/freebsd-vm@23377dc5736838124ff0059faccb2ecf7a62a943 # v1.1.11
+      uses: vmactions/freebsd-vm@7ca82f79fe3078fecded6d3a2bff094995447bbd # v1.4.4
       with:
         usesh: true
         prepare: |

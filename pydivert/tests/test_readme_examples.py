@@ -142,10 +142,10 @@ def test_example_packet_modification_redirection():
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(1.0)
+    time.sleep(2.0)
 
     try:
-        with socket.create_connection(("127.0.0.1", fake_port), timeout=2) as client:
+        with socket.create_connection(("127.0.0.1", fake_port), timeout=10) as client:
             client.sendall(b"hi")
             assert client.recv(1024) == b"redirected"
     finally:

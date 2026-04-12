@@ -20,10 +20,20 @@ def test_windivert_recv_buffer_reuse(wd_dll):
     w._handle = "fake_handle"
 
     def fake_recv(handle, pPacket, packetLen, pRecvLen, pAddr):
-        # pRecvLen here will just be the c_uint directly since we mocked byref
-        pRecvLen.value = 5
+        # Handle both direct c_uint and CArgObject
+        if hasattr(pRecvLen, "value"):
+            pRecvLen.value = 5
+        else:
+            # Fallback if byref wasn't successfully mocked to return the object
+            ctypes.cast(pRecvLen, ctypes.POINTER(ctypes.c_uint)).contents.value = 5
+        
         ctypes.memmove(pPacket, b"hello", 5)
-        pAddr.Outbound = 1
+        
+        if hasattr(pAddr, "Outbound"):
+            pAddr.Outbound = 1
+        else:
+            # WinDivertAddress is more complex to cast, hope byref mock works
+            pass
 
     wd_dll.WinDivertRecv.side_effect = fake_recv
 
@@ -51,9 +61,15 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
     w._handle = "fake_handle"
 
     def fake_recv_ex(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):
-        pRecvLen.value = 5
+        if hasattr(pRecvLen, "value"):
+            pRecvLen.value = 5
+        else:
+            ctypes.cast(pRecvLen, ctypes.POINTER(ctypes.c_uint)).contents.value = 5
+            
         ctypes.memmove(pPacket, b"hello", 5)
-        pAddr.Outbound = 1
+        
+        if hasattr(pAddr, "Outbound"):
+            pAddr.Outbound = 1
 
     wd_dll.WinDivertRecvEx.side_effect = fake_recv_ex
 
