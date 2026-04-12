@@ -53,7 +53,7 @@ class Divert(BaseDivert):
         Divert._instances.add(self)
 
     @classmethod
-    def _cleanup_all(cls):
+    def cleanup_all(cls):
         for instance in list(cls._instances):
             instance.close()
 
@@ -187,9 +187,9 @@ class Divert(BaseDivert):
             return self._socket.sendto(packet.raw, addr)
         except Exception as e:
             logger.error(f"Failed to send packet: {e}")
-            return 0
+            raise
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)
 
-atexit.register(Divert._cleanup_all)
+atexit.register(Divert.cleanup_all)

@@ -24,6 +24,7 @@
 
 import multiprocessing
 import socket
+import sys
 import time
 
 import pytest
@@ -90,7 +91,7 @@ def server_worker(stop_event, barrier, results_queue):
             results_queue.put(f"Worker Error: {e}")
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert is Windows-only")
 def test_multiprocessing_no_open():
     queue = multiprocessing.Queue()
     p = multiprocessing.Process(target=run_recv_no_open, args=(queue,))
@@ -101,7 +102,7 @@ def test_multiprocessing_no_open():
     assert result == "WinDivert handle is not open"
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert is Windows-only")
 def test_multiprocessing_with_context_manager():
     queue = multiprocessing.Queue()
     p = multiprocessing.Process(target=run_recv_with_context_manager, args=(queue,))
@@ -115,7 +116,7 @@ def test_multiprocessing_with_context_manager():
     assert result != "WinDivert handle is not open"
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert is Windows-only")
 def test_multiprocessing_integration_simple():
     stop_event = multiprocessing.Event()
     results_queue = multiprocessing.Queue()

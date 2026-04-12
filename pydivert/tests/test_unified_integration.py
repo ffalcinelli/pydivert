@@ -45,7 +45,9 @@ def test_backend_selection():
         assert impl_class == "WinDivert"
     elif sys.platform.startswith("linux"):
         assert impl_class == "NetFilterQueue"
-    elif sys.platform == "darwin" or sys.platform.startswith("freebsd"):
+    elif sys.platform == "darwin":
+        assert impl_class == "MacOSDivert"
+    elif sys.platform.startswith("freebsd"):
         assert impl_class == "Divert"
     else:
         pytest.fail(f"Unknown platform: {sys.platform}")

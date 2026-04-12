@@ -53,7 +53,7 @@ class MacOSDivert(BaseDivert):
         MacOSDivert._instances.add(self)
 
     @classmethod
-    def _cleanup_all(cls):
+    def cleanup_all(cls):
         for instance in list(cls._instances):
             instance.close()
 
@@ -68,7 +68,10 @@ class MacOSDivert(BaseDivert):
 
         rules = []
         for direction in directions:
-            rule = f"pass {direction} quick proto {proto} from {pf_from} to {pf_to} {pf_extra} divert {self._port}"
+            rule = (
+                f"pass {direction} quick proto {proto} from {pf_from} to {pf_to} "
+                f"{pf_extra} divert-packet port {self._port}"
+            )
             # Clean up double spaces
             rule = re.sub(r'\s+', ' ', rule).strip()
             rules.append(rule)
@@ -236,9 +239,9 @@ class MacOSDivert(BaseDivert):
             return self._socket.sendto(packet.raw, addr)
         except Exception as e:
             logger.error(f"Failed to send packet: {e}")
-            return 0
+            raise
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)
 
-atexit.register(MacOSDivert._cleanup_all)
+atexit.register(MacOSDivert.cleanup_all)
