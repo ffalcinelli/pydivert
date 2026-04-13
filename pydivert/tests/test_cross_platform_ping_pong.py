@@ -99,7 +99,7 @@ def test_ping_pong_modification(use_async):
     server_thread.start()
 
     # PyDivert Interception
-    filter_str = f"udp.SrcPort == {server_port}"
+    filter_str = f"udp.SrcPort == {server_port} and loopback"
     divert_stop_event = threading.Event()
     captured_count = [0]
 

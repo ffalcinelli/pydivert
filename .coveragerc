@@ -1,0 +1,22 @@
+[run]
+source = pydivert
+omit = 
+    pydivert/tests/*
+    pydivert/tests/**
+    pydivert/tests/
+
+[report]
+show_missing = true
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__.:
+    raise NotImplementedError
+
+[paths]
+source =
+    pydivert/
+    /home/vagrant/pydivert/pydivert/
+    C:\pydivert\pydivert\
+    /vagrant/pydivert/
+    /Users/vagrant/pydivert/pydivert/

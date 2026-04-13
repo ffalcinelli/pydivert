@@ -80,14 +80,13 @@ class NetFilterQueue(BaseDivert):
         filter_str = self._translated_filter
         if filter_str.lower() == "true":
             # Intercept everything EXCEPT SSH to avoid breaking Vagrant
-            rules.append(["-p", "tcp", "!", "--dport", "22"])
-            rules.append(["-p", "tcp", "!", "--sport", "22"])
-            rules.append(["-p", "udp"])
-            rules.append(["-p", "icmp"])
+            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
+            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "udp"]))
+            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "icmp"]))
         elif filter_str.lower() == "tcp":
-            rules.append(["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"])
+            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
         elif filter_str.lower() == "udp":
-            rules.append(["-p", "udp"])
+            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "udp"]))
         else:
             parts = re.split(r'\s+or\s+|\s*\|\|\s*', filter_str, flags=re.IGNORECASE)
             for part in parts:
@@ -98,14 +97,19 @@ class NetFilterQueue(BaseDivert):
                     port_type = m.group(2).lower()
                     port = m.group(3)
                     if port_type == 'dstport':
-                        rules.append(["-p", proto, "--dport", port])
+                        rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", proto, "--dport", port]))
                     else:
-                        rules.append(["-p", proto, "--sport", port])
-                elif part.lower() == "loopback":
-                    rules.append(["-i", "lo"])
+                        rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", proto, "--sport", port]))
+                elif part.lower() == "loopback" or "loopback" in part.lower():
+                    # For loopback on Linux, intercept only on OUTPUT to avoid double-processing
+                    # (once on OUTPUT, once on INPUT). OUTPUT covers packets leaving for lo.
+                    rules.append((["OUTPUT"], ["-o", "lo"]))
                 elif part.lower() == "outbound":
-                    # Hard to express 'outbound' generically in iptables without more context
-                    pass
+                    rules.append((["OUTPUT"], []))
+                elif "127.0.0.1" in part or "::1" in part:
+                    # Specific loopback IP filters should also only be on OUTPUT to avoid double-interception
+                    rules.append((["OUTPUT"], ["-o", "lo"]))
+
         return rules
 
     def open(self) -> None:
@@ -127,13 +131,37 @@ class NetFilterQueue(BaseDivert):
 
         logger.info("Opening NetFilterQueue %d with filter: %s", self._queue_num, self._translated_filter)
 
-        self._applied_rules = self._parse_filter_to_iptables()
-        for r in self._applied_rules:
+        # Clean up any stale rules for this queue number from previous crashed runs
+        for chain in ["INPUT", "OUTPUT", "FORWARD"]:
             try:
-                # Intercept on INPUT, OUTPUT and FORWARD to be thorough (esp. for loopback)
-                for chain in ["INPUT", "OUTPUT", "FORWARD"]:
+                # Check if chain exists by listing it
+                if subprocess.run(["iptables", "-L", chain], capture_output=True).returncode != 0:
+                    continue
+
+                # Get current rules to see if any match our queue-num
+                res = subprocess.run(["iptables", "-S", chain], capture_output=True, text=True)
+                if res.returncode == 0:
+                    pattern = f"--queue-num {self._queue_num}"
+                    # We might have multiple rules, so we collect them first
+                    to_delete = []
+                    for line in res.stdout.splitlines():
+                        if pattern in line:
+                            to_delete.append(line)
+                    
+                    for line in to_delete:
+                        # Reconstruct delete command from -A line
+                        # Example: -A INPUT -p tcp -m tcp --dport 80 -j NFQUEUE --queue-num 0
+                        delete_cmd = line.replace("-A ", "-D ").split()
+                        subprocess.run(["iptables", *delete_cmd[1:]], check=False)
+            except Exception:
+                pass
+
+        self._applied_rules = self._parse_filter_to_iptables()
+        for chains, r in self._applied_rules:
+            try:
+                for chain in chains:
                     subprocess.run(
-                        ["iptables", "-I", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                        ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
                         check=True, capture_output=True
                     )
             except Exception as e:
@@ -144,11 +172,14 @@ class NetFilterQueue(BaseDivert):
         self._thread.start()
 
     def _remove_rules(self):
-        for r in self._applied_rules:
+        for chains, r in self._applied_rules:
             try:
-                for chain in ["INPUT", "OUTPUT", "FORWARD"]:
+                for chain in chains:
+                    # Check if chain exists before attempting to delete
+                    if subprocess.run(["iptables", "-L", chain], capture_output=True).returncode != 0:
+                        continue
                     subprocess.run(
-                        ["iptables", "-D", chain] + r + ["-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                        ["iptables", "-D", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
                         check=False, stderr=subprocess.DEVNULL
                     )
             except Exception:
@@ -156,8 +187,11 @@ class NetFilterQueue(BaseDivert):
         self._applied_rules = []
 
     def _run_loop(self):
+        nfqueue = self._nfqueue
+        if nfqueue is None:
+            return
         try:
-            self._nfqueue.run()
+            nfqueue.run()
         except Exception as e:
             # Avoid logging error if we're closing
             if not self._stop_event.is_set():

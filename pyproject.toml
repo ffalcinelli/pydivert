@@ -118,7 +118,11 @@ timeout = 60
 
 [tool.coverage.run]
 source = ["pydivert"]
-omit = ["pydivert/tests/*"]
+omit = [
+    "pydivert/tests/*",
+    "pydivert/tests/**",
+    "pydivert/tests/",
+]
 
 [tool.coverage.report]
 show_missing = true

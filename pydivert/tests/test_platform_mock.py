@@ -45,9 +45,10 @@ def test_pydivert_platform_selection():
 @pytest.mark.asyncio
 async def test_linux_nfq_mock():
     from pydivert.linux import NetFilterQueue
-    # Mock NFQ
+    # Mock NFQ and subprocess.run
     mock_nfq_lib = MagicMock()
-    with patch("pydivert.linux.NFQ", mock_nfq_lib):
+    with patch("pydivert.linux.NFQ", mock_nfq_lib), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
         w = NetFilterQueue()
         w.open()
         assert w.is_open
@@ -65,6 +66,14 @@ async def test_linux_nfq_mock():
         with pytest.raises(OSError):
             w.open()
 
+    # Test iptables error path
+    with patch("pydivert.linux.NFQ", mock_nfq_lib), patch("subprocess.run") as mock_run:
+        mock_nfq_lib.return_value.bind.side_effect = None
+        mock_run.side_effect = Exception("iptables fail")
+        w = NetFilterQueue()
+        with pytest.raises(RuntimeError, match="Failed to add iptables rule"):
+            w.open()
+
     # Test missing library
     with patch("pydivert.linux.NFQ", None):
         w = NetFilterQueue()
@@ -74,25 +83,38 @@ async def test_linux_nfq_mock():
 @pytest.mark.skipif(sys.platform == "win32", reason="WinDivert DLL will fail on this mock")
 @pytest.mark.asyncio
 async def test_bsd_divert_mock():
+    from scapy.all import IP, UDP, raw
+
     from pydivert.bsd import Divert
     mock_socket = MagicMock()
-    with patch("socket.socket", return_value=mock_socket):
+    with patch("socket.socket", return_value=mock_socket), patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
         w = Divert()
         w.open()
         assert w.is_open
-        mock_socket.recvfrom.return_value = (b"packet_data", ("1.2.3.4", 0))
+        # Provide a real IPv4 packet so Packet parsing doesn't fail
+        real_packet = raw(IP(dst="1.2.3.4")/UDP(dport=80)/b"payload")
+        mock_socket.recvfrom.return_value = (real_packet, ("1.2.3.4", 0))
         pkt = w.recv()
-        assert pkt.raw == b"packet_data"
+        assert pkt is not None
+        assert pkt.dst_addr == "1.2.3.4"
         w.send(pkt)
         await w.send_async(pkt)
         w.close()
         assert not w.is_open
-
     # Test error path
     with patch("socket.socket", side_effect=OSError("Permission denied")):
         w = Divert()
         with pytest.raises(OSError):
             w.open()
+
+    # Test ipfw error path
+    if sys.platform.startswith("freebsd"):
+        with patch("socket.socket", return_value=mock_socket), patch("subprocess.run") as mock_run:
+            mock_run.side_effect = Exception("ipfw fail")
+            w = Divert()
+            with pytest.raises(RuntimeError, match="Failed to apply ipfw rule"):
+                w.open()
 
 @pytest.mark.asyncio
 async def test_pydivert_methods_mock():

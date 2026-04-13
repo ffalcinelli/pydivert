@@ -93,9 +93,6 @@ def test_http_port_redirection():  # noqa: C901
     def divert_and_redirect():
         with pydivert.PyDivert(filt) as w:
             for packet in w:
-                if stop_event.is_set():
-                    break
-
                 # Client -> Fake Port: Redirect to Real Port
                 if packet.dst_port == fake_port:
                     packet.dst_port = real_port
@@ -105,7 +102,10 @@ def test_http_port_redirection():  # noqa: C901
 
                 w.send(packet)
 
-    divert_thread = threading.Thread(target=divert_and_redirect)
+                if stop_event.is_set():
+                    break
+
+    divert_thread = threading.Thread(target=divert_and_redirect, daemon=True)
     divert_thread.start()
 
     # Give some time for WinDivert to start
@@ -118,9 +118,10 @@ def test_http_port_redirection():  # noqa: C901
             assert body == b"Port Redirection Success"
     finally:
         stop_event.set()
-        # Unblock WinDivert loop
+        # Unblock WinDivert loop by sending a final packet
         try:
-            urllib.request.urlopen(f"http://127.0.0.1:{fake_port}/", timeout=0.1)
+            with socket.create_connection(("127.0.0.1", fake_port), timeout=0.1) as s:
+                s.close()
         except OSError:
             pass
 
@@ -164,16 +165,16 @@ def test_http_modification():  # noqa: C901
     def divert_and_modify():
         with pydivert.PyDivert(filt) as w:
             for packet in w:
-                if stop_event.is_set():
-                    break
-
                 # Check if the packet contains our target string
                 if packet.payload and b"Hello, World!" in packet.payload:
                     packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
 
                 w.send(packet)
 
-    divert_thread = threading.Thread(target=divert_and_modify)
+                if stop_event.is_set():
+                    break
+
+    divert_thread = threading.Thread(target=divert_and_modify, daemon=True)
     divert_thread.start()
 
     # Give some time for WinDivert to start
@@ -185,12 +186,10 @@ def test_http_modification():  # noqa: C901
             assert body == b"PyDiv, World!"
     finally:
         stop_event.set()
-        # To unblock the 'for packet in w' loop, we might need to send a dummy packet
-        # or just wait for it to time out if we used a timeout.
-        # However, WinDivert's recv is blocking by default.
-        # A simple way to unblock it is to make one more request that will be captured.
+        # Unblock WinDivert loop by sending a final packet
         try:
-            urllib.request.urlopen(url, timeout=0.1)
+            with socket.create_connection(("127.0.0.1", port), timeout=0.1) as s:
+                s.close()
         except OSError:
             pass
 

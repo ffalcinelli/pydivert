@@ -115,7 +115,7 @@ def test_echo(scenario) -> None:
         if done:
             break
 
-    assert reply.get() == b"ECHO"
+    assert reply.get(timeout=10) == b"ECHO"
 
 
 def test_divert(scenario) -> None:
@@ -133,7 +133,7 @@ def test_divert(scenario) -> None:
         if done:
             break
 
-    assert reply.get() == b"ECHO"
+    assert reply.get(timeout=10) == b"ECHO"
 
 
 def test_modify_payload(scenario) -> None:
@@ -147,7 +147,7 @@ def test_modify_payload(scenario) -> None:
         done = p.udp and p.dst_port == client_addr[1] or p.tcp and p.tcp.fin
         if done:
             break
-    assert reply.get() == b"ECHO"
+    assert reply.get(timeout=10) == b"ECHO"
 
 
 @pytest.mark.skip(reason="Fails on Vagrant VM: packets are not truncated as expected")
@@ -170,7 +170,7 @@ def test_packet_cutoff(scenario) -> None:
         if done:
             break
     assert cutoff
-    assert reply.get() == b"A" * (1000 - cutoff)
+    assert reply.get(timeout=10) == b"A" * (1000 - cutoff)
 
 
 def test_check_filter():

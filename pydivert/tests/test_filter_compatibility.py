@@ -77,9 +77,17 @@ def test_filter_compatibility_unsupported(filter_str):
         else:
             rules = w._impl._parse_filter_to_ipfw()
 
-        # These filters currently result in 0 rules, meaning they intercept NOTHING
-        # at the kernel level, which is a known limitation.
-        assert len(rules) == 0
+        # These filters currently result in 0 rules on some platforms, meaning they
+        # intercept NOTHING at the kernel level, which is a known limitation.
+        if filter_str == "outbound":
+             # outbound is now partially supported on Linux/BSD
+             assert len(rules) > 0
+        elif filter_str == "ip.SrcAddr == 127.0.0.1" and sys.platform.startswith("linux"):
+             # Linux implementation now handles 127.0.0.1 by mapping it to loopback
+             assert len(rules) > 0
+        else:
+             assert len(rules) == 0
+
     else:
         # On Windows, WinDivert might accept some of these
         pass

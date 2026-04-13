@@ -4,9 +4,12 @@ from __future__ import annotations
 import asyncio
 import atexit
 import logging
+import queue
 import re
 import socket
 import subprocess
+import threading
+import time
 
 from pydivert.base import BaseDivert
 from pydivert.consts import Direction, Flag, Layer
@@ -17,27 +20,6 @@ logger = logging.getLogger(__name__)
 class MacOSDivert(BaseDivert):
     """
     macOS implementation of the Divert interface using **Divert Sockets** and **pf**.
-
-    This implementation targets macOS systems using the `pf` firewall.
-    It uses anchors to avoid modifying the main `/etc/pf.conf` directly.
-
-    **Requirements:**
-    - Root privileges to modify `pf` rules and open raw sockets.
-    - macOS with `pf` enabled (the implementation will try to enable it).
-
-    **How it works:**
-    1.  On `.open()`, it translates the WinDivert-style `filter` to `pf` rules.
-    2.  It creates a `pf` anchor (typically under `com.apple/pydivert.<port>`).
-    3.  It opens a raw `IPPROTO_DIVERT` socket bound to a specific port.
-    4.  `pf` redirects packets matching the rules to the divert socket.
-    5.  `.recv()` reads raw IP packets from the socket.
-    6.  `.send()` writes raw packets back to the divert socket.
-    7.  `.close()` flushes the anchor and closes the socket.
-
-    **Limitations:**
-    - Only supports `Layer.NETWORK`.
-    - Only supports IPv4 (limitation of macOS `pf` divert sockets).
-    - Advanced WinDivert features (Flow/Socket/Reflect) are not supported.
     """
     _instances: set[MacOSDivert] = set()
     _anchor_base = "com.apple/pydivert"
@@ -49,13 +31,21 @@ class MacOSDivert(BaseDivert):
         self._socket: socket.socket | None = None
         self._port = 8888 + (priority % 1000)
         self._anchor_name = f"{self._anchor_base}.{self._port}"
+        self._queue: queue.Queue[Packet] = queue.Queue(maxsize=10000)
+        self._async_queue: asyncio.Queue[Packet] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
         self._is_pf_enabled_by_us = False
         MacOSDivert._instances.add(self)
 
     @classmethod
     def cleanup_all(cls):
         for instance in list(cls._instances):
-            instance.close()
+            try:
+                instance.close()
+            except Exception:
+                pass
 
     def _parse_filter_to_pf(self):
         """
@@ -169,19 +159,45 @@ class MacOSDivert(BaseDivert):
             self.close()
             raise RuntimeError(f"Failed to configure PF: {e}") from e
 
+        # 3. Start Capture Thread
+        self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-macos-{self._port}", daemon=True)
+        self._thread.start()
+
+    def _run_loop(self):
+        sock = self._socket
+        if not sock:
+            return
+        while not self._stop_event.is_set():
+            try:
+                data, addr = sock.recvfrom(65535)
+                direction = Direction.OUTBOUND if addr[0] == "0.0.0.0" else Direction.INBOUND
+
+                p = Packet(data, direction=direction)
+                p._bsd_addr = addr
+
+                if p.matches(self.filter):
+                    self._queue.put(p)
+                    if self._loop and self._async_queue:
+                        self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                else:
+                    sock.sendto(data, addr)
+            except Exception:
+                if self._stop_event.is_set():
+                    break
+                time.sleep(0.01)
+
     def close(self) -> None:
+        self._stop_event.set()
         if self._socket:
             logger.info("Closing macOS divert socket on port %d", self._port)
-            self._socket.close()
+            # Unblock the recv loop
+            temp_sock = self._socket
             self._socket = None
+            temp_sock.close()
 
         # Clean up PF anchor
         try:
             subprocess.run(["pfctl", "-a", self._anchor_name, "-F", "all"], check=False, capture_output=True)
-            # We don't necessarily want to disable PF if we enabled it, as other apps might be using it now.
-            # But according to some practices, if we enabled it, we should disable it if no other anchors are active.
-            # However, for pydivert, we just leave it be or follow the user's preference.
-            # To keep it simple and safe, we don't disable PF unless specifically requested.
         except Exception:
             pass
 
@@ -193,52 +209,42 @@ class MacOSDivert(BaseDivert):
         return self._socket is not None
 
     def recv(self) -> Packet:
-        if self._socket is None:
-            raise RuntimeError("Socket is not open.")
-
-        while True:
+        while self.is_open or not self._queue.empty():
             try:
-                data, addr = self._socket.recvfrom(65535)
-            except OSError as e:
-                if self._socket is None:
-                    raise RuntimeError("Socket closed during recv") from e
-                raise e
-
-            # For divert sockets:
-            # - If the packet was outbound, addr[0] is "0.0.0.0"
-            # - If the packet was inbound, addr[0] is the interface's IP address
-            direction = Direction.OUTBOUND if addr[0] == "0.0.0.0" else Direction.INBOUND
-
-            p = Packet(data, direction=direction)
-            p._bsd_addr = addr
-
-            # User space filtering if needed (e.g. for v6 or complex filters)
-            if p.matches(self.filter):
-                return p
-            else:
-                try:
-                    self.send(p, recalculate_checksum=False)
-                except Exception:
-                    pass
+                return self._queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+        raise RuntimeError("Handle is closed.")
 
     async def recv_async(self) -> Packet:
         if not self.is_open:
-            raise RuntimeError("Socket is not open.")
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.recv)
+            raise RuntimeError("Handle is closed.")
+
+        if self._async_queue is None:
+            self._loop = asyncio.get_running_loop()
+            self._async_queue = asyncio.Queue(maxsize=10000)
+            try:
+                while True:
+                    self._async_queue.put_nowait(self._queue.get_nowait())
+            except (queue.Empty, asyncio.QueueFull):
+                pass
+
+        return await self._async_queue.get()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        if self._socket is None:
-            raise RuntimeError("Socket is not open.")
+        sock = self._socket
+        if not sock:
+            raise RuntimeError("Handle is closed.")
 
         if recalculate_checksum:
             packet.recalculate_checksums()
 
         addr = getattr(packet, '_bsd_addr', (packet.dst_addr, 0))
         try:
-            return self._socket.sendto(packet.raw, addr)
+            raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
+            return sock.sendto(raw_bytes, addr)
         except Exception as e:
-            logger.error(f"Failed to send packet: {e}")
+            logger.error(f"Failed to send packet on macOS: {e}")
             raise
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:

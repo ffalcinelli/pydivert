@@ -70,34 +70,51 @@ def scenario(request):
         if proto == "tcp":
 
             def server_echo():
+                server.settimeout(5.0)
                 server.listen(1)
-                conn, addr = server.accept()
-                conn.sendall(conn.recv(4096).upper())
-                conn.close()
+                try:
+                    conn, addr = server.accept()
+                    conn.settimeout(5.0)
+                    conn.sendall(conn.recv(4096).upper())
+                    conn.close()
+                except (socket.timeout, TimeoutError, OSError):
+                    pass
 
             def send(addr, data):
+                client.settimeout(5.0)
                 client.connect(addr)
                 client.sendall(data)
-                reply.put(client.recv(4096))
+                try:
+                    reply.put(client.recv(4096))
+                except (socket.timeout, TimeoutError, OSError):
+                    reply.put(None)
         else:
 
             def server_echo():
-                data, addr = server.recvfrom(4096)
-                server.sendto(data.upper(), addr)
+                server.settimeout(5.0)
+                try:
+                    data, addr = server.recvfrom(4096)
+                    server.sendto(data.upper(), addr)
+                except (socket.timeout, TimeoutError, OSError):
+                    pass
 
             def send(addr, data):
+                client.settimeout(5.0)
                 client.sendto(data, addr)
-                data, recv_addr = client.recvfrom(4096)
-                assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
-                reply.put(data)
+                try:
+                    data, recv_addr = client.recvfrom(4096)
+                    assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
+                    reply.put(data)
+                except (socket.timeout, TimeoutError, OSError, AssertionError):
+                    reply.put(None)
 
-        server_thread = threading.Thread(target=server_echo)
+        server_thread = threading.Thread(target=server_echo, daemon=True)
         server_thread.start()
 
         filt = f"{proto}.SrcPort == {client.getsockname()[1]} or {proto}.SrcPort == {server.getsockname()[1]}"
 
         def send_thread(*args, **kwargs):
-            threading.Thread(target=send, args=args, kwargs=kwargs).start()
+            threading.Thread(target=send, args=args, kwargs=kwargs, daemon=True).start()
             return reply
 
         with pydivert.WinDivert(filt) as w:

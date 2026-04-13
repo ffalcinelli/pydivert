@@ -47,10 +47,12 @@ def get_free_port(proto=socket.SOCK_STREAM):
 
 def _backend_server(port):
     with socket.socket() as s:
+        s.settimeout(5.0)
         s.bind(("127.0.0.1", port))
         s.listen(5)
         try:
             conn, _ = s.accept()
+            conn.settimeout(5.0)
             data = conn.recv(1024)
             # Backend appends " [Processed by Backend]"
             conn.sendall(data + b" [Processed by Backend]")
@@ -60,15 +62,17 @@ def _backend_server(port):
 
 def _proxy_server(proxy_port, backend_port):
     with socket.socket() as s:
+        s.settimeout(5.0)
         s.bind(("127.0.0.1", proxy_port))
         s.listen(5)
         try:
             client_conn, _ = s.accept()
+            client_conn.settimeout(5.0)
             data = client_conn.recv(1024)
             # Transform data
             transformed = data.upper()
             # Forward to Backend
-            with socket.create_connection(("127.0.0.1", backend_port)) as backend_conn:
+            with socket.create_connection(("127.0.0.1", backend_port), timeout=5.0) as backend_conn:
                 backend_conn.sendall(transformed)
                 resp = backend_conn.recv(1024)
                 client_conn.sendall(resp)
@@ -104,15 +108,15 @@ def test_integration_tcp_proxy_transform():
         try:
             with pydivert.PyDivert(filt) as w:
                 for packet in w:
-                    if stop_event.is_set():
-                        break
-
                     if packet.dst_port == public_port:
                         packet.dst_port = proxy_port
                     elif packet.src_port == proxy_port:
                         packet.src_port = public_port
 
                     w.send(packet)
+
+                    if stop_event.is_set():
+                        break
         except (PermissionError, OSError):
             pass
 
@@ -140,13 +144,17 @@ def test_integration_tcp_proxy_transform():
 
 def _udp_server(port):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.settimeout(5.0)
         s.bind(("127.0.0.1", port))
         try:
             while True:
-                data, addr = s.recvfrom(1024)
-                if data == b"stop":
-                    break
-                s.sendto(b"Original: " + data, addr)
+                try:
+                    data, addr = s.recvfrom(1024)
+                    if data == b"stop":
+                        break
+                    s.sendto(b"Original: " + data, addr)
+                except (socket.timeout, TimeoutError):
+                    continue
         except Exception:
             pass
 
@@ -162,20 +170,20 @@ def test_integration_dns_modification():
     server_thread.start()
 
     # 2. WinDivert Interception
-    filt = f"udp.SrcPort == {server_port}"
+    filt = f"udp.SrcPort == {server_port} and loopback"
     stop_event = threading.Event()
 
     def diverter():
         try:
             with pydivert.PyDivert(filt) as w:
                 for packet in w:
-                    if stop_event.is_set():
-                        break
-
                     if b"Original: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Original: ", b"Modified: ")
 
                     w.send(packet)
+
+                    if stop_event.is_set():
+                        break
         except Exception:
             pass
 

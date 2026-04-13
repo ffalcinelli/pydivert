@@ -64,10 +64,12 @@ def test_example_basic_capture():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
                 conn, addr = s.accept()
+                conn.settimeout(5.0)
                 data = conn.recv(1024)
                 conn.sendall(data)
                 conn.close()
@@ -113,10 +115,12 @@ def test_example_packet_modification_redirection():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", real_port))
             s.listen(1)
             try:
                 conn, addr = s.accept()
+                conn.settimeout(5.0)
                 conn.recv(1024)
                 conn.sendall(b"redirected")
                 conn.close()
@@ -164,6 +168,7 @@ def test_example_firewall_drop():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
@@ -210,10 +215,12 @@ def test_example_payload_modification():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
                 conn, addr = s.accept()
+                conn.settimeout(5.0)
                 conn.sendall(b"Your secret-token is 123")
                 conn.close()
             except Exception:
@@ -258,10 +265,12 @@ def test_example_traffic_logging():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
                 conn, addr = s.accept()
+                conn.settimeout(5.0)
                 conn.recv(1024)
                 conn.close()
             except Exception:
@@ -325,6 +334,7 @@ def flow_layer_diverter(port, stop_event, events):
 
 def flow_layer_server(port):
     with socket.socket() as s:
+        s.settimeout(5.0)
         s.bind(("127.0.0.1", port))
         s.listen(1)
         try:
@@ -378,10 +388,12 @@ def test_example_sniff_mode():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
                 conn, addr = s.accept()
+                conn.settimeout(5.0)
                 data = conn.recv(1024)
                 conn.sendall(data)
                 conn.close()
@@ -428,10 +440,12 @@ async def test_example_asyncio():
 
     def server():
         with socket.socket() as s:
+            s.settimeout(5.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
                 conn, _ = s.accept()
+                conn.settimeout(5.0)
                 conn.recv(1024)
                 conn.close()
             except Exception:
