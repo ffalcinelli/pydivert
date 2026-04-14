@@ -99,6 +99,7 @@ class WinDivertTransformer(Transformer):
 
     def field_access(self, children):
         name = str(children[0]).lower()
+        if name == "ip": return {"proto": "ip"}
         if name == "tcp": return {"proto": "tcp"}
         if name == "udp": return {"proto": "udp"}
         if name == "icmp": return {"proto": "icmp"}
@@ -122,6 +123,37 @@ class WinDivertTransformer(Transformer):
     def not_expr(self, children):
         # 'NOT' is hard to transpile to simple firewall rules for complex cases
         return {}
+
+class LegacyTransformer(Transformer):
+    """
+    Converts AST back to WinDivert filter string (used for testing/legacy).
+    """
+    def true_val(self, _): return "true"
+    def false_val(self, _): return "false"
+    def field_access(self, children):
+        field_name = str(children[0])
+        if len(children) > 1:
+            index = children[1]
+            return f"{field_name}[{index}]"
+        return field_name
+    def index(self, children): return "".join(map(str, children))
+    def value(self, children): return str(children[0])
+    def comparison(self, children):
+        return f"{children[0]} {children[1]} {children[2]}"
+    def logic_and(self, children): return " && ".join(map(str, children))
+    def logic_or(self, children): return " || ".join(map(str, children))
+    def not_expr(self, children): return f"!({children[0]})"
+    def ternary(self, children): return f"({children[0]} ? {children[1]} : {children[2]})"
+    def parenthesized(self, children): return f"({children[0]})"
+    def expression(self, children): return str(children[0])
+
+def transpile(filter_str):
+    """
+    Legacy transpile function that returns the filter string representation.
+    """
+    parser = Lark(WINDIVERT_GRAMMAR, start='start', parser='lalr')
+    tree = parser.parse(filter_str)
+    return LegacyTransformer().transform(tree)
 
 def transpile_to_rules(filter_str):
     """

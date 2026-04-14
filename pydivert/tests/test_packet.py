@@ -320,6 +320,7 @@ def test_ipv6_truncation():
 
 def test_ipv6_property_non_ipv6():
     """Test that the ipv6 property returns None when address_family is not AF_INET6."""
+    ipv4_hdr = util.fromhex("45 00 00 28 00 01 00 00 40 06 00 00 7f 00 00 01 7f 00 00 01")
     packet = p(ipv4_hdr)
     assert packet.address_family == socket.AF_INET
     assert packet.ipv6 is None

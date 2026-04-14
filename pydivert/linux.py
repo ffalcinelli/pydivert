@@ -120,8 +120,12 @@ class NetFilterQueue(BaseDivert):
                     chains = ["OUTPUT", "FORWARD"]
             
             if "loopback" in rule_dict:
-                chains = ["OUTPUT"] # Capture on output only to avoid doubles
-                ipt_args.extend(["-o", "lo"])
+                chains = ["INPUT", "OUTPUT"]
+                ipt_args.extend(["-o", "lo"]) # For OUTPUT
+                # We need a separate rule for INPUT as -o is only for OUTPUT
+                rules.append((["INPUT"], ["-i", "lo"]))
+                rules.append((["OUTPUT"], ["-o", "lo"]))
+                continue
 
             if "false" in rule_dict:
                 continue
@@ -217,11 +221,30 @@ class NetFilterQueue(BaseDivert):
 
     def _callback(self, pkt):
         raw = pkt.get_payload()
-        p = Packet(raw)
+        
+        # Determine direction and loopback from interface info
+        indev = getattr(pkt, "indev", 0)
+        outdev = getattr(pkt, "outdev", 0)
+        
+        # Interface index 1 is almost always 'lo' on Linux.
+        is_loopback = (indev == 1 or outdev == 1)
+        
+        # Direction
+        if outdev > 0 and indev == 0:
+            direction = Direction.OUTBOUND
+        else:
+            direction = Direction.INBOUND
+
+        p = Packet(raw, direction=direction, loopback=is_loopback)
+        p._nfq_pkt = pkt
+
+        # Robust loopback detection fallback
+        if not p.is_loopback and (p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1"):
+            # Update packet metadata if it's clearly loopback but missing from iface info
+            p.is_loopback = True
 
         # User space filtering
         if p.matches(self._translated_filter):
-            p._nfq_pkt = pkt
             try:
                 self._queue.put(p, block=False)
                 # If there's an active async loop, notify it

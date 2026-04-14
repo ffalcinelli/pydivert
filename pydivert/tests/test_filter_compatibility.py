@@ -75,11 +75,14 @@ def test_filter_compatibility_unsupported(filter_str):
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         if sys.platform.startswith("linux"):
             rules = w._impl._parse_filter_to_iptables()
+            # These filters should result in 0 rules currently (or at least no specific matches)
+            assert len(rules) == 0 or (len(rules) == 1 and not rules[0][1])
         else:
             rules = w._impl._parse_filter_to_ipfw()
-
-        # These filters should result in 0 rules currently (or at least no specific matches)
-        assert len(rules) == 0 or (len(rules) == 1 and not rules[0][1])
+            # On FreeBSD, unsupported filter produces a generic rule starting with divert prefix
+            prefix = f"divert {w._impl._port} ip from any to any"
+            for rule in rules:
+                assert rule.strip() == prefix
     else:
         # On Windows, WinDivert might accept some of these
         pass

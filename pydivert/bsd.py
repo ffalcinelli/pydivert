@@ -137,10 +137,14 @@ class Divert(BaseDivert):
                 data, addr = sock.recvfrom(65535)
                 if not data:
                     continue
-                # addr is (ip_addr, interface_index) on FreeBSD
-                ip_addr, port = addr if addr and len(addr) >= 2 else ('0.0.0.0', 0)
+                # addr is (ip_addr, port, flowinfo, scopeid) on FreeBSD for divert sockets.
+                # The port field encodes direction (0 for outbound) and interface index.
+                ip_addr = addr[0] if addr else '0.0.0.0'
+                port = addr[1] if addr and len(addr) >= 2 else 0
+                
                 direction = Direction.OUTBOUND if port == 0 else Direction.INBOUND
-                is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1')
+                # On loopback, FreeBSD divert socket often gives '0.0.0.0' or '127.0.0.1'
+                is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1' or ip_addr == '::1' or not ip_addr)
 
                 p = Packet(data, direction=direction, loopback=is_loopback)
                 p._bsd_addr = addr
@@ -150,12 +154,18 @@ class Divert(BaseDivert):
                     if self._loop and self._async_queue:
                         self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
                 else:
-                    # Packet didn't match our filter, re-inject immediately
-                    sock.sendto(data, addr)
+                    # Packet didn't match our filter, re-inject immediately using the original addr
+                    send_addr = addr
+                    if len(send_addr) < 4:
+                        send_addr = list(send_addr)
+                        while len(send_addr) < 4:
+                            send_addr.append(0)
+                        send_addr = tuple(send_addr)
+                    sock.sendto(data, send_addr)
             except Exception:
                 if self._stop_event.is_set():
                     break
-                time.sleep(0.01)
+                time.sleep(0.001)
 
     def close(self) -> None:
         self._stop_event.set()
@@ -214,6 +224,17 @@ class Divert(BaseDivert):
         addr = getattr(packet, '_bsd_addr', ('0.0.0.0', 0))
         try:
             raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
+            
+            # On FreeBSD, re-inject using the address info from capture.
+            # Divert sockets expect a 4-tuple (ip, port, flowinfo, scopeid)
+            # or at least a tuple that can be cast to sockaddr_in.
+            if len(addr) < 4:
+                # Pad with zeros if it's just (ip, port)
+                send_addr = list(addr)
+                while len(send_addr) < 4:
+                    send_addr.append(0)
+                addr = tuple(send_addr)
+                
             return sock.sendto(raw_bytes, addr)
         except Exception as e:
             logger.error(f"Failed to send packet on BSD: {e}")
