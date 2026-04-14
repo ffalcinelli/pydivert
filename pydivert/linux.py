@@ -14,6 +14,7 @@ from typing import Any
 from pydivert.base import BaseDivert
 from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
+from pydivert.filter import transpile_to_rules
 
 logger = logging.getLogger(__name__)
 
@@ -78,37 +79,54 @@ class NetFilterQueue(BaseDivert):
     def _parse_filter_to_iptables(self):
         rules = []
         filter_str = self._translated_filter
+        
+        # If the filter is just "true", we use the safe default
         if filter_str.lower() == "true":
             # Intercept everything EXCEPT SSH to avoid breaking Vagrant
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "udp"]))
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "icmp"]))
-        elif filter_str.lower() == "tcp":
-            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
-        elif filter_str.lower() == "udp":
-            rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "udp"]))
-        else:
-            parts = re.split(r'\s+or\s+|\s*\|\|\s*', filter_str, flags=re.IGNORECASE)
-            for part in parts:
-                part = part.strip('() ')
-                m = re.match(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', part, flags=re.IGNORECASE)
-                if m:
-                    proto = m.group(1).lower()
-                    port_type = m.group(2).lower()
-                    port = m.group(3)
-                    if port_type == 'dstport':
-                        rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", proto, "--dport", port]))
-                    else:
-                        rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", proto, "--sport", port]))
-                elif part.lower() == "loopback" or "loopback" in part.lower():
-                    # For loopback on Linux, intercept only on OUTPUT to avoid double-processing
-                    # (once on OUTPUT, once on INPUT). OUTPUT covers packets leaving for lo.
-                    rules.append((["OUTPUT"], ["-o", "lo"]))
-                elif part.lower() == "outbound":
-                    rules.append((["OUTPUT"], []))
-                elif "127.0.0.1" in part or "::1" in part:
-                    # Specific loopback IP filters should also only be on OUTPUT to avoid double-interception
-                    rules.append((["OUTPUT"], ["-o", "lo"]))
+            return rules
+
+        parsed_rules = transpile_to_rules(filter_str)
+        
+        for rule_dict in parsed_rules:
+            if not rule_dict: # True or too complex
+                rules.append((["INPUT", "OUTPUT", "FORWARD"], []))
+                continue
+            
+            ipt_args = []
+            chains = ["INPUT", "OUTPUT", "FORWARD"]
+            
+            if "proto" in rule_dict:
+                ipt_args.extend(["-p", rule_dict["proto"]])
+            
+            if "dport" in rule_dict:
+                ipt_args.extend(["--dport", rule_dict["dport"]])
+            
+            if "sport" in rule_dict:
+                ipt_args.extend(["--sport", rule_dict["sport"]])
+                
+            if "srcaddr" in rule_dict:
+                ipt_args.extend(["-s", rule_dict["srcaddr"]])
+                
+            if "dstaddr" in rule_dict:
+                ipt_args.extend(["-d", rule_dict["dstaddr"]])
+                
+            if "direction" in rule_dict:
+                if rule_dict["direction"] == "inbound":
+                    chains = ["INPUT", "FORWARD"]
+                elif rule_dict["direction"] == "outbound":
+                    chains = ["OUTPUT", "FORWARD"]
+            
+            if "loopback" in rule_dict:
+                chains = ["OUTPUT"] # Capture on output only to avoid doubles
+                ipt_args.extend(["-o", "lo"])
+
+            if "false" in rule_dict:
+                continue
+
+            rules.append((chains, ipt_args))
 
         return rules
 

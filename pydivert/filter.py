@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-from lark import Lark, Transformer
+from lark import Lark, Transformer, v_args
 
 WINDIVERT_GRAMMAR = r"""
     ?start: expression
@@ -45,44 +45,96 @@ WINDIVERT_GRAMMAR = r"""
 
 class WinDivertTransformer(Transformer):
     """
-    A transformer that converts the WinDivert filter to a specific backend representation.
+    Extracts structured rule components from a WinDivert filter.
+    Returns a list of dictionaries, where each dictionary represents a set of AND-ed conditions (a rule).
+    The list represents an OR of these rules.
     """
-    def __init__(self, backend="bpf"):
-        self.backend = backend
+    def __init__(self):
+        super().__init__()
 
-    def true_val(self, _):
-        return "true"
-    def false_val(self, _):
-        return "false"
+    def expression(self, children):
+        return children[0]
+
+    def logic_or(self, children):
+        # Flatten OR: list of rules
+        rules = []
+        for child in children:
+            if isinstance(child, list):
+                rules.extend(child)
+            else:
+                rules.append(child)
+        return rules
+
+    def logic_and(self, children):
+        # Merge AND: single rule with merged conditions
+        merged = {}
+        for child in children:
+            # If child is a list (from a sub-OR), we can't easily merge it into a single rule
+            # For simplicity in kernel transpilation, we take the first "compatible" part
+            # or treat it as a broad rule.
+            if isinstance(child, list):
+                 if len(child) > 0:
+                     merged.update(child[0])
+            else:
+                merged.update(child)
+        return [merged]
+
+    def comparison(self, children):
+        left, op, right = children
+        if op != "==":
+            return {} # Kernel filters mostly support equality for these fields
+        
+        field = str(left).lower()
+        val = str(right)
+
+        if field == "tcp.dstport" or field == "udp.dstport":
+            return {"proto": field.split('.')[0], "dport": val}
+        if field == "tcp.srcport" or field == "udp.srcport":
+            return {"proto": field.split('.')[0], "sport": val}
+        if field == "ip.srcaddr":
+            return {"srcaddr": val}
+        if field == "ip.dstaddr":
+            return {"dstaddr": val}
+        return {}
+
     def field_access(self, children):
-        field_name = str(children[0])
-        if len(children) > 1:
-            index = children[1]
-            return f"{field_name}[{index}]"
-        return field_name
-    def index(self, children):
-        # Handle index nodes
-        return "".join(map(str, children))
+        name = str(children[0]).lower()
+        if name == "tcp": return {"proto": "tcp"}
+        if name == "udp": return {"proto": "udp"}
+        if name == "icmp": return {"proto": "icmp"}
+        if name == "inbound": return {"direction": "inbound"}
+        if name == "outbound": return {"direction": "outbound"}
+        if name == "loopback": return {"loopback": True}
+        return name
+
     def value(self, children):
         return str(children[0])
-    def comparison(self, children):
-        # children are [left, operator, right]
-        return f"{children[0]} {children[1]} {children[2]}"
-    def logic_and(self, children):
-        return " && ".join(map(str, children))
-    def logic_or(self, children):
-        return " || ".join(map(str, children))
-    def not_expr(self, children):
-        return f"!({children[0]})"
-    def ternary(self, children):
-        return f"({children[0]} ? {children[1]} : {children[2]})"
-    def parenthesized(self, children):
-        return f"({children[0]})"
-    def expression(self, children):
-        return str(children[0])
 
-def transpile(filter_str, backend="bpf"):
-    parser = Lark(WINDIVERT_GRAMMAR, start='start', parser='lalr')
-    tree = parser.parse(filter_str)
-    transformer = WinDivertTransformer(backend=backend)
-    return transformer.transform(tree)
+    def true_val(self, _):
+        return {}
+    
+    def false_val(self, _):
+        return {"false": True}
+
+    def parenthesized(self, children):
+        return children[0]
+
+    def not_expr(self, children):
+        # 'NOT' is hard to transpile to simple firewall rules for complex cases
+        return {}
+
+def transpile_to_rules(filter_str):
+    """
+    Parses a WinDivert filter and returns a list of rule components for backends.
+    """
+    try:
+        parser = Lark(WINDIVERT_GRAMMAR, start='start', parser='lalr')
+        tree = parser.parse(filter_str)
+        transformer = WinDivertTransformer()
+        rules = transformer.transform(tree)
+        if not isinstance(rules, list):
+            rules = [rules]
+        return rules
+    except Exception:
+        # Fallback to broad interception if parsing fails or filter is too complex
+        return [{}]

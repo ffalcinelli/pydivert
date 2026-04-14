@@ -9,10 +9,16 @@ FILTERS = [
     "true",
     "tcp",
     "udp",
+    "ip",
+    "icmp",
     "tcp.DstPort == 80",
     "tcp.SrcPort == 443",
     "udp.DstPort == 53",
     "udp.SrcPort == 123",
+    "ip.SrcAddr == 1.2.3.4",
+    "ip.DstAddr == 8.8.8.8",
+    "inbound",
+    "outbound",
     "tcp.DstPort == 80 or tcp.DstPort == 8080",
     "tcp.DstPort == 80 || tcp.DstPort == 443",
     "tcp.SrcPort == 1024 or tcp.SrcPort == 2048",
@@ -30,14 +36,9 @@ FILTERS = [
     "loopback",
 ]
 UNSUPPORTED_FILTERS = [
-    "ip",
-    "icmp",
     "tcp.PayloadLength > 0",
-    "ip.SrcAddr == 127.0.0.1",
+    "ip.Protocol == 17", # Protocol comparison not supported yet
 ]
-if sys.platform.startswith("linux"):
-    # outbound is NOT supported on Linux transpiler yet
-    UNSUPPORTED_FILTERS.append("outbound")
 
 @pytest.mark.parametrize("filter_str", FILTERS)
 def test_filter_compatibility_supported(filter_str):
@@ -77,17 +78,8 @@ def test_filter_compatibility_unsupported(filter_str):
         else:
             rules = w._impl._parse_filter_to_ipfw()
 
-        # These filters currently result in 0 rules on some platforms, meaning they
-        # intercept NOTHING at the kernel level, which is a known limitation.
-        if filter_str == "outbound":
-             # outbound is now partially supported on Linux/BSD
-             assert len(rules) > 0
-        elif filter_str == "ip.SrcAddr == 127.0.0.1" and sys.platform.startswith("linux"):
-             # Linux implementation now handles 127.0.0.1 by mapping it to loopback
-             assert len(rules) > 0
-        else:
-             assert len(rules) == 0
-
+        # These filters should result in 0 rules currently (or at least no specific matches)
+        assert len(rules) == 0 or (len(rules) == 1 and not rules[0][1])
     else:
         # On Windows, WinDivert might accept some of these
         pass

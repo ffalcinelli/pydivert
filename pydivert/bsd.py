@@ -15,6 +15,7 @@ import time
 from pydivert.base import BaseDivert
 from pydivert.consts import Direction, Flag, Layer
 from pydivert.packet import Packet
+from pydivert.filter import transpile_to_rules
 
 logger = logging.getLogger(__name__)
 
@@ -52,35 +53,45 @@ class Divert(BaseDivert):
         filter_str = self._translated_filter
         prefix = f"divert {self._port}"
 
-        # Check if loopback is explicitly or implicitly involved
-        is_loopback = re.search(r'\bloopback\b', filter_str, re.I) or "127.0.0.1" in filter_str
-        suffix = " via lo0" if is_loopback else ""
-
         if filter_str.lower() == "true":
-            rules.append(f"{prefix} tcp from any to any not dst-port 22 not src-port 22{suffix}")
-            rules.append(f"{prefix} udp from any to any{suffix}")
-            rules.append(f"{prefix} icmp from any to any{suffix}")
-        elif filter_str.lower() == "tcp":
-            rules.append(f"{prefix} tcp from any to any not dst-port 22 not src-port 22{suffix}")
-        elif filter_str.lower() == "udp":
-            rules.append(f"{prefix} udp from any to any{suffix}")
-        else:
-            parts = re.split(r'\s+or\s+|\s*\|\|\s*', filter_str, flags=re.IGNORECASE)
-            for part in parts:
-                part = part.strip('() ')
-                m = re.match(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', part, flags=re.IGNORECASE)
-                if m:
-                    proto = m.group(1).lower()
-                    port_type = m.group(2).lower()
-                    port = m.group(3)
-                    if port_type == 'dstport':
-                        rules.append(f"{prefix} {proto} from any to any {port}{suffix}")
-                    else:
-                        rules.append(f"{prefix} {proto} from any {port} to any{suffix}")
-                elif part.lower() == "loopback":
-                    rules.append(f"{prefix} ip from any to any via lo0")
-                elif part.lower() == "outbound":
-                    rules.append(f"{prefix} ip from any to any out{suffix}")
+            rules.append(f"{prefix} tcp from any to any not dst-port 22 not src-port 22")
+            rules.append(f"{prefix} udp from any to any")
+            rules.append(f"{prefix} icmp from any to any")
+            return rules
+
+        parsed_rules = transpile_to_rules(filter_str)
+
+        for rule_dict in parsed_rules:
+            if not rule_dict: # True or too complex
+                rules.append(f"{prefix} ip from any to any")
+                continue
+
+            proto = rule_dict.get("proto", "ip")
+            src = rule_dict.get("srcaddr", "any")
+            dst = rule_dict.get("dstaddr", "any")
+            
+            rule = f"{prefix} {proto} from {src}"
+            if "sport" in rule_dict:
+                rule += f" {rule_dict['sport']}"
+            
+            rule += f" to {dst}"
+            if "dport" in rule_dict:
+                rule += f" {rule_dict['dport']}"
+            
+            if "direction" in rule_dict:
+                if rule_dict["direction"] == "inbound":
+                    rule += " in"
+                elif rule_dict["direction"] == "outbound":
+                    rule += " out"
+            
+            if "loopback" in rule_dict:
+                rule += " via lo0"
+
+            if "false" in rule_dict:
+                continue
+
+            rules.append(rule)
+
         return rules
 
     def open(self) -> None:
