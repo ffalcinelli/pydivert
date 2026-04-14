@@ -9,6 +9,10 @@ Currently, the following versions of PyDivert are supported with security update
 | 3.0.x   | :white_check_mark: Supported   |
 | < 3.0   | :x: Unsupported       |
 
+## Vulnerability Scanning
+
+We use [Snyk](https://snyk.io/) to continuously monitor the PyDivert codebase and its dependencies for known vulnerabilities. This scanning is integrated into our CI/CD pipeline to ensure that security is maintained throughout the development lifecycle.
+
 ## Reporting a Vulnerability
 
 If you discover a potential security vulnerability in PyDivert, please do **not** open a public issue. Instead, report it privately to the maintainers:
