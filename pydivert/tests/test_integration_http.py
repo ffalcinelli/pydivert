@@ -28,11 +28,11 @@ These tests verify that PyDivert can correctly intercept and modify HTTP traffic
 Note: These tests must be run on Windows with administrator privileges.
 """
 
-import http.server
 import socket
 import threading
 import time
 import urllib.request
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pydivert
 
@@ -44,7 +44,7 @@ def get_free_port():
 
 
 def test_http_port_redirection():  # noqa: C901
-    class SimpleHandler(http.server.BaseHTTPRequestHandler):
+    class SimpleHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.end_headers()
@@ -54,7 +54,7 @@ def test_http_port_redirection():  # noqa: C901
             pass
 
     # Real port where the server is listening
-    httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
+    httpd = HTTPServer(("127.0.0.1", 0), SimpleHandler)
     real_port = httpd.server_address[1]
 
     def serve():
@@ -118,7 +118,7 @@ def test_http_port_redirection():  # noqa: C901
 
 
 def test_http_modification():  # noqa: C901
-    class SimpleHandler(http.server.BaseHTTPRequestHandler):
+    class SimpleHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
@@ -129,7 +129,7 @@ def test_http_modification():  # noqa: C901
             pass
 
     # Bind to 127.0.0.1:0 to get a random free port
-    httpd = http.server.HTTPServer(("127.0.0.1", 0), SimpleHandler)
+    httpd = HTTPServer(("127.0.0.1", 0), SimpleHandler)
     port = httpd.server_address[1]
 
     def serve():
