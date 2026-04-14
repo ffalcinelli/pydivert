@@ -1,8 +1,11 @@
-import pytest
-from pydivert.windivert import WinDivert
-from pydivert.consts import Param
 from unittest.mock import MagicMock
+
+import pytest
+
 import pydivert
+from pydivert.consts import Param
+from pydivert.windivert import WinDivert
+
 
 @pytest.mark.parametrize("method_name, args", [
     ("recv", []),
@@ -19,12 +22,14 @@ def test_sync_methods_raise_without_open(method_name, args):
         method(*args)
     assert "WinDivert handle is not open" in str(excinfo.value)
 
+
 @pytest.mark.asyncio
 async def test_recv_async_raises_without_open():
     w = WinDivert("false")
     with pytest.raises(RuntimeError) as excinfo:
         await w.recv_async()
     assert "WinDivert handle is not open" in str(excinfo.value)
+
 
 @pytest.mark.asyncio
 async def test_send_async_raises_without_open():
