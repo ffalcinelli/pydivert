@@ -24,6 +24,7 @@
 
 """
 .. include:: ../README.md
+.. include:: ../docs/FILTER_LANGUAGE.md
 .. include:: ../SECURITY.md
 
 ---

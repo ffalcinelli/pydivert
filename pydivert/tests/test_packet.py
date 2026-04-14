@@ -316,3 +316,10 @@ def test_ipv6_truncation():
     assert p6_partial.address_family == socket.AF_INET6
     assert p6_partial.src_addr == "::"
     assert p6_partial.dst_addr is None
+
+
+def test_ipv6_property_non_ipv6():
+    """Test that the ipv6 property returns None when address_family is not AF_INET6."""
+    packet = p(ipv4_hdr)
+    assert packet.address_family == socket.AF_INET
+    assert packet.ipv6 is None

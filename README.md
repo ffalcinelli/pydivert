@@ -6,7 +6,6 @@
 [![docs](https://img.shields.io/badge/docs-pdoc-blue.svg)](https://ffalcinelli.github.io/pydivert/)
 [![python_versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://pypi.python.org/pypi/pydivert)
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
-[![Snyk](https://snyk.io/test/github/ffalcinelli/pydivert/badge.svg)](https://snyk.io/test/github/ffalcinelli/pydivert)
 
 **PyDivert** is a powerful network packet capture and injection library for Python. While it started as a binding for [WinDivert](https://reqrypt.org/windivert.html), **version 4.0.0** introduces a unified, cross-platform abstraction layer that allows you to write network tools once and run them on **Windows, Linux, and BSD**.
 
@@ -135,6 +134,57 @@ PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firew
 
 *\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux/BSD. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
 
+### Checksums
+- **`packet.is_checksum_valid`**: Returns `True` if all checksums (IP, TCP, UDP, ICMP) in the packet are correct.
+- **`packet.recalculate_checksums()`**: Recalculates all checksums based on the current header and payload values.
+
+```python
+if not packet.is_checksum_valid:
+    print("Corrupted packet detected!")
+    packet.recalculate_checksums()
+```
+
+### Common Packet Properties
+
+The `pydivert.Packet` object provides easy access to common fields:
+
+- **IP Layer**: `packet.src_addr`, `packet.dst_addr`, `packet.ip.ttl`, `packet.ip.protocol`
+- **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`, `packet.tcp.flags`
+- **Payload**: `packet.payload` (bytes)
+- **Metadata**:
+  - **`timestamp`**: Capture time (QueryPerformanceCounter).
+  - **`is_loopback`**, **`is_impostor`**, **`is_sniffed`**: Boolean flags.
+  - **`interface`**: Index of the capture interface.
+  - **`direction`**: `Direction.INBOUND` or `Direction.OUTBOUND`.
+
+Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `packet.tcp`, `packet.udp`, and `packet.icmp`.
+
+### WinDivert Layers
+
+- `Layer.NETWORK` (default): IP packets.
+- `Layer.FLOW`: Connection events.
+- `Layer.SOCKET`: Socket-level events.
+- `Layer.REFLECT`: Reflected events.
+
+### Flags
+
+- `Flag.SNIFF`: Monitor mode (sniffing).
+- `Flag.DROP`: Drop packets by default.
+- `Flag.FRAGMENTS`: Capture all IP fragments.
+- `Flag.RECV_ONLY` / `Flag.SEND_ONLY`: Restricted handles.
+
+### Filter Language
+
+PyDivert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](#windivert-filter-language).
+
+For the original technical reference, please visit the [official WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
+
+### WinDivert Version Compatibility
+
+| PyDivert | WinDivert |
+| --- | --- |
+| 3.0.0+ | 2.2.2 (bundled) - Full support for modern metadata and layers |
+
 ---
 
 ## 🧪 Development & Testing
@@ -183,4 +233,8 @@ The full test suite is automatically executed on every push to `main` and for al
 
 ## 📄 License
 
-PyDivert is dual-licensed under the **LGPL-3.0-or-later** and **GPL-2.0-or-later** licenses, matching the licensing strategy of the WinDivert driver.
+PyDivert is dual-licensed under the [LGPL-3.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-LGPL-3.0-or-later) and [GPL-2.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-GPL-2.0-or-later) licenses, matching the licensing strategy of the WinDivert driver.
+
+## 🛡️ Security
+
+PyDivert is committed to security and uses [Snyk](https://snyk.io/) for continuous vulnerability scanning. For more details on our security practices and how to report vulnerabilities, please refer to the [Security Policy](SECURITY.md).

@@ -10,9 +10,6 @@ here = os.path.dirname(os.path.abspath(__file__))
 root = os.path.dirname(here)
 os.chdir(root)
 
-# Set environment variable to allow pdoc to execute things if needed
-os.environ["PDOC_ALLOW_EXEC"] = "1"
-
 def get_tags():
     """Retrieve and sort all tags starting with 'v'."""
     try:
