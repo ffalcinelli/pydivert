@@ -25,6 +25,7 @@
 import asyncio
 import ctypes
 import logging
+import os
 import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
@@ -136,7 +137,8 @@ class WinDivert:
         """
         if not service.stop_service():
             # Fallback to sc.exe if direct Win32 API fails
-            subprocess.run(["sc", "stop", "WinDivert"], capture_output=True)
+            sc_path = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "sc.exe")
+            subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True)
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
