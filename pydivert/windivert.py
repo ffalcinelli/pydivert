@@ -63,7 +63,8 @@ class WinDivert:
         """
         Creates a WinDivert handle.
 
-        :param filter: The packet filter string (e.g. "tcp.DstPort == 80").
+        :param filter: The packet filter string (e.g. "tcp.DstPort == 80"). 
+            See the [WinDivert Filter Language](#windivert-filter-language) guide for more details.
         :param layer: The WinDivert layer (e.g. Layer.NETWORK, Layer.FLOW).
         :param priority: The priority of the handle (higher priority handles see packets first).
         :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).

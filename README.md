@@ -7,7 +7,6 @@
 [![python_versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://pypi.python.org/pypi/pydivert)
 [![windows](https://img.shields.io/badge/os-windows%2011-blue.svg)](https://pypi.python.org/pypi/pydivert)
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
-[![Snyk](https://snyk.io/test/github/ffalcinelli/pydivert/badge.svg?targetFile=pyproject.toml)](https://snyk.io/test/github/ffalcinelli/pydivert?targetFile=pyproject.toml)
 
 **PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
 
@@ -176,6 +175,12 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 - `Flag.FRAGMENTS`: Capture all IP fragments.
 - `Flag.RECV_ONLY` / `Flag.SEND_ONLY`: Restricted handles.
 
+## Filter Language
+
+PyDivert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](#windivert-filter-language).
+
+For the original technical reference, please visit the [official WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
+
 ## WinDivert Version Compatibility
 
 | PyDivert | WinDivert |
@@ -203,4 +208,8 @@ The full API documentation is available at [https://ffalcinelli.github.io/pydive
 
 ## License
 
-PyDivert is dual-licensed under **LGPL-3.0-or-later** and **GPL-2.0-or-later**.
+PyDivert is dual-licensed under [LGPL-3.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-LGPL-3.0-or-later) and [GPL-2.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-GPL-2.0-or-later).
+
+## Security
+
+PyDivert is committed to security and uses [Snyk](https://snyk.io/) for continuous vulnerability scanning. For more details on our security practices and how to report vulnerabilities, please refer to the [Security Policy](#security-policy).
