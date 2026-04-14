@@ -406,6 +406,9 @@ class WinDivert:
 
         :return: The return value is the number of bytes actually sent.
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
         if recalculate_checksum:
             packet.recalculate_checksums()
 
@@ -502,6 +505,9 @@ class WinDivert:
         :param overlapped: An optional `Overlapped` structure for overlapped IO.
         :return: The number of bytes sent if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
         if recalculate_checksum:
             packet.recalculate_checksums()
 
@@ -544,6 +550,9 @@ class WinDivert:
 
         :return: The parameter value.
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
         value = c_uint64(0)
         windivert_dll.WinDivertGetParam(self._handle, name, byref(value))  # type: ignore[attr-defined]
         return value.value
@@ -562,4 +571,7 @@ class WinDivert:
 
         For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_set_param
         """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
         return windivert_dll.WinDivertSetParam(self._handle, name, value)  # type: ignore[attr-defined]
