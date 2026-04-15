@@ -138,7 +138,19 @@ class WinDivert:
         """
         if not service.stop_service():
             # Fallback to sc.exe if direct Win32 API fails
-            sc_path = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "sc.exe")
+            try:
+                import ctypes.wintypes
+
+                buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
+                length = ctypes.windll.kernel32.GetSystemDirectoryW(buf, ctypes.wintypes.MAX_PATH)  # type: ignore[attr-defined]
+                if 0 < length <= ctypes.wintypes.MAX_PATH:
+                    system32 = buf.value
+                else:
+                    system32 = "C:\\Windows\\System32"
+            except (AttributeError, OSError, ImportError):
+                system32 = "C:\\Windows\\System32"
+
+            sc_path = os.path.join(system32, "sc.exe")
             subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True)
 
     @staticmethod
