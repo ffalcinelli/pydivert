@@ -8,15 +8,16 @@ from pydivert.packet import Packet
 
 
 def test_windivert_unregister_fallback():
-    import os
-
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             pydivert.WinDivert.unregister()
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
-            sc_path = os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "System32", "sc.exe")
-            assert args == [sc_path, "stop", "WinDivert"]
+            # On Linux/Mock, the fallback C:\Windows\System32 should be used
+            import os
+            expected_sc_path = os.path.join("C:\\Windows\\System32", "sc.exe")
+            assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
+            assert args[1:] == ["stop", "WinDivert"]
 
 
 def test_check_filter_os_error():
