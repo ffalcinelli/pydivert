@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,23 +21,22 @@ def test_windivert_unregister_fallback():
 
 
 def test_windivert_unregister_success_path():
-    import ctypes
     from unittest.mock import MagicMock
 
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             mock_windll = MagicMock()
             mock_windll.kernel32.GetSystemDirectoryW.return_value = 10
-            
+
             # We need to mock the buffer value since GetSystemDirectoryW would normally fill it
             with patch("ctypes.create_unicode_buffer") as mock_buf:
                 buf_instance = MagicMock()
                 buf_instance.value = "C:\\MockedSystem32"
                 mock_buf.return_value = buf_instance
-                
+
                 with patch("ctypes.windll", mock_windll, create=True):
                     pydivert.WinDivert.unregister()
-                    
+
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
@@ -53,10 +52,10 @@ def test_windivert_unregister_api_zero_path():
             mock_windll = MagicMock()
             # GetSystemDirectoryW returns 0 on failure
             mock_windll.kernel32.GetSystemDirectoryW.return_value = 0
-            
+
             with patch("ctypes.windll", mock_windll, create=True):
                 pydivert.WinDivert.unregister()
-                    
+
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
@@ -65,18 +64,18 @@ def test_windivert_unregister_api_zero_path():
 
 
 def test_windivert_unregister_api_overflow_path():
-    from unittest.mock import MagicMock
     import ctypes.wintypes
+    from unittest.mock import MagicMock
 
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             mock_windll = MagicMock()
             # GetSystemDirectoryW returns length > MAX_PATH if buffer is too small
             mock_windll.kernel32.GetSystemDirectoryW.return_value = ctypes.wintypes.MAX_PATH + 1
-            
+
             with patch("ctypes.windll", mock_windll, create=True):
                 pydivert.WinDivert.unregister()
-                    
+
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
@@ -88,12 +87,11 @@ def test_windivert_unregister_attribute_error():
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             # Simulate AttributeError when accessing ctypes.windll.kernel32 (e.g. on Linux)
-            import ctypes
             mock_windll = MagicMock(spec=[]) # No attributes allowed
-            
+
             with patch("ctypes.windll", mock_windll, create=True):
                 pydivert.WinDivert.unregister()
-                    
+
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
