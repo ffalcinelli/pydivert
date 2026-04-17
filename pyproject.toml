@@ -104,6 +104,7 @@ packages = ["pydivert"]
 testpaths = ["pydivert"]
 addopts = "--capture=no --color=yes --ignore=pydivert/tests/test_driver_management.py"
 timeout = 60
+asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["pydivert"]
