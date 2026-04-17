@@ -28,6 +28,7 @@ async def test_send_async_execution():
             raw[0] = 0x45 # IPv4
             raw[9] = 6 # TCP
             p = Packet(raw)
+            assert p.ipv4 is not None
             p.ipv4.packet_len = 44
 
             # Explicitly call send_async with recalculate_checksum=True (default)

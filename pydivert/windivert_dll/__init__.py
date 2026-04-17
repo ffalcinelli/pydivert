@@ -30,11 +30,19 @@ https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 import ctypes
 import functools
 import os
-import platform
 import sys
+from ctypes.wintypes import HANDLE
+from typing import Any
+
+from .structs import Overlapped as Overlapped
+from .structs import WinDivertAddress as WinDivertAddress
+
+# We use Any for windll and WinDLL to satisfy the type checker when accessing dynamic attributes
+windll: Any
+WinDLL: Any
 
 try:
-    from ctypes import (  # type: ignore[attr-defined]
+    from ctypes import (
         POINTER,
         c_char_p,
         c_int,
@@ -44,9 +52,15 @@ try:
         c_uint32,
         c_uint64,
         c_void_p,
-        windll,
     )
-    from ctypes.wintypes import HANDLE
+    from ctypes import (
+        WinDLL as _WinDLL,
+    )
+    from ctypes import (
+        windll as _windll,
+    )
+    windll = _windll
+    WinDLL = _WinDLL
 
     # kernel32 functions
     def CreateEventW(*args, **kwargs):
@@ -84,10 +98,21 @@ try:
     def WinError(code=None, desc=None):
         return ctypes.WinError(code, desc)
 
-    WinDLL = ctypes.WinDLL  # type: ignore[attr-defined]
 except (ImportError, AttributeError):  # pragma: no cover
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
-    from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+    from ctypes import (
+        POINTER,
+        c_char_p,
+        c_int,
+        c_int16,
+        c_uint,
+        c_uint8,
+        c_uint32,
+        c_uint64,
+        c_void_p,
+    )
+    windll = None
+    WinDLL = ctypes.cdll.LoadLibrary if hasattr(ctypes.cdll, "LoadLibrary") else None
 
     def GetLastError():
         if windll:
@@ -120,56 +145,41 @@ except (ImportError, AttributeError):  # pragma: no cover
             err.winerror = code
         return err
 
-    WinDLL = object  # type: ignore[assignment, misc]
-    windll = None  # type: ignore[assignment]
-    HANDLE = c_void_p  # type: ignore[misc]
-
-from .structs import Overlapped, WinDivertAddress
-
 ERROR_IO_PENDING = 997
 INFINITE = 0xFFFFFFFF
-WAIT_OBJECT_0 = 0
-
-here = os.path.abspath(os.path.dirname(__file__))
-
-if platform.architecture()[0] != "64bit":  # pragma: no cover
-    raise RuntimeError("PyDivert only supports 64-bit architecture.")
-
-DLL_PATH = os.path.join(here, "WinDivert64.dll")
 
 
 def raise_on_error(f):
-    """
-    This decorator throws a WinError whenever GetLastError() returns an error.
-    As as special case, ERROR_IO_PENDING is ignored.
-    """
-
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        result = f(*args, **kwargs)
+        res = f(*args, **kwargs)
 
-        # Determine if the function call failed.
-        # WinDivertOpen returns INVALID_HANDLE_VALUE on failure.
-        # All other functions return BOOL (False on failure).
         if f.__name__ == "WinDivertOpen":
             # INVALID_HANDLE_VALUE is -1 (or 0xFFFFFFFFFFFFFFFF for 64-bit void_p)
-            failed = result == -1 or result == 0xFFFFFFFFFFFFFFFF or result is None
+            failed = res == -1 or res == 0xFFFFFFFFFFFFFFFF or res is None
+        elif f.__name__.startswith("WinDivertHelper"):
+            # WinDivertHelper functions generally return 0/NULL on failure,
+            # but for EvalFilter it returns 0 (False) as a valid result.
+            # Most helpers don't need automated WinError raising.
+            return res
         else:
-            failed = not result
+            failed = not res
 
         if failed:
             retcode = GetLastError()
             if retcode and retcode != ERROR_IO_PENDING:
                 err = WinError(code=retcode)
                 try:
-                    SetLastError(0)  # clear error code so that we don't raise twice.
+                    SetLastError(0)
                 except Exception:
                     pass
                 raise err
-        return result
+        return res
 
     return wrapper
 
+
+DLL_PATH = os.path.join(os.path.dirname(__file__), "WinDivert64.dll")
 
 WINDIVERT_FUNCTIONS = {
     "WinDivertHelperParsePacket": (
@@ -192,27 +202,21 @@ WINDIVERT_FUNCTIONS = {
     ),
     "WinDivertHelperParseIPv4Address": ([c_char_p, POINTER(c_uint32)], c_int),
     "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(c_uint8 * 16)], c_int),
-    "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_int),
-    "WinDivertHelperCompileFilter": ([c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)], c_int),
-    "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p], c_int),
     "WinDivertOpen": ([c_char_p, c_int, c_int16, c_uint64], HANDLE),
-    "WinDivertRecv": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)], c_int),
-    "WinDivertSend": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), POINTER(WinDivertAddress)], c_int),
+    "WinDivertRecv": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), c_void_p], c_int),
     "WinDivertRecvEx": (
-        [
-            HANDLE,
-            c_void_p,
-            c_uint,
-            POINTER(c_uint),
-            c_uint64,
-            POINTER(WinDivertAddress),
-            POINTER(c_uint),
-            POINTER(Overlapped),
-        ],
+        [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, c_void_p, POINTER(c_uint), c_void_p],
         c_int,
     ),
+    "WinDivertSend": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), c_void_p], c_int),
     "WinDivertSendEx": (
-        [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, POINTER(WinDivertAddress), c_uint, POINTER(Overlapped)],
+        [HANDLE, c_void_p, c_uint, POINTER(c_uint), c_uint64, c_void_p, c_uint, c_void_p],
+        c_int,
+    ),
+    "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_uint),
+    "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p], c_int),
+    "WinDivertHelperCompileFilter": (
+        [c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)],
         c_int,
     ),
     "WinDivertShutdown": ([HANDLE, c_int], c_int),
@@ -222,7 +226,7 @@ WINDIVERT_FUNCTIONS = {
 }
 
 
-_module = sys.modules[__name__]
+_module: Any = sys.modules[__name__]
 
 
 def _init():
@@ -241,7 +245,7 @@ def _init():
         setattr(_module, funcname, raise_on_error(f))
 
     # Replace proxy functions with direct handles
-    _module._init = lambda: None
+    setattr(_module, "_init", lambda: None)  # noqa: B010
 
 
 def _mkprox(funcname):
@@ -256,6 +260,17 @@ def _mkprox(funcname):
         return getattr(_module, funcname)(*args, **kwargs)
 
     return prox
+
+
+def __getattr__(name: str) -> Any:
+    """
+    Handle dynamic access for WinDivert DLL functions.
+    This helps type checkers like Pyright (ty) understand that this module
+    dynamically provides attributes not explicitly defined.
+    """
+    if name in WINDIVERT_FUNCTIONS:
+        return _mkprox(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 for funcname in WINDIVERT_FUNCTIONS:

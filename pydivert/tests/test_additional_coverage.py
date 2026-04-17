@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from typing import Any, cast
+
 import pytest
 
 import pydivert
@@ -7,7 +9,7 @@ from pydivert.windivert_dll import WinDivertAddress
 
 
 def test_ip_packet_len_setter():
-    p = IPHeader(None)
+    p = IPHeader(cast(Any, None))
     with pytest.raises(AttributeError, match="can't set attribute"):
         p.packet_len = 100
 
