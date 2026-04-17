@@ -54,6 +54,8 @@ def test_header_raw_setter_different_length():
     # Set TCP header to a different length (impossible in reality but tests the code)
     # We just want to trigger the branch in header.py:34 (approx)
     new_tcp = bytearray(b"\x00" * 30)
+    assert p.tcp is not None
     p.tcp.raw = new_tcp
     assert len(p.raw) == 20 + 30
+    assert p.ipv4 is not None
     assert p.ipv4.packet_len == 50

@@ -20,8 +20,9 @@ def test_get_last_error_leak_mock():
             # This should NO LONGER raise OSError after the fix
             w.open()
         except OSError as e:
+            winerror = getattr(e, "winerror", None)
             pytest.fail(
-                f"Bug still present: WinDivert.open() raised [Error {e.winerror}] "
+                f"Bug still present: WinDivert.open() raised [Error {winerror}] "
                 f"even though GetLastError was mocked to 87 but call succeeded"
             )
         finally:
@@ -33,8 +34,9 @@ def test_get_last_error_leak_real():
     # Test with real SetLastError
     error_code = 1234
     try:
-        ctypes.windll.kernel32.SetLastError(error_code)
-    except (AttributeError, OSError):
+        from typing import Any, cast
+        cast(Any, ctypes.windll).kernel32.SetLastError(error_code)
+    except (AttributeError, OSError, ImportError):
         pytest.skip("SetLastError not available (non-Windows)")
 
     w = WinDivert("false")
@@ -42,8 +44,9 @@ def test_get_last_error_leak_real():
         # Should not raise
         w.open()
     except OSError as e:
-        if e.winerror == error_code:
-            pytest.fail(f"Bug still present: WinDivert.open() raised [Error {e.winerror}] with real SetLastError(1234)")
+        winerror = getattr(e, "winerror", None)
+        if winerror == error_code:
+            pytest.fail(f"Bug still present: WinDivert.open() raised [Error {winerror}] with real SetLastError(1234)")
         else:
             raise
     finally:
@@ -66,8 +69,9 @@ def test_get_param_leak_mock():
                 # Should not raise
                 w.get_param(Param.QUEUE_LEN)
             except OSError as e:
+                winerror = getattr(e, "winerror", None)
                 pytest.fail(
-                    f"Bug still present: WinDivert.get_param() raised [Error {e.winerror}] even though call succeeded"
+                    f"Bug still present: WinDivert.get_param() raised [Error {winerror}] even though call succeeded"
                 )
     finally:
         w.close()

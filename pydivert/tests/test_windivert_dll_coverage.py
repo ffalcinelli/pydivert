@@ -30,7 +30,25 @@ def test_raise_on_error_no_error_pending():
     mock_func.return_value = False
 
     decorated = windivert_dll.raise_on_error(mock_func)
-
     with patch("pydivert.windivert_dll.GetLastError", return_value=0):
-        # returns False but GetLastError is 0? (Shouldn't happen with WinDivert but test the wrapper)
         assert not decorated()
+
+def test_windivert_dll_getattr():
+    # Test line 271-272: __getattr__ success
+    # Access a function that exists in WINDIVERT_FUNCTIONS but we use getattr() or just direct access
+    # before it's been initialized (though it's already initialized by the loop at the end of the module).
+    # To truly test __getattr__, we can delete one from the module first.
+    if hasattr(windivert_dll, "WinDivertOpen"):
+        # We don't want to actually delete it from the real module permanently,
+        # but for the test we can.
+        func = windivert_dll.WinDivertOpen
+        delattr(windivert_dll, "WinDivertOpen")
+        try:
+            # This should trigger __getattr__
+            assert windivert_dll.WinDivertOpen is not None
+        finally:
+            windivert_dll.WinDivertOpen = func
+
+    # Test __getattr__ failure (line 273)
+    with pytest.raises(AttributeError):
+        _ = windivert_dll.NonExistentFunction

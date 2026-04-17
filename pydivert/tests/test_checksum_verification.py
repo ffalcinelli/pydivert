@@ -14,6 +14,7 @@ def test_checksum_verification():
     raw[40:44] = b"PING"
 
     packet = Packet(raw)
+    assert packet.ipv4 is not None
     packet.ipv4.packet_len = 44
 
     raw[10:12] = b"\x12\x34" # Wrong IP checksum

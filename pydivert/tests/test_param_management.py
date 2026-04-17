@@ -22,6 +22,7 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -95,7 +96,7 @@ def test_get_param_error(mock_windivert_dll):
     mock_windivert_dll.WinDivertGetParam.side_effect = OSError(None, "Invalid Parameter", None, 87)
 
     with pytest.raises(OSError):
-        w.get_param(42)  # Invalid parameter
+        w.get_param(cast(Any, 42))  # Invalid parameter
 
 
 def test_set_param_error(mock_windivert_dll):
@@ -105,4 +106,4 @@ def test_set_param_error(mock_windivert_dll):
     mock_windivert_dll.WinDivertSetParam.side_effect = OSError(None, "Invalid Parameter", None, 87)
 
     with pytest.raises(OSError):
-        w.set_param(42, 100)  # Invalid parameter
+        w.set_param(cast(Any, 42), 100)  # Invalid parameter
