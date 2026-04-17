@@ -28,7 +28,7 @@ import ctypes
 import pprint
 import socket
 from functools import cached_property
-from typing import Any, cast
+from typing import Any
 
 from pydivert import windivert_dll
 from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
@@ -478,7 +478,7 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num: int = cast(Any, windivert_dll).WinDivertHelperCalcChecksums(
+        num: int = windivert_dll.WinDivertHelperCalcChecksums(
             ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
         )
         return num
@@ -577,7 +577,7 @@ class Packet:
         buff, buff_ = self.__to_buffers()
         addr: Any = self.wd_addr
         addr.Layer = layer
-        res: bool = cast(Any, windivert_dll).WinDivertHelperEvalFilter(
+        res: bool = windivert_dll.WinDivertHelperEvalFilter(
             filter.encode(),
             ctypes.byref(buff_),
             len(self.raw),
