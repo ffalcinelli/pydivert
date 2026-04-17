@@ -23,7 +23,7 @@ jobs:
     - name: Run linting
       run: uv run --extra lint ruff check pydivert
     - name: Run type checking
-      run: uv run --extra typecheck mypy pydivert
+      run: uv run --extra typecheck ty check pydivert
 
   test:
     needs: lint
