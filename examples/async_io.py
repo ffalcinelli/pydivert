@@ -14,10 +14,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
-from ctypes import windll  # type: ignore[attr-defined]
 
 import pydivert
-from pydivert.windivert_dll import Overlapped
+from pydivert.windivert_dll import Overlapped, windll
 
 # Windows API constants
 INFINITE = 0xFFFFFFFF

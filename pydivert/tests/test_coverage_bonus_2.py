@@ -144,7 +144,8 @@ async def test_send_async_error_path():
         async with pydivert.WinDivert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
-            p.ipv4.packet_len = 40
+            assert p.ipv4 is not None
+            setattr(p.ipv4, "packet_len", 40)
             with pytest.raises(OSError):
                 await w.send_async(p)
             assert len(w._pending_ops) == 0
@@ -175,7 +176,8 @@ async def test_send_async_exception_path():
         async with pydivert.WinDivert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
-            p.ipv4.packet_len = 40
+            assert p.ipv4 is not None
+            setattr(p.ipv4, "packet_len", 40)
             with pytest.raises(RuntimeError, match="Unexpected"):
                 await w.send_async(p)
             assert len(w._pending_ops) == 0
@@ -290,7 +292,8 @@ async def test_send_async_cancellation():
 
                 raw = bytearray(b"\x45" + b"\x00" * 39)
                 p = Packet(raw)
-                p.ipv4.packet_len = 40
+                assert p.ipv4 is not None
+                setattr(p.ipv4, "packet_len", 40)
                 task = asyncio.create_task(w.send_async(p))
                 await asyncio.sleep(0.05)
                 # Cancel the future

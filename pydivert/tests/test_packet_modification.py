@@ -47,7 +47,9 @@ def test_payload_modification_different_length():
 
     assert packet.payload == b"abc"
     assert len(packet.raw) == 31
+    assert packet.ipv4 is not None
     assert packet.ipv4.packet_len == 31
+    assert packet.udp is not None
     assert packet.udp.payload_len == 3
 
     # Modify payload to something longer
@@ -55,7 +57,9 @@ def test_payload_modification_different_length():
 
     assert packet.payload == b"defgh"
     assert len(packet.raw) == 33
+    assert packet.ipv4 is not None
     assert packet.ipv4.packet_len == 33
+    assert packet.udp is not None
     assert packet.udp.payload_len == 5
 
     # Verify that changing payload updated the raw data

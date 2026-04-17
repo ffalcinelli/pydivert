@@ -579,24 +579,25 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
 
     packet = pydivert.Packet(raw, (0, 0), Direction.OUTBOUND)
     ipv6 = packet.ipv6
+    assert ipv6 is not None
 
     # Initial state
     assert ipv6.traffic_class == 0
     assert ipv6.flow_label == 0
 
     # 1. Set Traffic Class, verify Flow Label is unchanged
-    ipv6.traffic_class = 0xAA  # 1010 1010
+    setattr(ipv6, "traffic_class", 0xAA)  # 1010 1010
     assert ipv6.traffic_class == 0xAA
     assert ipv6.flow_label == 0
 
     # 2. Set Flow Label (including bits in the first 16-bit word), verify Traffic Class is unchanged
     # Flow label is 20 bits. Let's set some bits in the most significant 4 bits (0xF....)
-    ipv6.flow_label = 0xF1234
+    setattr(ipv6, "flow_label", 0xF1234)
     assert ipv6.flow_label == 0xF1234
     assert ipv6.traffic_class == 0xAA  # Should be preserved
 
     # 3. Modify Traffic Class again, verify Flow Label is preserved
-    ipv6.traffic_class = 0x55  # 0101 0101
+    setattr(ipv6, "traffic_class", 0x55)  # 0101 0101
     assert ipv6.traffic_class == 0x55
     assert ipv6.flow_label == 0xF1234  # Should be preserved
 
@@ -616,8 +617,8 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
     assert ipv6.diff_serv == 0x15
     assert ipv6.ecn == 1
 
-    ipv6.diff_serv = 0x3F
-    ipv6.ecn = 3
+    setattr(ipv6, "diff_serv", 0x3F)
+    setattr(ipv6, "ecn", 3)
     assert ipv6.traffic_class == 0xFF
     assert ipv6.flow_label == 0xF1234
     assert struct.unpack_from("!I", packet.raw, 0)[0] == 0x6FFF1234

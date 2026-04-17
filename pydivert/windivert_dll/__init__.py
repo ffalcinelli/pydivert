@@ -32,9 +32,10 @@ import functools
 import os
 import platform
 import sys
+from typing import Any, cast
 
 try:
-    from ctypes import (  # type: ignore[attr-defined]
+    from ctypes import (
         POINTER,
         c_char_p,
         c_int,
@@ -50,32 +51,32 @@ try:
 
     # kernel32 functions
     def CreateEventW(*args, **kwargs):
-        f = windll.kernel32.CreateEventW
+        f = cast(Any, windll).kernel32.CreateEventW
         f.argtypes = [c_void_p, c_int, c_int, c_void_p]
         f.restype = HANDLE
         return f(*args, **kwargs)
 
     def CloseHandle(handle):
-        f = windll.kernel32.CloseHandle
+        f = cast(Any, windll).kernel32.CloseHandle
         f.argtypes = [HANDLE]
         f.restype = c_int
         return f(handle)
 
     def WaitForSingleObject(handle, timeout):
-        f = windll.kernel32.WaitForSingleObject
+        f = cast(Any, windll).kernel32.WaitForSingleObject
         f.argtypes = [HANDLE, c_uint]
         f.restype = c_uint
         return f(handle, timeout)
 
     def GetLastError():
-        f = windll.kernel32.GetLastError
+        f = cast(Any, windll).kernel32.GetLastError
         f.argtypes = []
         f.restype = c_uint
         return f()
 
     def SetLastError(dwErrCode):
         if windll:
-            f = windll.kernel32.SetLastError
+            f = cast(Any, windll).kernel32.SetLastError
             f.argtypes = [c_uint]
             f.restype = None
             return f(dwErrCode)
@@ -84,45 +85,48 @@ try:
     def WinError(code=None, desc=None):
         return ctypes.WinError(code, desc)
 
-    WinDLL = ctypes.WinDLL  # type: ignore[attr-defined]
+    WinDLL: type[Any] = ctypes.WinDLL
 except (ImportError, AttributeError):  # pragma: no cover
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
     from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
 
     def GetLastError():
         if windll:
-            return windll.kernel32.GetLastError()
+            return cast(Any, windll).kernel32.GetLastError()
         return 0
 
     def CreateEventW(*args, **kwargs):
         if windll:
-            return windll.kernel32.CreateEventW(*args, **kwargs)
+            return cast(Any, windll).kernel32.CreateEventW(*args, **kwargs)
         return 0
 
     def CloseHandle(handle):
         if windll:
-            return windll.kernel32.CloseHandle(handle)
+            return cast(Any, windll).kernel32.CloseHandle(handle)
         return True
 
     def WaitForSingleObject(handle, timeout):
         if windll:
-            return windll.kernel32.WaitForSingleObject(handle, timeout)
+            return cast(Any, windll).kernel32.WaitForSingleObject(handle, timeout)
         return 0
 
     def SetLastError(dwErrCode):
         if windll:
-            return windll.kernel32.SetLastError(dwErrCode)
+            return cast(Any, windll).kernel32.SetLastError(dwErrCode)
         return None
 
     def WinError(code=None, desc=None):
         err = OSError(code, desc)
         if code is not None:
-            err.winerror = code
+            setattr(err, "winerror", code)
         return err
 
-    WinDLL = object  # type: ignore[assignment, misc]
-    windll = None  # type: ignore[assignment]
-    HANDLE = c_void_p  # type: ignore[misc]
+    class WinDLL:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    windll: Any = None
+    HANDLE = c_void_p
 
 from .structs import Overlapped, WinDivertAddress
 
@@ -222,7 +226,7 @@ WINDIVERT_FUNCTIONS = {
 }
 
 
-_module = sys.modules[__name__]
+_module: Any = sys.modules[__name__]
 
 
 def _init():
@@ -241,7 +245,7 @@ def _init():
         setattr(_module, funcname, raise_on_error(f))
 
     # Replace proxy functions with direct handles
-    _module._init = lambda: None
+    setattr(_module, "_init", lambda: None)
 
 
 def _mkprox(funcname):
