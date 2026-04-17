@@ -55,8 +55,8 @@ lint = [
     "ruff>=0.1.0",
 ]
 typecheck = [
-    "mypy>=1.0.0",
-    "pytest>=7.0.0", # mypy needs pytest for tests type checking if desired
+    "ty",
+    "pytest>=7.0.0",
 ]
 
 [project.urls]
@@ -82,14 +82,16 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["pydivert"]
 
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = false
-warn_unused_configs = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = false
-ignore_missing_imports = true
+[tool.ty.environment]
+python-platform = "win32"
+
+[tool.ty.rules]
+unresolved-attribute = "ignore"
+unused-type-ignore-comment = "ignore"
+possibly-missing-submodule = "ignore"
+invalid-assignment = "ignore"
+invalid-argument-type = "ignore"
+too-many-positional-arguments = "ignore"
 
 [tool.hatch.version]
 path = "pydivert/__init__.py"
