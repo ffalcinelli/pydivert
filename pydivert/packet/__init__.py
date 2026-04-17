@@ -28,7 +28,7 @@ import ctypes
 import pprint
 import socket
 from functools import cached_property
-from typing import Any
+from typing import Any, cast
 
 from pydivert import windivert_dll
 from pydivert.consts import IPV6_EXT_HEADERS, Direction, Layer, Protocol
@@ -255,7 +255,7 @@ class Packet:
         proto = self.raw[6]
 
         # skip over well-known ipv6 headers
-        start = 40
+        start: int = 40
         while proto in IPV6_EXT_HEADERS:
             if start >= len(self.raw):
                 # less than two bytes left
@@ -263,12 +263,12 @@ class Packet:
             if proto == Protocol.FRAGMENT:
                 hdrlen = 8
             elif proto == Protocol.AH:
-                hdrlen = (self.raw[start + 1] + 2) * 4  # type: ignore[operator]
+                hdrlen = (self.raw[start + 1] + 2) * 4
             else:
                 # Protocol.HOPOPT, Protocol.DSTOPTS, Protocol.ROUTING
-                hdrlen = (self.raw[start + 1] + 1) * 8  # type: ignore[operator]
+                hdrlen = (self.raw[start + 1] + 1) * 8
             proto = self.raw[start]
-            start += hdrlen  # type: ignore[operator]
+            start += hdrlen
         return proto, start
 
     @cached_property
@@ -478,7 +478,7 @@ class Packet:
         """
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
-        num: int = windivert_dll.WinDivertHelperCalcChecksums(  # type: ignore[attr-defined]
+        num: int = cast(Any, windivert_dll).WinDivertHelperCalcChecksums(
             ctypes.byref(buff_), len(self.raw), ctypes.byref(addr), flags
         )
         return num
@@ -531,20 +531,20 @@ class Packet:
         Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        address = WinDivertAddress()
-        address.Timestamp = self.timestamp  # type: ignore
-        address.Layer = self.layer  # type: ignore
-        address.Event = self.event  # type: ignore
-        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0  # type: ignore
-        address.Loopback = 1 if self.is_loopback else 0  # type: ignore
-        address.Impostor = 1 if self.is_impostor else 0  # type: ignore
-        address.Sniffed = 1 if self.is_sniffed else 0  # type: ignore
-        address.IPChecksum = 1 if self.ip_checksum else 0  # type: ignore
-        address.TCPChecksum = 1 if self.tcp_checksum else 0  # type: ignore
-        address.UDPChecksum = 1 if self.udp_checksum else 0  # type: ignore
+        address: Any = WinDivertAddress()
+        address.Timestamp = self.timestamp
+        address.Layer = self.layer
+        address.Event = self.event
+        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
+        address.Loopback = 1 if self.is_loopback else 0
+        address.Impostor = 1 if self.is_impostor else 0
+        address.Sniffed = 1 if self.is_sniffed else 0
+        address.IPChecksum = 1 if self.ip_checksum else 0
+        address.TCPChecksum = 1 if self.tcp_checksum else 0
+        address.UDPChecksum = 1 if self.udp_checksum else 0
 
         if self.layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
-            address.Network.IfIdx, address.Network.SubIfIdx = self.interface  # type: ignore
+            address.Network.IfIdx, address.Network.SubIfIdx = self.interface
         elif self.layer == Layer.FLOW and self.flow:
             ctypes.pointer(address.Flow)[0] = self.flow
         elif self.layer == Layer.SOCKET and self.socket:
@@ -575,9 +575,9 @@ class Packet:
         :return: True if the packet matches, and False otherwise.
         """
         buff, buff_ = self.__to_buffers()
-        addr = self.wd_addr
-        addr.Layer = layer  # type: ignore
-        res: bool = windivert_dll.WinDivertHelperEvalFilter(  # type: ignore[attr-defined]
+        addr: Any = self.wd_addr
+        addr.Layer = layer
+        res: bool = cast(Any, windivert_dll).WinDivertHelperEvalFilter(
             filter.encode(),
             ctypes.byref(buff_),
             len(self.raw),

@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import pydivert
+import pydivert.windivert_dll
 from pydivert.windivert_dll import Overlapped, WinDivertAddress
 
 

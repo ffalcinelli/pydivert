@@ -51,7 +51,7 @@ def flag_property(name, offset, bit, docs=None):
         else docs
     )
 
-    return flag  # type: ignore[misc]
+    return flag
 
 
 def raw_property(fmt, offset, docs=None):
@@ -66,4 +66,4 @@ def raw_property(fmt, offset, docs=None):
     if docs:
         rprop.__doc__ = docs
 
-    return rprop  # type: ignore[misc]
+    return rprop

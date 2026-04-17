@@ -1,4 +1,5 @@
 import ctypes
+from typing import Any, cast
 from unittest.mock import patch
 
 from pydivert import WinDivert
@@ -23,6 +24,7 @@ def test_windivert_recv_buffer_reuse(wd_dll):
     wd_dll.WinDivertRecv.side_effect = fake_recv
 
     packet1 = w.recv()
+    assert packet1 is not None
     assert packet1.raw.tobytes() == b"hello"
 
     def fake_recv2(handle, pPacket, packetLen, pRecvLen, pAddr):
@@ -33,9 +35,11 @@ def test_windivert_recv_buffer_reuse(wd_dll):
     wd_dll.WinDivertRecv.side_effect = fake_recv2
 
     packet2 = w.recv()
+    assert packet2 is not None
     assert packet2.raw.tobytes() == b"world!"
 
     # Original packet should not be overwritten
+    assert packet1 is not None
     assert packet1.raw.tobytes() == b"hello"
 
 
@@ -53,6 +57,7 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
     wd_dll.WinDivertRecvEx.side_effect = fake_recv_ex
 
     packet1 = w.recv_ex()
+    assert packet1 is not None
     assert packet1.raw.tobytes() == b"hello"
 
     def fake_recv_ex2(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):
@@ -63,11 +68,14 @@ def test_windivert_recv_ex_buffer_reuse(wd_dll):
     wd_dll.WinDivertRecvEx.side_effect = fake_recv_ex2
 
     packet2 = w.recv_ex()
+    assert packet2 is not None
     assert packet2.raw.tobytes() == b"world!"
 
     # Original packet should not be overwritten
+    assert packet1 is not None
     assert packet1.raw.tobytes() == b"hello"
 
     overlap = MockOverlapped()
-    packet3 = w.recv_ex(overlapped=overlap)
+    packet3 = w.recv_ex(overlapped=cast(Any, overlap))
+    assert packet3 is not None
     assert packet3.raw.tobytes() == b"world!"

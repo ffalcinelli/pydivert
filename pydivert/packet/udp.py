@@ -38,11 +38,11 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
 
     @property
     def payload(self) -> bytes:
-        return PayloadMixin.payload.fget(self)  # type: ignore
+        return PayloadMixin.payload.fget(self)
 
     @payload.setter
     def payload(self, val: bytes | bytearray | memoryview) -> None:
-        PayloadMixin.payload.fset(self, val)  # type: ignore
+        PayloadMixin.payload.fset(self, val)
         self.payload_len = len(val)
 
     payload.__doc__ = PayloadMixin.payload.__doc__
@@ -55,4 +55,4 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
     def payload_len(self, val: int) -> None:
         self.raw[4:6] = struct.pack("!H", val + 8)
 
-    cksum: int = raw_property("!H", 6, docs="The UDP header checksum field.")  # type: ignore[assignment]
+    cksum: int = raw_property("!H", 6, docs="The UDP header checksum field.")
