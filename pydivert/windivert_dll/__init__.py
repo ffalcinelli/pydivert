@@ -100,7 +100,17 @@ try:
 
 except (ImportError, AttributeError):  # pragma: no cover
     # Fallback for non-Windows platforms (e.g. for running unit tests with mocks)
-    from ctypes import POINTER, c_char_p, c_int, c_int16, c_uint, c_uint8, c_uint32, c_uint64, c_void_p
+    from ctypes import (
+        POINTER,
+        c_char_p,
+        c_int,
+        c_int16,
+        c_uint,
+        c_uint8,
+        c_uint32,
+        c_uint64,
+        c_void_p,
+    )
     windll = None
     WinDLL = ctypes.cdll.LoadLibrary if hasattr(ctypes.cdll, "LoadLibrary") else None
 
