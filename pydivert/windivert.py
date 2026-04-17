@@ -175,7 +175,9 @@ class WinDivert:
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:
-            res = cast(Any, windivert_dll).WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
+            res = cast(Any, windivert_dll).WinDivertHelperCompileFilter(
+                filter.encode(), layer, None, 0, byref(msg), byref(pos)
+            )
         except OSError as e:
             logger.warning("WinDivertHelperCompileFilter failed: %s", e)
         return res, pos.value, msg.value.decode() if msg.value else ""
@@ -298,7 +300,9 @@ class WinDivert:
                 if error == cast(Any, windivert_dll).ERROR_IO_PENDING:
                     # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, cast(Any, windivert_dll).WaitForSingleObject, self._event, INFINITE)
+                    await loop.run_in_executor(
+                        None, cast(Any, windivert_dll).WaitForSingleObject, self._event, INFINITE
+                    )
                 else:
                     raise cast(Any, windivert_dll).WinError(error)
             # Operation completed successfully (either synchronously or after waiting)
@@ -431,7 +435,9 @@ class WinDivert:
         send_len = c_uint(0)
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
-        cast(Any, windivert_dll).WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
+        cast(Any, windivert_dll).WinDivertSend(
+            self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr)
+        )
         return send_len.value
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
@@ -476,7 +482,9 @@ class WinDivert:
                 if error == cast(Any, windivert_dll).ERROR_IO_PENDING:
                     # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, cast(Any, windivert_dll).WaitForSingleObject, self._event, INFINITE)
+                    await loop.run_in_executor(
+                        None, cast(Any, windivert_dll).WaitForSingleObject, self._event, INFINITE
+                    )
                 else:
                     raise cast(Any, windivert_dll).WinError(error)
 

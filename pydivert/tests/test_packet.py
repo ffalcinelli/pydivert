@@ -586,18 +586,18 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
     assert ipv6.flow_label == 0
 
     # 1. Set Traffic Class, verify Flow Label is unchanged
-    setattr(ipv6, "traffic_class", 0xAA)  # 1010 1010
+    ipv6.traffic_class = 170  # 1010 1010
     assert ipv6.traffic_class == 0xAA
     assert ipv6.flow_label == 0
 
     # 2. Set Flow Label (including bits in the first 16-bit word), verify Traffic Class is unchanged
     # Flow label is 20 bits. Let's set some bits in the most significant 4 bits (0xF....)
-    setattr(ipv6, "flow_label", 0xF1234)
+    ipv6.flow_label = 987700
     assert ipv6.flow_label == 0xF1234
     assert ipv6.traffic_class == 0xAA  # Should be preserved
 
     # 3. Modify Traffic Class again, verify Flow Label is preserved
-    setattr(ipv6, "traffic_class", 0x55)  # 0101 0101
+    ipv6.traffic_class = 85  # 0101 0101
     assert ipv6.traffic_class == 0x55
     assert ipv6.flow_label == 0xF1234  # Should be preserved
 
@@ -617,8 +617,8 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
     assert ipv6.diff_serv == 0x15
     assert ipv6.ecn == 1
 
-    setattr(ipv6, "diff_serv", 0x3F)
-    setattr(ipv6, "ecn", 3)
+    ipv6.diff_serv = 63
+    ipv6.ecn = 3
     assert ipv6.traffic_class == 0xFF
     assert ipv6.flow_label == 0xF1234
     assert struct.unpack_from("!I", packet.raw, 0)[0] == 0x6FFF1234

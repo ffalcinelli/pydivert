@@ -35,9 +35,12 @@ if ($uvPath) {
 # Use a local virtual environment on the VM's C: drive to avoid issues with VirtualBox shared folders
 $env:UV_PROJECT_ENVIRONMENT = "C:\pydivert_venv"
 
-cd C:\pydivert
+if (Test-Path "C:\pydivert") {
+    cd C:\pydivert
+    Write-Host "Installing dependencies with uv..."
+    uv sync --extra test
+} else {
+    Write-Warning "C:\pydivert not found! Synced folder might not be mounted yet."
+}
 
-Write-Host "Installing dependencies with uv..."
-uv sync --extra test
-
-Write-Host "Provisioning complete. You can now run tests with 'uv run pytest' as Administrator."
+Write-Host "Provisioning complete."
