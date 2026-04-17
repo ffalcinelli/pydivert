@@ -130,6 +130,9 @@ except (ImportError, AttributeError):  # pragma: no cover
         return err
 
 
+from .structs import Overlapped, WinDivertAddress
+
+
 ERROR_IO_PENDING = 997
 INFINITE = 0xFFFFFFFF
 
@@ -138,8 +141,27 @@ def raise_on_error(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         res = f(*args, **kwargs)
-        if not res:
-            raise WinError()
+
+        if f.__name__ == "WinDivertOpen":
+            # INVALID_HANDLE_VALUE is -1 (or 0xFFFFFFFFFFFFFFFF for 64-bit void_p)
+            failed = res == -1 or res == 0xFFFFFFFFFFFFFFFF or res is None
+        elif f.__name__.startswith("WinDivertHelper"):
+            # WinDivertHelper functions generally return 0/NULL on failure,
+            # but for EvalFilter it returns 0 (False) as a valid result.
+            # Most helpers don't need automated WinError raising.
+            return res
+        else:
+            failed = not res
+
+        if failed:
+            retcode = GetLastError()
+            if retcode and retcode != ERROR_IO_PENDING:
+                err = WinError(code=retcode)
+                try:
+                    SetLastError(0)
+                except Exception:
+                    pass
+                raise err
         return res
 
     return wrapper
@@ -148,6 +170,26 @@ def raise_on_error(f):
 DLL_PATH = os.path.join(os.path.dirname(__file__), "WinDivert64.dll")
 
 WINDIVERT_FUNCTIONS = {
+    "WinDivertHelperParsePacket": (
+        [
+            c_void_p,
+            c_uint,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            c_void_p,
+            POINTER(c_uint),
+            c_void_p,
+            POINTER(c_uint),
+        ],
+        c_int,
+    ),
+    "WinDivertHelperParseIPv4Address": ([c_char_p, POINTER(c_uint32)], c_int),
+    "WinDivertHelperParseIPv6Address": ([c_char_p, POINTER(c_uint8 * 16)], c_int),
     "WinDivertOpen": ([c_char_p, c_int, c_int16, c_uint64], HANDLE),
     "WinDivertRecv": ([HANDLE, c_void_p, c_uint, POINTER(c_uint), c_void_p], c_int),
     "WinDivertRecvEx": (
@@ -160,7 +202,7 @@ WINDIVERT_FUNCTIONS = {
         c_int,
     ),
     "WinDivertHelperCalcChecksums": ([c_void_p, c_uint, c_void_p, c_uint64], c_uint),
-    "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p, c_void_p], c_int),
+    "WinDivertHelperEvalFilter": ([c_char_p, c_void_p, c_uint, c_void_p], c_int),
     "WinDivertHelperCompileFilter": (
         [c_char_p, c_int, c_char_p, c_uint, POINTER(c_char_p), POINTER(c_uint)],
         c_int,
