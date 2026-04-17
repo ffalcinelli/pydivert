@@ -30,9 +30,12 @@ https://reqrypt.org/download/WinDivert-2.2.2-A.zip
 import ctypes
 import functools
 import os
-import platform
 import sys
+from ctypes.wintypes import HANDLE
 from typing import Any
+
+from .structs import Overlapped as Overlapped
+from .structs import WinDivertAddress as WinDivertAddress
 
 # We use Any for windll and WinDLL to satisfy the type checker when accessing dynamic attributes
 windll: Any
@@ -49,10 +52,13 @@ try:
         c_uint32,
         c_uint64,
         c_void_p,
-        windll as _windll,
+    )
+    from ctypes import (
         WinDLL as _WinDLL,
     )
-    from ctypes.wintypes import HANDLE
+    from ctypes import (
+        windll as _windll,
+    )
     windll = _windll
     WinDLL = _WinDLL
 
@@ -128,10 +134,6 @@ except (ImportError, AttributeError):  # pragma: no cover
         if code is not None:
             err.winerror = code
         return err
-
-
-from .structs import Overlapped, WinDivertAddress
-
 
 ERROR_IO_PENDING = 997
 INFINITE = 0xFFFFFFFF

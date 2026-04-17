@@ -28,7 +28,6 @@ import logging
 import os
 import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
-from typing import Any
 
 from pydivert import service, windivert_dll  # noqa: F401
 from pydivert.consts import Direction, Flag, Layer, Param

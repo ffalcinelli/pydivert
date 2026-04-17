@@ -4,7 +4,6 @@ import subprocess
 import sys
 import tempfile
 from textwrap import dedent
-import re
 
 # Detect paths
 here = os.path.dirname(os.path.abspath(__file__))
@@ -16,7 +15,7 @@ def get_tags():
     try:
         output = subprocess.check_output(["git", "tag", "-l", "v*"]).decode("utf-8")
         tags = [t.strip() for t in output.split('\n') if t.strip()]
-        
+
         def sort_key(tag):
             # Parse version into integer tuple for proper sorting (e.g. v3.1.0 -> (3, 1, 0))
             parts = tag.lstrip('v').split('.')
@@ -24,14 +23,14 @@ def get_tags():
                 return tuple(int(p) for p in parts)
             except ValueError:
                 return (0,)
-                
+
         return sorted(tags, key=sort_key, reverse=True)
     except subprocess.CalledProcessError:
         return []
 
 def inject_version_switcher(directory, current_version, all_versions):
     """Injects a version switcher dropdown into all HTML files in the directory."""
-    
+
     # Prepare the HTML snippet for the switcher, matching pdoc's sidebar style
     options = f'<option value="../latest/" {"selected" if current_version == "latest" else ""}>latest (main)</option>'
     for v in all_versions:
@@ -39,8 +38,13 @@ def inject_version_switcher(directory, current_version, all_versions):
 
     switcher_html = dedent(f"""
         <div id="version-switcher" style="margin-bottom: 1rem; padding-right: var(--pad);">
-            <label for="v-select" style="display: block; font-weight: bold; margin-bottom: 0.5rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">Documentation Version</label>
-            <select id="v-select" onchange="window.location.href=this.value" style="width: 100%; padding: 0.4rem; border: 1px solid var(--accent2); border-radius: 4px; background: var(--pdoc-background); color: var(--text); font-size: 0.9rem; cursor: pointer;">
+            <label for="v-select" style="display: block; font-weight: bold; margin-bottom: 0.5rem;
+                   font-size: 0.8rem; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: 1px;">Documentation Version</label>
+            <select id="v-select" onchange="window.location.href=this.value"
+                    style="width: 100%; padding: 0.4rem; border: 1px solid var(--accent2);
+                           border-radius: 4px; background: var(--pdoc-background);
+                           color: var(--text); font-size: 0.9rem; cursor: pointer;">
                 {options}
             </select>
         </div>
@@ -73,7 +77,7 @@ def inject_version_switcher(directory, current_version, all_versions):
             if file.endswith(".html"):
                 path = os.path.join(root_dir, file)
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         content = f.read()
                     if "</body>" in content and 'id="version-switcher"' not in content:
                         new_content = content.replace("</body>", full_injection + "</body>")
@@ -108,7 +112,7 @@ def generate_index_html(tags):
     <body>
         <h1>PyDivert Documentation</h1>
         <p>You are being redirected to the <a href="latest/">latest documentation</a>.</p>
-        
+
         <h2>Available Versions</h2>
         <ul>
             <li><a href="latest/">latest (main)</a></li>
@@ -117,7 +121,7 @@ def generate_index_html(tags):
     </body>
     </html>
     """)
-    
+
     with open("site/index.html", "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -136,14 +140,14 @@ def main():
             print(f"Building docs for {tag}...")
             wt_dir = os.path.join(base_tmpdir, tag)
             out_dir = os.path.join(site_dir, tag)
-            
+
             try:
                 subprocess.run(["git", "worktree", "add", "-d", wt_dir, tag], check=True, capture_output=True)
-                
+
                 # Build docs using the current python environment's pdoc but the tag's source
-                result = subprocess.run([sys.executable, "-m", "pdoc", "pydivert", "-o", out_dir], 
+                result = subprocess.run([sys.executable, "-m", "pdoc", "pydivert", "-o", out_dir],
                                      cwd=wt_dir, capture_output=True, text=True)
-                
+
                 if result.returncode == 0:
                     successful_tags.append(tag)
                     print(f"  -> Successfully built {tag}")
