@@ -118,7 +118,7 @@ except (ImportError, AttributeError):  # pragma: no cover
     def WinError(code=None, desc=None):
         err = OSError(code, desc)
         if code is not None:
-            setattr(err, "winerror", code)
+            err.winerror = code
         return err
 
     class WinDLL:
@@ -245,7 +245,7 @@ def _init():
         setattr(_module, funcname, raise_on_error(f))
 
     # Replace proxy functions with direct handles
-    setattr(_module, "_init", lambda: None)
+    setattr(_module, "_init", lambda: None)  # noqa: B010
 
 
 def _mkprox(funcname):
