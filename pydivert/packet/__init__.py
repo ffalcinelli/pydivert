@@ -170,9 +170,9 @@ class Packet:
             self._interface = (wd_addr.Network.IfIdx, wd_addr.Network.SubIfIdx)
             if self._layer == Layer.FLOW:
                 self._flow = wd_addr.Flow
-            if self._layer == Layer.SOCKET:
+            elif self._layer == Layer.SOCKET:
                 self._socket = wd_addr.Socket
-            if self._layer == Layer.REFLECT:
+            elif self._layer == Layer.REFLECT:
                 self._reflect = wd_addr.Reflect
         else:
             self._wd_addr = WinDivertAddress()
@@ -335,7 +335,7 @@ class Packet:
     @flow.setter
     def flow(self, val: Any | None) -> None:
         self._flow = val
-        if self._layer == Layer.FLOW and val:
+        if self._layer == Layer.FLOW and val is not None:
             ctypes.pointer(self._wd_addr.Flow)[0] = val
 
     @property
@@ -346,7 +346,7 @@ class Packet:
     @socket.setter
     def socket(self, val: Any | None) -> None:
         self._socket = val
-        if self._layer == Layer.SOCKET and val:
+        if self._layer == Layer.SOCKET and val is not None:
             ctypes.pointer(self._wd_addr.Socket)[0] = val
 
     @property
@@ -357,7 +357,7 @@ class Packet:
     @reflect.setter
     def reflect(self, val: Any | None) -> None:
         self._reflect = val
-        if self._layer == Layer.REFLECT and val:
+        if self._layer == Layer.REFLECT and val is not None:
             ctypes.pointer(self._wd_addr.Reflect)[0] = val
 
     @cached_property
@@ -676,12 +676,15 @@ class Packet:
 
         if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
             address.Network.IfIdx, address.Network.SubIfIdx = self._interface
-        elif self._layer == Layer.FLOW and self._flow:
-            ctypes.pointer(address.Flow)[0] = self._flow
-        elif self._layer == Layer.SOCKET and self._socket:
-            ctypes.pointer(address.Socket)[0] = self._socket
-        elif self._layer == Layer.REFLECT and self._reflect:
-            ctypes.pointer(address.Reflect)[0] = self._reflect
+        elif self._layer == Layer.FLOW:
+            if self._flow is not None:
+                ctypes.pointer(address.Flow)[0] = self._flow
+        elif self._layer == Layer.SOCKET:
+            if self._socket is not None:
+                ctypes.pointer(address.Socket)[0] = self._socket
+        elif self._layer == Layer.REFLECT:
+            if self._reflect is not None:
+                ctypes.pointer(address.Reflect)[0] = self._reflect
 
     @property
     def wd_addr(self) -> WinDivertAddress:
