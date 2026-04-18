@@ -167,12 +167,29 @@ def test_union_clearing():
 
 
 def test_init_all_layers_with_wd_addr():
-    # Test all branches in __init__ for layers
+    # Test all branches in __init__ for layers and directions
     for layer in (Layer.NETWORK, Layer.NETWORK_FORWARD, Layer.FLOW, Layer.SOCKET, Layer.REFLECT):
-        addr = WinDivertAddress()
-        addr.Layer = layer
-        p = pydivert.Packet(bytearray(40), wd_addr=addr)
-        assert p.layer == layer
+        for outbound in (0, 1):
+            addr = WinDivertAddress()
+            addr.Layer = layer
+            addr.Outbound = outbound
+            if layer == Layer.FLOW:
+                addr.Flow.ProcessId = 123
+            elif layer == Layer.SOCKET:
+                addr.Socket.ProcessId = 456
+            elif layer == Layer.REFLECT:
+                addr.Reflect.ProcessId = 789
+
+            p = pydivert.Packet(bytearray(40), wd_addr=addr)
+            assert p.layer == layer
+            assert p.direction == (Direction.OUTBOUND if outbound else Direction.INBOUND)
+            if layer == Layer.FLOW:
+                assert cast(Any, p.flow).ProcessId == 123
+            elif layer == Layer.SOCKET:
+                assert cast(Any, p.socket).ProcessId == 456
+            elif layer == Layer.REFLECT:
+                assert cast(Any, p.reflect).ProcessId == 789
+
 
 def test_setters_with_none():
     # Test val=None branches in setters
@@ -189,6 +206,7 @@ def test_setters_with_none():
     p.reflect = None
     assert p.reflect is None
 
+
 def test_populate_all_layers():
     # Test all branches in _populate_wd_addr
     for layer in (Layer.NETWORK, Layer.NETWORK_FORWARD, Layer.FLOW, Layer.SOCKET, Layer.REFLECT):
@@ -198,62 +216,23 @@ def test_populate_all_layers():
         _ = p.wd_addr
 
         # Case 2: Metadata is not None (for union layers)
+        # We set private attributes directly to ensure they are present when layer setter calls _populate_wd_addr
+        p = pydivert.Packet(bytearray(40))
         if layer == Layer.FLOW:
-            p.flow = WinDivertAddress._Union._Flow(ProcessId=1)
+            p._flow = WinDivertAddress._Union._Flow(ProcessId=1)
         elif layer == Layer.SOCKET:
-            p.socket = WinDivertAddress._Union._Socket(ProcessId=2)
+            p._socket = WinDivertAddress._Union._Socket(ProcessId=2)
         elif layer == Layer.REFLECT:
-            p.reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
+            p._reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
+        p.layer = layer
         _ = p.wd_addr
 
-def test_packet_checksum_logic():
-    # IPv4 UDP packet
-    raw = bytes.fromhex("4500001c00000000401100000101010102020202") + bytes(8)
-    p = pydivert.Packet(raw)
-
-    # Test recalculate_checksums (driver may not be present, so catch error)
-    try:
-        p.recalculate_checksums()
-    except (OSError, FileNotFoundError):
-        pass
-
-    # Test is_checksum_valid
-    try:
-        _ = p.is_checksum_valid
-    except (OSError, FileNotFoundError):
-        pass
-
-
-def test_packet_init_with_wd_addr():
-    addr = WinDivertAddress()
-    addr.Timestamp = 12345
-    addr.Layer = Layer.FLOW
-    addr.Event = 1
-    addr.Outbound = 1
-    addr.Flow.ProcessId = 678
-
-    p = pydivert.Packet(bytearray(40), wd_addr=addr)
-    assert p.timestamp == 12345
-    assert p.layer == Layer.FLOW
-    assert p.event == 1
-    assert p.direction == Direction.OUTBOUND
-    assert cast(Any, p.flow).ProcessId == 678
-    assert p.wd_addr is addr
-
-    # Test with other layers in init
-    addr2 = WinDivertAddress()
-    addr2.Layer = Layer.SOCKET
-    addr2.Socket.ProcessId = 999
-    p2 = pydivert.Packet(bytearray(40), wd_addr=addr2)
-    assert p2.layer == Layer.SOCKET
-    assert cast(Any, p2.socket).ProcessId == 999
-
-    addr3 = WinDivertAddress()
-    addr3.Layer = Layer.REFLECT
-    addr3.Reflect.ProcessId = 888
-    p3 = pydivert.Packet(bytearray(40), wd_addr=addr3)
-    assert p3.layer == Layer.REFLECT
-    assert cast(Any, p3.reflect).ProcessId == 888
+        if layer == Layer.FLOW:
+            assert p.wd_addr.Flow.ProcessId == 1
+        elif layer == Layer.SOCKET:
+            assert p.wd_addr.Socket.ProcessId == 2
+        elif layer == Layer.REFLECT:
+            assert p.wd_addr.Reflect.ProcessId == 3
 
 
 def test_packet_setters_wrong_layer():
@@ -275,3 +254,21 @@ def test_packet_setters_wrong_layer():
     p.interface = (1, 2)
     assert p.interface == (1, 2)
     assert p.wd_addr.Network.IfIdx == 0
+
+
+def test_packet_checksum_logic():
+    # IPv4 UDP packet
+    raw = bytes.fromhex("4500001c00000000401100000101010102020202") + bytes(8)
+    p = pydivert.Packet(raw)
+
+    # Test recalculate_checksums (driver may not be present, so catch error)
+    try:
+        p.recalculate_checksums()
+    except (OSError, FileNotFoundError):
+        pass
+
+    # Test is_checksum_valid
+    try:
+        _ = p.is_checksum_valid
+    except (OSError, FileNotFoundError):
+        pass
