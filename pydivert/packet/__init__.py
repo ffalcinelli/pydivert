@@ -66,7 +66,6 @@ class Packet:
         "_cached_buff_id",
         "_cached_buff",
         "_wd_addr",
-        "_wd_addr_dirty",
         "__dict__",  # Needed for cached_property
     )
 
@@ -133,6 +132,7 @@ class Packet:
         flow: Any | None = None,
         socket: Any | None = None,
         reflect: Any | None = None,
+        wd_addr: WinDivertAddress | None = None,
     ) -> None:
         if isinstance(raw, (bytes, bytearray)):
             raw = memoryview(bytearray(raw))
@@ -155,8 +155,28 @@ class Packet:
         self._cached_buff_len: int | None = None
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
-        self._wd_addr = WinDivertAddress()
-        self._wd_addr_dirty: bool = True
+        if wd_addr is not None:
+            self._wd_addr = wd_addr
+            self._timestamp = wd_addr.Timestamp
+            self._layer = Layer(wd_addr.Layer)
+            self._event = wd_addr.Event
+            self._direction = Direction.OUTBOUND if wd_addr.Outbound else Direction.INBOUND
+            self._loopback = bool(wd_addr.Loopback)
+            self._impostor = bool(wd_addr.Impostor)
+            self._sniffed = bool(wd_addr.Sniffed)
+            self._ip_checksum = bool(wd_addr.IPChecksum)
+            self._tcp_checksum = bool(wd_addr.TCPChecksum)
+            self._udp_checksum = bool(wd_addr.UDPChecksum)
+            self._interface = (wd_addr.Network.IfIdx, wd_addr.Network.SubIfIdx)
+            if self._layer == Layer.FLOW:
+                self._flow = wd_addr.Flow
+            if self._layer == Layer.SOCKET:
+                self._socket = wd_addr.Socket
+            if self._layer == Layer.REFLECT:
+                self._reflect = wd_addr.Reflect
+        else:
+            self._wd_addr = WinDivertAddress()
+            self._populate_wd_addr()
 
     def __repr__(self) -> str:
         def dump(x: Any) -> Any:
@@ -182,7 +202,8 @@ class Packet:
     @interface.setter
     def interface(self, val: tuple[int, int]) -> None:
         self._interface = val
-        self._wd_addr_dirty = True
+        if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
+            self._wd_addr.Network.IfIdx, self._wd_addr.Network.SubIfIdx = val
 
     @property
     def direction(self) -> Direction:
@@ -192,7 +213,7 @@ class Packet:
     @direction.setter
     def direction(self, val: Direction) -> None:
         self._direction = val
-        self._wd_addr_dirty = True
+        self._wd_addr.Outbound = 1 if val == Direction.OUTBOUND else 0
 
     @property
     def timestamp(self) -> int:
@@ -202,7 +223,7 @@ class Packet:
     @timestamp.setter
     def timestamp(self, val: int) -> None:
         self._timestamp = val
-        self._wd_addr_dirty = True
+        self._wd_addr.Timestamp = val
 
     @property
     def is_outbound(self) -> bool:
@@ -230,7 +251,7 @@ class Packet:
     @is_loopback.setter
     def is_loopback(self, val: bool) -> None:
         self._loopback = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.Loopback = 1 if val else 0
 
     @property
     def is_impostor(self) -> bool:
@@ -242,7 +263,7 @@ class Packet:
     @is_impostor.setter
     def is_impostor(self, val: bool) -> None:
         self._impostor = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.Impostor = 1 if val else 0
 
     @property
     def is_sniffed(self) -> bool:
@@ -254,7 +275,7 @@ class Packet:
     @is_sniffed.setter
     def is_sniffed(self, val: bool) -> None:
         self._sniffed = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.Sniffed = 1 if val else 0
 
     @property
     def ip_checksum(self) -> bool:
@@ -264,7 +285,7 @@ class Packet:
     @ip_checksum.setter
     def ip_checksum(self, val: bool) -> None:
         self._ip_checksum = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.IPChecksum = 1 if val else 0
 
     @property
     def tcp_checksum(self) -> bool:
@@ -274,7 +295,7 @@ class Packet:
     @tcp_checksum.setter
     def tcp_checksum(self, val: bool) -> None:
         self._tcp_checksum = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.TCPChecksum = 1 if val else 0
 
     @property
     def udp_checksum(self) -> bool:
@@ -284,7 +305,7 @@ class Packet:
     @udp_checksum.setter
     def udp_checksum(self, val: bool) -> None:
         self._udp_checksum = bool(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.UDPChecksum = 1 if val else 0
 
     @property
     def layer(self) -> Layer:
@@ -294,7 +315,7 @@ class Packet:
     @layer.setter
     def layer(self, val: Layer) -> None:
         self._layer = val
-        self._wd_addr_dirty = True
+        self._populate_wd_addr()
 
     @property
     def event(self) -> int:
@@ -304,7 +325,7 @@ class Packet:
     @event.setter
     def event(self, val: int) -> None:
         self._event = int(val)
-        self._wd_addr_dirty = True
+        self._wd_addr.Event = int(val)
 
     @property
     def flow(self) -> Any | None:
@@ -314,7 +335,8 @@ class Packet:
     @flow.setter
     def flow(self, val: Any | None) -> None:
         self._flow = val
-        self._wd_addr_dirty = True
+        if self._layer == Layer.FLOW and val:
+            ctypes.pointer(self._wd_addr.Flow)[0] = val
 
     @property
     def socket(self) -> Any | None:
@@ -324,7 +346,8 @@ class Packet:
     @socket.setter
     def socket(self, val: Any | None) -> None:
         self._socket = val
-        self._wd_addr_dirty = True
+        if self._layer == Layer.SOCKET and val:
+            ctypes.pointer(self._wd_addr.Socket)[0] = val
 
     @property
     def reflect(self) -> Any | None:
@@ -334,7 +357,8 @@ class Packet:
     @reflect.setter
     def reflect(self, val: Any | None) -> None:
         self._reflect = val
-        self._wd_addr_dirty = True
+        if self._layer == Layer.REFLECT and val:
+            ctypes.pointer(self._wd_addr.Reflect)[0] = val
 
     @cached_property
     def address_family(self) -> int | None:
@@ -631,9 +655,9 @@ class Packet:
         self._cached_buff = (ctypes.c_char * raw_len).from_buffer(buff)
         return buff, self._cached_buff
 
-    def _update_wd_addr(self) -> None:
+    def _populate_wd_addr(self) -> None:
         """
-        Updates the cached `WINDIVERT_ADDRESS` structure.
+        Populates the cached `WINDIVERT_ADDRESS` structure from scratch.
         """
         address = self._wd_addr
         address.Timestamp = self._timestamp
@@ -659,16 +683,12 @@ class Packet:
         elif self._layer == Layer.REFLECT and self._reflect:
             ctypes.pointer(address.Reflect)[0] = self._reflect
 
-        self._wd_addr_dirty = False
-
     @property
     def wd_addr(self) -> WinDivertAddress:
         """
         Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        if self._wd_addr_dirty:
-            self._update_wd_addr()
         return self._wd_addr
 
     def matches(self, filter: str, layer: Layer = Layer.NETWORK) -> bool:

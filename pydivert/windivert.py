@@ -338,6 +338,7 @@ class WinDivert:
             flow=address.Flow if address.Layer == Layer.FLOW else None,
             socket=address.Socket if address.Layer == Layer.SOCKET else None,
             reflect=address.Reflect if address.Layer == Layer.REFLECT else None,
+            wd_addr=address,
         )
 
     def recv_ex(
