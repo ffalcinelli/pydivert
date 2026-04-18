@@ -123,21 +123,21 @@ def test_packet_all_metadata_properties():
     p.layer = Layer.FLOW
     f = WinDivertAddress._Union._Flow(ProcessId=456)
     p.flow = f
-    assert p.flow.ProcessId == 456
+    assert cast(Any, p.flow).ProcessId == 456
     assert p.wd_addr.Flow.ProcessId == 456
 
     # socket
     p.layer = Layer.SOCKET
     s = WinDivertAddress._Union._Socket(ProcessId=789)
     p.socket = s
-    assert p.socket.ProcessId == 789
+    assert cast(Any, p.socket).ProcessId == 789
     assert p.wd_addr.Socket.ProcessId == 789
 
     # reflect
     p.layer = Layer.REFLECT
     r = WinDivertAddress._Union._Reflect(ProcessId=101)
     p.reflect = r
-    assert p.reflect.ProcessId == 101
+    assert cast(Any, p.reflect).ProcessId == 101
     assert p.wd_addr.Reflect.ProcessId == 101
 
     # Test __repr__
@@ -197,7 +197,7 @@ def test_packet_init_with_wd_addr():
     assert p.layer == Layer.FLOW
     assert p.event == 1
     assert p.direction == Direction.OUTBOUND
-    assert p.flow.ProcessId == 678
+    assert cast(Any, p.flow).ProcessId == 678
     assert p.wd_addr is addr
 
     # Test with other layers in init
@@ -206,14 +206,14 @@ def test_packet_init_with_wd_addr():
     addr2.Socket.ProcessId = 999
     p2 = pydivert.Packet(bytearray(40), wd_addr=addr2)
     assert p2.layer == Layer.SOCKET
-    assert p2.socket.ProcessId == 999
+    assert cast(Any, p2.socket).ProcessId == 999
 
     addr3 = WinDivertAddress()
     addr3.Layer = Layer.REFLECT
     addr3.Reflect.ProcessId = 888
     p3 = pydivert.Packet(bytearray(40), wd_addr=addr3)
     assert p3.layer == Layer.REFLECT
-    assert p3.reflect.ProcessId == 888
+    assert cast(Any, p3.reflect).ProcessId == 888
 
 
 def test_packet_setters_wrong_layer():
