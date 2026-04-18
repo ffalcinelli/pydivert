@@ -325,3 +325,17 @@ def test_ip_header_base_packet_len():
 def test_windivert_is_registered_coverage():
     with patch("pydivert.service.is_registered", return_value=True):
         assert pydivert.WinDivert.is_registered() is True
+
+def test_windivert_unregister_raises_on_failure():
+    import subprocess
+    with patch("pydivert.service.stop_service", return_value=False):
+        with patch("subprocess.run") as mock_run:
+            # Configure mock to behave like check=True failed
+            mock_run.side_effect = subprocess.CalledProcessError(1, ["sc.exe", "stop", "WinDivert"])
+
+            with pytest.raises(subprocess.CalledProcessError):
+                pydivert.WinDivert.unregister()
+
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("check") is True
