@@ -158,7 +158,7 @@ class Packet:
         if wd_addr is not None:
             self._wd_addr = wd_addr
             self._timestamp = wd_addr.Timestamp
-            self._layer = Layer(wd_addr.Layer)
+            self._layer = wd_addr.Layer
             self._event = wd_addr.Event
             self._direction = Direction.OUTBOUND if wd_addr.Outbound else Direction.INBOUND
             self._loopback = bool(wd_addr.Loopback)

@@ -1,31 +1,38 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 from typing import Any, cast
+
 import pytest
+
 import pydivert
+from pydivert.consts import Direction, Layer
 from pydivert.packet.ip import IPHeader
 from pydivert.windivert_dll import WinDivertAddress
-from pydivert.consts import Layer, Direction
+
 
 def test_ip_packet_len_setter():
     p = IPHeader(cast(Any, None))
     with pytest.raises(AttributeError, match="can't set attribute"):
         p.packet_len = 100
 
+
 def test_windivert_recv_no_handle():
     w = pydivert.WinDivert()
     with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
         w.recv()
+
 
 def test_windivert_recv_ex_no_handle():
     w = pydivert.WinDivert()
     with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
         w.recv_ex()
 
+
 def test_windivert_register_coverage():
     try:
         pydivert.WinDivert.register()
     except Exception:
         pass
+
 
 def test_packet_all_metadata_properties():
     p = pydivert.Packet(bytearray(40))
@@ -136,6 +143,7 @@ def test_packet_all_metadata_properties():
     # Test __repr__
     assert "Packet" in repr(p)
 
+
 def test_packet_wd_addr_persistence():
     p = pydivert.Packet(bytearray(40))
     p.wd_addr.IPChecksum = 1
@@ -146,6 +154,7 @@ def test_packet_wd_addr_persistence():
     p.ip_checksum = False
     assert p.wd_addr.IPChecksum == 0
 
+
 def test_union_clearing():
     p = pydivert.Packet(bytearray(40))
     p.layer = Layer.FLOW
@@ -155,6 +164,7 @@ def test_union_clearing():
     p.layer = Layer.NETWORK
     # This should clear the union
     assert p.wd_addr.Flow.ProcessId == 0
+
 
 def test_packet_checksum_logic():
     # IPv4 UDP packet
@@ -172,6 +182,7 @@ def test_packet_checksum_logic():
         _ = p.is_checksum_valid
     except (OSError, FileNotFoundError):
         pass
+
 
 def test_packet_init_with_wd_addr():
     addr = WinDivertAddress()
@@ -203,3 +214,24 @@ def test_packet_init_with_wd_addr():
     p3 = pydivert.Packet(bytearray(40), wd_addr=addr3)
     assert p3.layer == Layer.REFLECT
     assert p3.reflect.ProcessId == 888
+
+
+def test_packet_setters_wrong_layer():
+    p = pydivert.Packet(bytearray(40))
+    p.layer = Layer.NETWORK
+
+    # Setting flow/socket/reflect in NETWORK layer should NOT update wd_addr union
+    p.flow = WinDivertAddress._Union._Flow(ProcessId=1)
+    assert p.wd_addr.Flow.ProcessId == 0
+
+    p.socket = WinDivertAddress._Union._Socket(ProcessId=2)
+    assert p.wd_addr.Socket.ProcessId == 0
+
+    p.reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
+    assert p.wd_addr.Reflect.ProcessId == 0
+
+    # Test interface setter when NOT in network layer
+    p.layer = Layer.FLOW
+    p.interface = (1, 2)
+    assert p.interface == (1, 2)
+    assert p.wd_addr.Network.IfIdx == 0
