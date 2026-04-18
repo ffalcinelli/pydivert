@@ -138,43 +138,40 @@ class Packet:
             raw = memoryview(bytearray(raw))
         self.raw: memoryview = raw
         """The raw packet bytes as a `memoryview`."""
-        self._interface: tuple[int, int] = interface or (0, 0)
-        self._direction: Direction = direction
-        self._timestamp: int = timestamp
-        self._loopback: bool = loopback
-        self._impostor: bool = impostor
-        self._sniffed: bool = sniffed
-        self._ip_checksum: bool = ip_checksum
-        self._tcp_checksum: bool = tcp_checksum
-        self._udp_checksum: bool = udp_checksum
-        self._layer: Layer = layer
-        self._event: int = event
-        self._flow: Any | None = flow
-        self._socket: Any | None = socket
-        self._reflect: Any | None = reflect
         self._cached_buff_len: int | None = None
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
         if wd_addr is not None:
             self._wd_addr = wd_addr
-            self._timestamp = wd_addr.Timestamp
-            self._layer = wd_addr.Layer
-            self._event = wd_addr.Event
+            self._interface = (wd_addr.Network.IfIdx, wd_addr.Network.SubIfIdx)
             self._direction = Direction.OUTBOUND if wd_addr.Outbound else Direction.INBOUND
+            self._timestamp = wd_addr.Timestamp
             self._loopback = bool(wd_addr.Loopback)
             self._impostor = bool(wd_addr.Impostor)
             self._sniffed = bool(wd_addr.Sniffed)
             self._ip_checksum = bool(wd_addr.IPChecksum)
             self._tcp_checksum = bool(wd_addr.TCPChecksum)
             self._udp_checksum = bool(wd_addr.UDPChecksum)
-            self._interface = (wd_addr.Network.IfIdx, wd_addr.Network.SubIfIdx)
-            if self._layer == Layer.FLOW:
-                self._flow = wd_addr.Flow
-            elif self._layer == Layer.SOCKET:
-                self._socket = wd_addr.Socket
-            elif self._layer == Layer.REFLECT:
-                self._reflect = wd_addr.Reflect
+            self._layer = wd_addr.Layer
+            self._event = wd_addr.Event
+            self._flow = wd_addr.Flow if self._layer == Layer.FLOW else None
+            self._socket = wd_addr.Socket if self._layer == Layer.SOCKET else None
+            self._reflect = wd_addr.Reflect if self._layer == Layer.REFLECT else None
         else:
+            self._interface = interface or (0, 0)
+            self._direction = direction
+            self._timestamp = timestamp
+            self._loopback = loopback
+            self._impostor = impostor
+            self._sniffed = sniffed
+            self._ip_checksum = ip_checksum
+            self._tcp_checksum = tcp_checksum
+            self._udp_checksum = udp_checksum
+            self._layer = layer
+            self._event = event
+            self._flow = flow
+            self._socket = socket
+            self._reflect = reflect
             self._wd_addr = WinDivertAddress()
             self._populate_wd_addr()
 
