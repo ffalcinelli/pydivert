@@ -166,6 +166,51 @@ def test_union_clearing():
     assert p.wd_addr.Flow.ProcessId == 0
 
 
+def test_init_all_layers_with_wd_addr():
+    # Test all branches in __init__ for layers
+    for layer in (Layer.NETWORK, Layer.NETWORK_FORWARD, Layer.FLOW, Layer.SOCKET, Layer.REFLECT):
+        addr = WinDivertAddress()
+        addr.Layer = layer
+        p = pydivert.Packet(bytearray(40), wd_addr=addr)
+        assert p.layer == layer
+
+def test_setters_with_none():
+    # Test val=None branches in setters
+    p = pydivert.Packet(bytearray(40))
+    p.layer = Layer.FLOW
+    p.flow = None
+    assert p.flow is None
+
+    p.layer = Layer.SOCKET
+    p.socket = None
+    assert p.socket is None
+
+    p.layer = Layer.REFLECT
+    p.reflect = None
+    assert p.reflect is None
+
+def test_populate_all_layers():
+    # Test all branches in _populate_wd_addr
+    p = pydivert.Packet(bytearray(40))
+
+    p.layer = Layer.NETWORK
+    _ = p.wd_addr
+
+    p.layer = Layer.NETWORK_FORWARD
+    _ = p.wd_addr
+
+    p.layer = Layer.FLOW
+    p.flow = WinDivertAddress._Union._Flow(ProcessId=1)
+    _ = p.wd_addr
+
+    p.layer = Layer.SOCKET
+    p.socket = WinDivertAddress._Union._Socket(ProcessId=2)
+    _ = p.wd_addr
+
+    p.layer = Layer.REFLECT
+    p.reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
+    _ = p.wd_addr
+
 def test_packet_checksum_logic():
     # IPv4 UDP packet
     raw = bytes.fromhex("4500001c00000000401100000101010102020202") + bytes(8)
