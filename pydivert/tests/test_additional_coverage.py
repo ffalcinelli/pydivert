@@ -191,25 +191,20 @@ def test_setters_with_none():
 
 def test_populate_all_layers():
     # Test all branches in _populate_wd_addr
-    p = pydivert.Packet(bytearray(40))
+    for layer in (Layer.NETWORK, Layer.NETWORK_FORWARD, Layer.FLOW, Layer.SOCKET, Layer.REFLECT):
+        # Case 1: Metadata is None
+        p = pydivert.Packet(bytearray(40))
+        p.layer = layer
+        _ = p.wd_addr
 
-    p.layer = Layer.NETWORK
-    _ = p.wd_addr
-
-    p.layer = Layer.NETWORK_FORWARD
-    _ = p.wd_addr
-
-    p.layer = Layer.FLOW
-    p.flow = WinDivertAddress._Union._Flow(ProcessId=1)
-    _ = p.wd_addr
-
-    p.layer = Layer.SOCKET
-    p.socket = WinDivertAddress._Union._Socket(ProcessId=2)
-    _ = p.wd_addr
-
-    p.layer = Layer.REFLECT
-    p.reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
-    _ = p.wd_addr
+        # Case 2: Metadata is not None (for union layers)
+        if layer == Layer.FLOW:
+            p.flow = WinDivertAddress._Union._Flow(ProcessId=1)
+        elif layer == Layer.SOCKET:
+            p.socket = WinDivertAddress._Union._Socket(ProcessId=2)
+        elif layer == Layer.REFLECT:
+            p.reflect = WinDivertAddress._Union._Reflect(ProcessId=3)
+        _ = p.wd_addr
 
 def test_packet_checksum_logic():
     # IPv4 UDP packet
