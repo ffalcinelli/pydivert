@@ -48,23 +48,25 @@ class Packet:
 
     __slots__ = (
         "raw",
-        "interface",
-        "direction",
-        "timestamp",
+        "_interface",
+        "_direction",
+        "_timestamp",
         "_loopback",
         "_impostor",
         "_sniffed",
-        "ip_checksum",
-        "tcp_checksum",
-        "udp_checksum",
-        "layer",
-        "event",
-        "flow",
-        "socket",
-        "reflect",
+        "_ip_checksum",
+        "_tcp_checksum",
+        "_udp_checksum",
+        "_layer",
+        "_event",
+        "_flow",
+        "_socket",
+        "_reflect",
         "_cached_buff_len",
         "_cached_buff_id",
         "_cached_buff",
+        "_wd_addr",
+        "_wd_addr_dirty",
         "__dict__",  # Needed for cached_property
     )
 
@@ -136,34 +138,25 @@ class Packet:
             raw = memoryview(bytearray(raw))
         self.raw: memoryview = raw
         """The raw packet bytes as a `memoryview`."""
-        self.interface: tuple[int, int] = interface or (0, 0)
-        """The interface index and sub-interface index where the packet was captured."""
-        self.direction: Direction = direction
-        """The packet direction (inbound or outbound)."""
-        self.timestamp: int = timestamp
-        """The capture timestamp (QueryPerformanceCounter value)."""
+        self._interface: tuple[int, int] = interface or (0, 0)
+        self._direction: Direction = direction
+        self._timestamp: int = timestamp
         self._loopback: bool = loopback
         self._impostor: bool = impostor
         self._sniffed: bool = sniffed
-        self.ip_checksum: bool = ip_checksum
-        """Indicates if the IP checksum was verified by hardware offloading."""
-        self.tcp_checksum: bool = tcp_checksum
-        """Indicates if the TCP checksum was verified by hardware offloading."""
-        self.udp_checksum: bool = udp_checksum
-        """Indicates if the UDP checksum was verified by hardware offloading."""
-        self.layer: Layer = layer
-        """The WinDivert layer that captured this packet."""
-        self.event: int = event
-        """The WinDivert event type."""
-        self.flow: Any | None = flow
-        """The flow metadata (for Layer.FLOW)."""
-        self.socket: Any | None = socket
-        """The socket metadata (for Layer.SOCKET)."""
-        self.reflect: Any | None = reflect
-        """The reflect metadata (for Layer.REFLECT)."""
+        self._ip_checksum: bool = ip_checksum
+        self._tcp_checksum: bool = tcp_checksum
+        self._udp_checksum: bool = udp_checksum
+        self._layer: Layer = layer
+        self._event: int = event
+        self._flow: Any | None = flow
+        self._socket: Any | None = socket
+        self._reflect: Any | None = reflect
         self._cached_buff_len: int | None = None
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
+        self._wd_addr = WinDivertAddress()
+        self._wd_addr_dirty: bool = True
 
     def __repr__(self) -> str:
         def dump(x: Any) -> Any:
@@ -180,6 +173,36 @@ class Packet:
             return x
 
         return f"Packet({dump(self)})"
+
+    @property
+    def interface(self) -> tuple[int, int]:
+        """The interface index and sub-interface index where the packet was captured."""
+        return self._interface
+
+    @interface.setter
+    def interface(self, val: tuple[int, int]) -> None:
+        self._interface = val
+        self._wd_addr_dirty = True
+
+    @property
+    def direction(self) -> Direction:
+        """The packet direction (inbound or outbound)."""
+        return self._direction
+
+    @direction.setter
+    def direction(self, val: Direction) -> None:
+        self._direction = val
+        self._wd_addr_dirty = True
+
+    @property
+    def timestamp(self) -> int:
+        """The capture timestamp (QueryPerformanceCounter value)."""
+        return self._timestamp
+
+    @timestamp.setter
+    def timestamp(self, val: int) -> None:
+        self._timestamp = val
+        self._wd_addr_dirty = True
 
     @property
     def is_outbound(self) -> bool:
@@ -207,6 +230,7 @@ class Packet:
     @is_loopback.setter
     def is_loopback(self, val: bool) -> None:
         self._loopback = bool(val)
+        self._wd_addr_dirty = True
 
     @property
     def is_impostor(self) -> bool:
@@ -218,6 +242,7 @@ class Packet:
     @is_impostor.setter
     def is_impostor(self, val: bool) -> None:
         self._impostor = bool(val)
+        self._wd_addr_dirty = True
 
     @property
     def is_sniffed(self) -> bool:
@@ -229,6 +254,87 @@ class Packet:
     @is_sniffed.setter
     def is_sniffed(self, val: bool) -> None:
         self._sniffed = bool(val)
+        self._wd_addr_dirty = True
+
+    @property
+    def ip_checksum(self) -> bool:
+        """Indicates if the IP checksum was verified by hardware offloading."""
+        return self._ip_checksum
+
+    @ip_checksum.setter
+    def ip_checksum(self, val: bool) -> None:
+        self._ip_checksum = bool(val)
+        self._wd_addr_dirty = True
+
+    @property
+    def tcp_checksum(self) -> bool:
+        """Indicates if the TCP checksum was verified by hardware offloading."""
+        return self._tcp_checksum
+
+    @tcp_checksum.setter
+    def tcp_checksum(self, val: bool) -> None:
+        self._tcp_checksum = bool(val)
+        self._wd_addr_dirty = True
+
+    @property
+    def udp_checksum(self) -> bool:
+        """Indicates if the UDP checksum was verified by hardware offloading."""
+        return self._udp_checksum
+
+    @udp_checksum.setter
+    def udp_checksum(self, val: bool) -> None:
+        self._udp_checksum = bool(val)
+        self._wd_addr_dirty = True
+
+    @property
+    def layer(self) -> Layer:
+        """The WinDivert layer that captured this packet."""
+        return self._layer
+
+    @layer.setter
+    def layer(self, val: Layer) -> None:
+        self._layer = val
+        self._wd_addr_dirty = True
+
+    @property
+    def event(self) -> int:
+        """The WinDivert event type."""
+        return self._event
+
+    @event.setter
+    def event(self, val: int) -> None:
+        self._event = int(val)
+        self._wd_addr_dirty = True
+
+    @property
+    def flow(self) -> Any | None:
+        """The flow metadata (for Layer.FLOW)."""
+        return self._flow
+
+    @flow.setter
+    def flow(self, val: Any | None) -> None:
+        self._flow = val
+        self._wd_addr_dirty = True
+
+    @property
+    def socket(self) -> Any | None:
+        """The socket metadata (for Layer.SOCKET)."""
+        return self._socket
+
+    @socket.setter
+    def socket(self, val: Any | None) -> None:
+        self._socket = val
+        self._wd_addr_dirty = True
+
+    @property
+    def reflect(self) -> Any | None:
+        """The reflect metadata (for Layer.REFLECT)."""
+        return self._reflect
+
+    @reflect.setter
+    def reflect(self, val: Any | None) -> None:
+        self._reflect = val
+        self._wd_addr_dirty = True
 
     @cached_property
     def address_family(self) -> int | None:
@@ -525,34 +631,45 @@ class Packet:
         self._cached_buff = (ctypes.c_char * raw_len).from_buffer(buff)
         return buff, self._cached_buff
 
+    def _update_wd_addr(self) -> None:
+        """
+        Updates the cached `WINDIVERT_ADDRESS` structure.
+        """
+        address = self._wd_addr
+        address.Timestamp = self._timestamp
+        address.Layer = self._layer
+        address.Event = self._event
+        address.Outbound = 1 if self._direction == Direction.OUTBOUND else 0
+        address.Loopback = 1 if self._loopback else 0
+        address.Impostor = 1 if self._impostor else 0
+        address.Sniffed = 1 if self._sniffed else 0
+        address.IPChecksum = 1 if self._ip_checksum else 0
+        address.TCPChecksum = 1 if self._tcp_checksum else 0
+        address.UDPChecksum = 1 if self._udp_checksum else 0
+
+        # Zero-out the union to avoid stale data
+        ctypes.memset(ctypes.byref(address, WinDivertAddress.u.offset), 0, WinDivertAddress.u.size)
+
+        if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
+            address.Network.IfIdx, address.Network.SubIfIdx = self._interface
+        elif self._layer == Layer.FLOW and self._flow:
+            ctypes.pointer(address.Flow)[0] = self._flow
+        elif self._layer == Layer.SOCKET and self._socket:
+            ctypes.pointer(address.Socket)[0] = self._socket
+        elif self._layer == Layer.REFLECT and self._reflect:
+            ctypes.pointer(address.Reflect)[0] = self._reflect
+
+        self._wd_addr_dirty = False
+
     @property
     def wd_addr(self) -> WinDivertAddress:
         """
         Gets the address and metadata as a `WINDIVERT_ADDRESS` structure.
         :return: The `WINDIVERT_ADDRESS` structure.
         """
-        address: Any = WinDivertAddress()
-        address.Timestamp = self.timestamp
-        address.Layer = self.layer
-        address.Event = self.event
-        address.Outbound = 1 if self.direction == Direction.OUTBOUND else 0
-        address.Loopback = 1 if self.is_loopback else 0
-        address.Impostor = 1 if self.is_impostor else 0
-        address.Sniffed = 1 if self.is_sniffed else 0
-        address.IPChecksum = 1 if self.ip_checksum else 0
-        address.TCPChecksum = 1 if self.tcp_checksum else 0
-        address.UDPChecksum = 1 if self.udp_checksum else 0
-
-        if self.layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
-            address.Network.IfIdx, address.Network.SubIfIdx = self.interface
-        elif self.layer == Layer.FLOW and self.flow:
-            ctypes.pointer(address.Flow)[0] = self.flow
-        elif self.layer == Layer.SOCKET and self.socket:
-            ctypes.pointer(address.Socket)[0] = self.socket
-        elif self.layer == Layer.REFLECT and self.reflect:
-            ctypes.pointer(address.Reflect)[0] = self.reflect
-
-        return address
+        if self._wd_addr_dirty:
+            self._update_wd_addr()
+        return self._wd_addr
 
     def matches(self, filter: str, layer: Layer = Layer.NETWORK) -> bool:
         """
