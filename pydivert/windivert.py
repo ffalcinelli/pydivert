@@ -151,7 +151,7 @@ class WinDivert:
                 system32 = "C:\\Windows\\System32"
 
             sc_path = os.path.join(system32, "sc.exe")
-            subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True)
+            subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True, check=True)
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
