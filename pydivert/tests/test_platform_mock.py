@@ -69,7 +69,13 @@ async def test_linux_nfq_mock():
     # Test iptables error path
     with patch("pydivert.linux.NFQ", mock_nfq_lib), patch("subprocess.run") as mock_run:
         mock_nfq_lib.return_value.bind.side_effect = None
-        mock_run.side_effect = Exception("iptables fail")
+
+        def side_effect(cmd, *args, **kwargs):
+            if cmd[0] == "iptables" and any(arg in ("-L", "-S", "-D") for arg in cmd):
+                return MagicMock(returncode=0, stdout="")
+            raise Exception("iptables fail")
+
+        mock_run.side_effect = side_effect
         w = NetFilterQueue()
         with pytest.raises(RuntimeError, match="Failed to add iptables rule"):
             w.open()

@@ -127,12 +127,16 @@ class NetFilterQueue(BaseDivert):
         self._cleanup_stale_rules()
 
         self._applied_rules = self._parse_filter_to_iptables()
-        for chains, r in self._applied_rules:
-            for chain in chains:
-                subprocess.run(
-                    ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
-                    check=True, capture_output=True
-                )
+        try:
+            for chains, r in self._applied_rules:
+                for chain in chains:
+                    subprocess.run(
+                        ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                        check=True, capture_output=True
+                    )
+        except Exception as e:
+            self.close()
+            raise RuntimeError(f"Failed to add iptables rule: {e}") from e
 
         self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
         self._thread.start()
