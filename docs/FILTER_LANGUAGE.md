@@ -72,10 +72,10 @@ To optimize performance, it is recommended to use the subset of filters that can
 | `ip.SrcAddr == 1.2.3.4` | ✅ | ✅ | ✅ |
 | `ip.DstAddr == 8.8.8.8` | ✅ | ✅ | ✅ |
 | `inbound` / `outbound` | ✅ | ✅ | ✅ |
-| `or` / `||` (Simple rules) | ✅ | ✅ | ✅ |
+| `or` / `\|\|` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
 
-*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules. These packets will be filtered in user-space, which may impact performance for high-traffic environments.*
+*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules. Fields like `tcp.PayloadLength` are difficult to support on Linux/BSD firewalls because they require calculating the difference between the total packet length and variable-length headers (IP and TCP options), which is not natively supported by `iptables` or `ipfw` in a simple way. These packets will be filtered in user-space, which may impact performance for high-traffic environments.*
 
 ### Performance Considerations
 

@@ -130,10 +130,10 @@ PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firew
 | `ip.DstAddr == 8.8.8.8` | ✅ | ✅ | ✅ |
 | `icmp` / `ip` | ✅ | ✅ | ✅ |
 | `inbound` / `outbound` | ✅ | ✅ | ✅ |
-| `or` / `||` (Simple rules) | ✅ | ✅ | ✅ |
+| `or` / `\|\|` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
 
-*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux/BSD. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
+*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux/BSD. Fields like `tcp.PayloadLength` are difficult to support natively because they require dynamic calculations based on variable-length IP and TCP headers. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
 
 ### Checksums
 - **`packet.is_checksum_valid`**: Returns `True` if all checksums (IP, TCP, UDP, ICMP) in the packet are correct.
