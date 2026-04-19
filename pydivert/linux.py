@@ -5,16 +5,15 @@ import asyncio
 import atexit
 import logging
 import queue
-import re
 import socket
 import subprocess
 import threading
 from typing import Any
 
 from pydivert.base import BaseDivert
-from pydivert.consts import Flag, Layer
-from pydivert.packet import Packet
+from pydivert.consts import Direction, Flag, Layer
 from pydivert.filter import transpile_to_rules
+from pydivert.packet import Packet
 
 logger = logging.getLogger(__name__)
 
@@ -78,120 +77,91 @@ class NetFilterQueue(BaseDivert):
 
     def _parse_filter_to_iptables(self):
         rules = []
-        filter_str = self._translated_filter
-        
-        # If the filter is just "true", we use the safe default
-        if filter_str.lower() == "true":
+        if self._translated_filter.lower() == "true":
             # Intercept everything EXCEPT SSH to avoid breaking Vagrant
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "udp"]))
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "icmp"]))
             return rules
 
-        parsed_rules = transpile_to_rules(filter_str)
-        
+        parsed_rules = transpile_to_rules(self._translated_filter)
         for rule_dict in parsed_rules:
-            if not rule_dict: # True or too complex
+            if not rule_dict:
                 rules.append((["INPUT", "OUTPUT", "FORWARD"], []))
                 continue
-            
-            ipt_args = []
-            chains = ["INPUT", "OUTPUT", "FORWARD"]
-            
-            if "proto" in rule_dict:
-                ipt_args.extend(["-p", rule_dict["proto"]])
-            
-            if "dport" in rule_dict:
-                ipt_args.extend(["--dport", rule_dict["dport"]])
-            
-            if "sport" in rule_dict:
-                ipt_args.extend(["--sport", rule_dict["sport"]])
-                
-            if "srcaddr" in rule_dict:
-                ipt_args.extend(["-s", rule_dict["srcaddr"]])
-                
-            if "dstaddr" in rule_dict:
-                ipt_args.extend(["-d", rule_dict["dstaddr"]])
-                
-            if "direction" in rule_dict:
-                if rule_dict["direction"] == "inbound":
-                    chains = ["INPUT", "FORWARD"]
-                elif rule_dict["direction"] == "outbound":
-                    chains = ["OUTPUT", "FORWARD"]
-            
-            if "loopback" in rule_dict:
-                chains = ["INPUT", "OUTPUT"]
-                ipt_args.extend(["-o", "lo"]) # For OUTPUT
-                # We need a separate rule for INPUT as -o is only for OUTPUT
-                rules.append((["INPUT"], ["-i", "lo"]))
-                rules.append((["OUTPUT"], ["-o", "lo"]))
-                continue
-
-            if "false" in rule_dict:
-                continue
-
-            rules.append((chains, ipt_args))
-
+            rules.extend(self._build_iptables_rule(rule_dict))
         return rules
+
+    def _build_iptables_rule(self, rule_dict):
+        ipt_args = []
+        chains = ["INPUT", "OUTPUT", "FORWARD"]
+        if "proto" in rule_dict:
+            ipt_args.extend(["-p", rule_dict["proto"]])
+        if "dport" in rule_dict:
+            ipt_args.extend(["--dport", rule_dict["dport"]])
+        if "sport" in rule_dict:
+            ipt_args.extend(["--sport", rule_dict["sport"]])
+        if "srcaddr" in rule_dict:
+            ipt_args.extend(["-s", rule_dict["srcaddr"]])
+        if "dstaddr" in rule_dict:
+            ipt_args.extend(["-d", rule_dict["dstaddr"]])
+
+        if rule_dict.get("direction") == "inbound":
+            chains = ["INPUT", "FORWARD"]
+        elif rule_dict.get("direction") == "outbound":
+            chains = ["OUTPUT", "FORWARD"]
+
+        if rule_dict.get("loopback"):
+            return [
+                (["INPUT"], ["-i", "lo"]),
+                (["OUTPUT"], ["-o", "lo"])
+            ]
+        return [(chains, ipt_args)]
 
     def open(self) -> None:
         if NFQ is None:
             raise ImportError("netfilterqueue library not found. Install it with 'pip install NetFilterQueue'.")
 
-        # Try a few queue numbers if busy
+        self._bind_nfq()
+        logger.info("Opening NetFilterQueue %d with filter: %s", self._queue_num, self._translated_filter)
+        self._cleanup_stale_rules()
+
+        self._applied_rules = self._parse_filter_to_iptables()
+        for chains, r in self._applied_rules:
+            for chain in chains:
+                subprocess.run(
+                    ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
+                    check=True, capture_output=True
+                )
+
+        self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
+        self._thread.start()
+
+    def _bind_nfq(self):
         nfq = NFQ()
         for _i in range(10):
             try:
                 nfq.bind(self._queue_num, self._callback)
                 self._nfqueue = nfq
-                break
+                return
             except OSError:
                 self._queue_num += 1
-                continue
-        else:
-             raise OSError("Failed to bind to any NFQueue. Are you root?")
+        raise OSError("Failed to bind to any NFQueue. Are you root?")
 
-        logger.info("Opening NetFilterQueue %d with filter: %s", self._queue_num, self._translated_filter)
-
-        # Clean up any stale rules for this queue number from previous crashed runs
+    def _cleanup_stale_rules(self):
         for chain in ["INPUT", "OUTPUT", "FORWARD"]:
             try:
-                # Check if chain exists by listing it
                 if subprocess.run(["iptables", "-L", chain], capture_output=True).returncode != 0:
                     continue
-
-                # Get current rules to see if any match our queue-num
                 res = subprocess.run(["iptables", "-S", chain], capture_output=True, text=True)
                 if res.returncode == 0:
                     pattern = f"--queue-num {self._queue_num}"
-                    # We might have multiple rules, so we collect them first
-                    to_delete = []
-                    for line in res.stdout.splitlines():
-                        if pattern in line:
-                            to_delete.append(line)
-                    
+                    to_delete = [line for line in res.stdout.splitlines() if pattern in line]
                     for line in to_delete:
-                        # Reconstruct delete command from -A line
-                        # Example: -A INPUT -p tcp -m tcp --dport 80 -j NFQUEUE --queue-num 0
                         delete_cmd = line.replace("-A ", "-D ").split()
                         subprocess.run(["iptables", *delete_cmd[1:]], check=False)
             except Exception:
                 pass
-
-        self._applied_rules = self._parse_filter_to_iptables()
-        for chains, r in self._applied_rules:
-            try:
-                for chain in chains:
-                    subprocess.run(
-                        ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
-                        check=True, capture_output=True
-                    )
-            except Exception as e:
-                self.close()
-                raise RuntimeError(f"Failed to add iptables rule: {e}") from e
-
-        self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
-        self._thread.start()
 
     def _remove_rules(self):
         for chains, r in self._applied_rules:
@@ -221,14 +191,14 @@ class NetFilterQueue(BaseDivert):
 
     def _callback(self, pkt):
         raw = pkt.get_payload()
-        
+
         # Determine direction and loopback from interface info
         indev = getattr(pkt, "indev", 0)
         outdev = getattr(pkt, "outdev", 0)
-        
+
         # Interface index 1 is almost always 'lo' on Linux.
         is_loopback = (indev == 1 or outdev == 1)
-        
+
         # Direction
         if outdev > 0 and indev == 0:
             direction = Direction.OUTBOUND

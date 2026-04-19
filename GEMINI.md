@@ -47,7 +47,7 @@ PyDivert provides full access to WinDivert 2.2 features:
 - **Linting & Type Checking**:
   ```bash
   uv run ruff check .
-  uv run mypy .
+  uv run ty check .
   ```
 - **Build documentation**:
   ```bash

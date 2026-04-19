@@ -57,10 +57,10 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         "urg_ptr",
         "window_size",
     )
-    ns: bool = flag_property("ns", 12, 0b00000001)  # type: ignore[assignment]
+    ns: bool = flag_property("ns", 12, 0b00000001)
 
-    cwr: bool = flag_property("cwr", 13, 0b10000000)  # type: ignore[assignment]
-    ece: bool = flag_property("ece", 13, 0b01000000)  # type: ignore[assignment]
+    cwr: bool = flag_property("cwr", 13, 0b10000000)
+    ece: bool = flag_property("ece", 13, 0b01000000)
 
     urg: bool = flag_property("urg", 13, 0b00100000)  # type: ignore[assignment]
     ack: bool = flag_property("ack", 13, 0b00010000)  # type: ignore[assignment]
@@ -76,22 +76,11 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         return self.data_offset * 4
 
-    seq_num: int = raw_property("!I", 4, docs="The sequence number field.")  # type: ignore[assignment]
-    ack_num: int = raw_property("!I", 8, docs="The acknowledgement number field.")  # type: ignore[assignment]
+    seq_num: int = raw_property("!I", 4, docs="The sequence number field.")
+    ack_num: int = raw_property("!I", 8, docs="The acknowledgement number field.")
 
     window_size: int = raw_property("!H", 14, docs="The size of the receive window in bytes.")  # type: ignore[assignment]
-
-    @property
-    def cksum(self) -> int:
-        """
-        The TCP header checksum field.
-        """
-        return struct.unpack_from("!H", self.raw, 16)[0]
-
-    @cksum.setter
-    def cksum(self, val: int) -> None:
-        struct.pack_into("!H", self.raw, 16, val)
-
+    cksum: int = raw_property("!H", 16, docs="The TCP header checksum field.")
     urg_ptr: int = raw_property("!H", 18, docs="The Urgent Pointer field.")  # type: ignore[assignment]
 
     @property

@@ -145,6 +145,7 @@ async def test_send_async_error_path():
         async with pydivert.WinDivert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
+            assert p.ipv4 is not None
             p.ipv4.packet_len = 40
             with pytest.raises(OSError):
                 await w.send_async(p)
@@ -176,6 +177,7 @@ async def test_send_async_exception_path():
         async with pydivert.WinDivert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
+            assert p.ipv4 is not None
             p.ipv4.packet_len = 40
             with pytest.raises(RuntimeError, match="Unexpected"):
                 await w.send_async(p)
@@ -291,6 +293,7 @@ async def test_send_async_cancellation():
 
                 raw = bytearray(b"\x45" + b"\x00" * 39)
                 p = Packet(raw)
+                assert p.ipv4 is not None
                 p.ipv4.packet_len = 40
                 task = asyncio.create_task(w.send_async(p))
                 await asyncio.sleep(0.05)
@@ -323,3 +326,17 @@ def test_ip_header_base_packet_len():
 def test_windivert_is_registered_coverage():
     with patch("pydivert.service.is_registered", return_value=True):
         assert pydivert.WinDivert.is_registered() is True
+
+def test_windivert_unregister_raises_on_failure():
+    import subprocess
+    with patch("pydivert.service.stop_service", return_value=False):
+        with patch("subprocess.run") as mock_run:
+            # Configure mock to behave like check=True failed
+            mock_run.side_effect = subprocess.CalledProcessError(1, ["sc.exe", "stop", "WinDivert"])
+
+            with pytest.raises(subprocess.CalledProcessError):
+                pydivert.WinDivert.unregister()
+
+            mock_run.assert_called_once()
+            _, kwargs = mock_run.call_args
+            assert kwargs.get("check") is True

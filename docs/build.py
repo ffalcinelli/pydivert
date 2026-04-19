@@ -38,11 +38,13 @@ def inject_version_switcher(directory, current_version, all_versions):
 
     switcher_html = dedent(f"""
         <div id="version-switcher" style="margin-bottom: 1rem; padding-right: var(--pad);">
-            <label for="v-select" style="display: block; font-weight: bold; margin-bottom: 0.5rem; font-size: 0.8rem;
-                   color: var(--muted); text-transform: uppercase; letter-spacing: 1px;">Documentation Version</label>
-            <select id="v-select" onchange="window.location.href=this.value" style="width: 100%; padding: 0.4rem;
-                    border: 1px solid var(--accent2); border-radius: 4px; background: var(--pdoc-background);
-                    color: var(--text); font-size: 0.9rem; cursor: pointer;">
+            <label for="v-select" style="display: block; font-weight: bold; margin-bottom: 0.5rem;
+                   font-size: 0.8rem; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: 1px;">Documentation Version</label>
+            <select id="v-select" onchange="window.location.href=this.value"
+                    style="width: 100%; padding: 0.4rem; border: 1px solid var(--accent2);
+                           border-radius: 4px; background: var(--pdoc-background);
+                           color: var(--text); font-size: 0.9rem; cursor: pointer;">
                 {options}
             </select>
         </div>

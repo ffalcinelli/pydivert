@@ -10,6 +10,7 @@ def fromhex(x: str) -> bytes:
     """Convert a hex string to bytes, ignoring spaces and colons."""
     return bytes.fromhex(x.replace(" ", "").replace(":", ""))
 
+
 def raw_property(fmt: str, offset: int, docs: str | None = None):
     """Create a property that unpacks/packs a value from the raw packet at the given offset."""
     def getter(self):
@@ -19,6 +20,7 @@ def raw_property(fmt: str, offset: int, docs: str | None = None):
         struct.pack_into(fmt, self.raw, offset, val)
 
     return property(getter, setter, doc=docs)
+
 
 def flag_property(name: str, offset: int, bit: int, docs: str | None = None):
     """Create a property that gets/sets a bit flag in the raw packet at the given offset."""
@@ -33,7 +35,7 @@ def flag_property(name: str, offset: int, bit: int, docs: str | None = None):
 
     return property(getter, setter, doc=docs)
 
-def calc_csum(data: bytes) -> int:
+def calc_csum(data: bytes | bytearray) -> int:
     """Calculate the internet checksum for the given data."""
     if len(data) % 2 == 1:
         data += b'\0'

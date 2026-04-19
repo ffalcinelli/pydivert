@@ -153,7 +153,7 @@ def _udp_server(port):
                     if data == b"stop":
                         break
                     s.sendto(b"Original: " + data, addr)
-                except (socket.timeout, TimeoutError):
+                except TimeoutError:
                     continue
         except Exception:
             pass

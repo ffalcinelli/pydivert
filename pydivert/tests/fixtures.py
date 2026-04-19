@@ -77,7 +77,7 @@ def scenario(request):
                     conn.settimeout(5.0)
                     conn.sendall(conn.recv(4096).upper())
                     conn.close()
-                except (socket.timeout, TimeoutError, OSError):
+                except (TimeoutError, OSError):
                     pass
 
             def send(addr, data):
@@ -86,7 +86,7 @@ def scenario(request):
                 client.sendall(data)
                 try:
                     reply.put(client.recv(4096))
-                except (socket.timeout, TimeoutError, OSError):
+                except (TimeoutError, OSError):
                     reply.put(None)
         else:
 
@@ -95,7 +95,7 @@ def scenario(request):
                 try:
                     data, addr = server.recvfrom(4096)
                     server.sendto(data.upper(), addr)
-                except (socket.timeout, TimeoutError, OSError):
+                except (TimeoutError, OSError):
                     pass
 
             def send(addr, data):
@@ -105,7 +105,7 @@ def scenario(request):
                     data, recv_addr = client.recvfrom(4096)
                     assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
                     reply.put(data)
-                except (socket.timeout, TimeoutError, OSError, AssertionError):
+                except (TimeoutError, OSError, AssertionError):
                     reply.put(None)
 
         server_thread = threading.Thread(target=server_echo, daemon=True)

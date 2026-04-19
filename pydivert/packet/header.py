@@ -114,7 +114,7 @@ class PortMixin(RawProtocol):
         """
         The source port.
         """
-        return struct.unpack_from("!H", self.raw, 0)[0]  # type: ignore[attr-defined]
+        return struct.unpack_from("!H", self.raw, 0)[0]
 
     @src_port.setter
     def src_port(self, val: int) -> None:
@@ -125,7 +125,7 @@ class PortMixin(RawProtocol):
         """
         The destination port.
         """
-        return struct.unpack_from("!H", self.raw, 2)[0]  # type: ignore[attr-defined]
+        return struct.unpack_from("!H", self.raw, 2)[0]
 
     @dst_port.setter
     def dst_port(self, val: int) -> None:

@@ -24,9 +24,8 @@
 
 from __future__ import annotations
 
-import struct
-
 from pydivert.packet.header import Header, PayloadMixin
+from pydivert.util import raw_property
 
 
 class ICMPHeader(Header, PayloadMixin):
@@ -60,16 +59,7 @@ class ICMPHeader(Header, PayloadMixin):
             raise AttributeError("code must be an integer")
         self.raw[1] = val
 
-    @property
-    def cksum(self) -> int:
-        """
-        The ICMP header checksum field.
-        """
-        return struct.unpack_from("!H", self.raw, 2)[0]
-
-    @cksum.setter
-    def cksum(self, val: int) -> None:
-        struct.pack_into("!H", self.raw, 2, val)
+    cksum: int = raw_property("!H", 2, docs="The ICMP header checksum field.")
 
 
 class ICMPv4Header(ICMPHeader):

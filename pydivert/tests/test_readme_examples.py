@@ -324,7 +324,7 @@ def flow_layer_diverter(port, stop_event, events):
                 if event.flow and (event.flow.LocalPort == port or event.flow.RemotePort == port):
                     events.append(event)
     except OSError as e:
-        if hasattr(e, "winerror") and e.winerror == 87:
+        if getattr(e, "winerror", None) == 87:
             events.append("SKIP_WINERROR_87")
         else:
             events.append(e)

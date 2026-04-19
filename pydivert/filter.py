@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-from lark import Lark, Transformer, v_args
+from lark import Lark, Transformer
 
 WINDIVERT_GRAMMAR = r"""
     ?start: expression
@@ -83,7 +83,7 @@ class WinDivertTransformer(Transformer):
         left, op, right = children
         if op != "==":
             return {} # Kernel filters mostly support equality for these fields
-        
+
         field = str(left).lower()
         val = str(right)
 
@@ -99,13 +99,20 @@ class WinDivertTransformer(Transformer):
 
     def field_access(self, children):
         name = str(children[0]).lower()
-        if name == "ip": return {"proto": "ip"}
-        if name == "tcp": return {"proto": "tcp"}
-        if name == "udp": return {"proto": "udp"}
-        if name == "icmp": return {"proto": "icmp"}
-        if name == "inbound": return {"direction": "inbound"}
-        if name == "outbound": return {"direction": "outbound"}
-        if name == "loopback": return {"loopback": True}
+        if name == "ip":
+            return {"proto": "ip"}
+        if name == "tcp":
+            return {"proto": "tcp"}
+        if name == "udp":
+            return {"proto": "udp"}
+        if name == "icmp":
+            return {"proto": "icmp"}
+        if name == "inbound":
+            return {"direction": "inbound"}
+        if name == "outbound":
+            return {"direction": "outbound"}
+        if name == "loopback":
+            return {"loopback": True}
         return name
 
     def value(self, children):
@@ -113,7 +120,7 @@ class WinDivertTransformer(Transformer):
 
     def true_val(self, _):
         return {}
-    
+
     def false_val(self, _):
         return {"false": True}
 

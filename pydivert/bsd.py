@@ -5,7 +5,6 @@ import asyncio
 import atexit
 import logging
 import queue
-import re
 import socket
 import subprocess
 import sys
@@ -14,8 +13,8 @@ import time
 
 from pydivert.base import BaseDivert
 from pydivert.consts import Direction, Flag, Layer
-from pydivert.packet import Packet
 from pydivert.filter import transpile_to_rules
+from pydivert.packet import Packet
 
 logger = logging.getLogger(__name__)
 
@@ -50,50 +49,43 @@ class Divert(BaseDivert):
 
     def _parse_filter_to_ipfw(self):
         rules = []
-        filter_str = self._translated_filter
         prefix = f"divert {self._port}"
 
-        if filter_str.lower() == "true":
+        if self._translated_filter.lower() == "true":
             rules.append(f"{prefix} tcp from any to any not dst-port 22 not src-port 22")
             rules.append(f"{prefix} udp from any to any")
             rules.append(f"{prefix} icmp from any to any")
             return rules
 
-        parsed_rules = transpile_to_rules(filter_str)
-
+        parsed_rules = transpile_to_rules(self._translated_filter)
         for rule_dict in parsed_rules:
-            if not rule_dict: # True or too complex
+            if not rule_dict:
                 rules.append(f"{prefix} ip from any to any")
                 continue
-
-            proto = rule_dict.get("proto", "ip")
-            src = rule_dict.get("srcaddr", "any")
-            dst = rule_dict.get("dstaddr", "any")
-            
-            rule = f"{prefix} {proto} from {src}"
-            if "sport" in rule_dict:
-                rule += f" {rule_dict['sport']}"
-            
-            rule += f" to {dst}"
-            if "dport" in rule_dict:
-                rule += f" {rule_dict['dport']}"
-            
-            if "direction" in rule_dict:
-                if rule_dict["direction"] == "inbound":
-                    rule += " in"
-                elif rule_dict["direction"] == "outbound":
-                    rule += " out"
-            
-            if "loopback" in rule_dict:
-                rule += " via lo0"
-
-            if "false" in rule_dict:
-                continue
-
-            rules.append(rule)
-
+            rules.append(self._build_ipfw_rule(rule_dict, prefix))
         return rules
 
+    def _build_ipfw_rule(self, rule_dict, prefix):
+        proto = rule_dict.get("proto", "ip")
+        src = rule_dict.get("srcaddr", "any")
+        dst = rule_dict.get("dstaddr", "any")
+
+        rule = f"{prefix} {proto} from {src}"
+        if "sport" in rule_dict:
+            rule += f" {rule_dict['sport']}"
+
+        rule += f" to {dst}"
+        if "dport" in rule_dict:
+            rule += f" {rule_dict['dport']}"
+
+        if rule_dict.get("direction") == "inbound":
+            rule += " in"
+        elif rule_dict.get("direction") == "outbound":
+            rule += " out"
+
+        if rule_dict.get("loopback"):
+            rule += " via lo0"
+        return rule
     def open(self) -> None:
         if self.is_open:
             raise RuntimeError("Divert handle is already open.")
@@ -141,7 +133,7 @@ class Divert(BaseDivert):
                 # The port field encodes direction (0 for outbound) and interface index.
                 ip_addr = addr[0] if addr else '0.0.0.0'
                 port = addr[1] if addr and len(addr) >= 2 else 0
-                
+
                 direction = Direction.OUTBOUND if port == 0 else Direction.INBOUND
                 # On loopback, FreeBSD divert socket often gives '0.0.0.0' or '127.0.0.1'
                 is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1' or ip_addr == '::1' or not ip_addr)
@@ -224,7 +216,7 @@ class Divert(BaseDivert):
         addr = getattr(packet, '_bsd_addr', ('0.0.0.0', 0))
         try:
             raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
-            
+
             # On FreeBSD, re-inject using the address info from capture.
             # Divert sockets expect a 4-tuple (ip, port, flowinfo, scopeid)
             # or at least a tuple that can be cast to sockaddr_in.
@@ -234,7 +226,7 @@ class Divert(BaseDivert):
                 while len(send_addr) < 4:
                     send_addr.append(0)
                 addr = tuple(send_addr)
-                
+
             return sock.sendto(raw_bytes, addr)
         except Exception as e:
             logger.error(f"Failed to send packet on BSD: {e}")
