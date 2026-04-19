@@ -38,6 +38,52 @@ def windivert_handle():
         yield w
 
 
+def _setup_tcp(server, client, reply):
+    def server_echo():
+        server.settimeout(5.0)
+        server.listen(1)
+        try:
+            conn, addr = server.accept()
+            conn.settimeout(5.0)
+            conn.sendall(conn.recv(4096).upper())
+            conn.close()
+        except (TimeoutError, OSError):
+            pass
+
+    def send(addr, data):
+        client.settimeout(5.0)
+        client.connect(addr)
+        client.sendall(data)
+        try:
+            reply.put(client.recv(4096))
+        except (TimeoutError, OSError):
+            reply.put(None)
+
+    return server_echo, send
+
+
+def _setup_udp(server, client, reply):
+    def server_echo():
+        server.settimeout(5.0)
+        try:
+            data, addr = server.recvfrom(4096)
+            server.sendto(data.upper(), addr)
+        except (TimeoutError, OSError):
+            pass
+
+    def send(addr, data):
+        client.settimeout(5.0)
+        client.sendto(data, addr)
+        try:
+            data, recv_addr = client.recvfrom(4096)
+            assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
+            reply.put(data)
+        except (TimeoutError, OSError, AssertionError):
+            reply.put(None)
+
+    return server_echo, send
+
+
 @pytest.fixture(
     params=list(
         itertools.product(
@@ -56,10 +102,8 @@ def scenario(request):
     else:
         atype = socket.AF_INET6
         host = "::1"
-    if proto == "tcp":
-        stype = socket.SOCK_STREAM
-    else:
-        stype = socket.SOCK_DGRAM
+
+    stype = socket.SOCK_STREAM if proto == "tcp" else socket.SOCK_DGRAM
 
     with socket.socket(atype, stype) as server, socket.socket(atype, stype) as client:
         server.bind((host, 0))
@@ -68,45 +112,9 @@ def scenario(request):
         reply = Queue()
 
         if proto == "tcp":
-
-            def server_echo():
-                server.settimeout(5.0)
-                server.listen(1)
-                try:
-                    conn, addr = server.accept()
-                    conn.settimeout(5.0)
-                    conn.sendall(conn.recv(4096).upper())
-                    conn.close()
-                except (TimeoutError, OSError):
-                    pass
-
-            def send(addr, data):
-                client.settimeout(5.0)
-                client.connect(addr)
-                client.sendall(data)
-                try:
-                    reply.put(client.recv(4096))
-                except (TimeoutError, OSError):
-                    reply.put(None)
+            server_echo, send = _setup_tcp(server, client, reply)
         else:
-
-            def server_echo():
-                server.settimeout(5.0)
-                try:
-                    data, addr = server.recvfrom(4096)
-                    server.sendto(data.upper(), addr)
-                except (TimeoutError, OSError):
-                    pass
-
-            def send(addr, data):
-                client.settimeout(5.0)
-                client.sendto(data, addr)
-                try:
-                    data, recv_addr = client.recvfrom(4096)
-                    assert addr[:2] == recv_addr[:2]  # only accept responses from the same host
-                    reply.put(data)
-                except (TimeoutError, OSError, AssertionError):
-                    reply.put(None)
+            server_echo, send = _setup_udp(server, client, reply)
 
         server_thread = threading.Thread(target=server_echo, daemon=True)
         server_thread.start()

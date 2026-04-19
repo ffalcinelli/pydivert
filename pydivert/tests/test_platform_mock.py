@@ -89,7 +89,7 @@ async def test_linux_nfq_mock():
 @pytest.mark.skipif(sys.platform == "win32", reason="WinDivert DLL will fail on this mock")
 @pytest.mark.asyncio
 async def test_bsd_divert_mock():
-    from scapy.all import IP, UDP, raw
+    from scapy.all import IP, UDP, raw  # type: ignore
 
     from pydivert.bsd import Divert
     mock_socket = MagicMock()

@@ -63,6 +63,7 @@ def test_ipv6_traffic_class_flow_label_integration():
 
                 # Verify initial state (should be 0 for most OSes by default)
                 # Modify traffic class and flow label
+                assert packet.ipv6
                 packet.ipv6.traffic_class = 0xAB
                 packet.ipv6.flow_label = 0x12345
 

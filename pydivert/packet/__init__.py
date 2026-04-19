@@ -143,6 +143,8 @@ class Packet:
 
         self.raw: memoryview = memoryview(raw)
         """The raw packet bytes as a `memoryview`."""
+        self._nfq_pkt: Any | None = None
+        """Optional reference to the underlying NetFilterQueue packet."""
         self._bsd_addr: Any | None = None
         """Internal storage for BSD/macOS divert socket address."""
         self._cached_buff_len: int | None = None

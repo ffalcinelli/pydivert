@@ -18,5 +18,6 @@ source =
     pydivert/
     /home/vagrant/pydivert/pydivert/
     C:\pydivert\pydivert\
+    \\VBOXSVR\C:_PYDIVERT\pydivert\
     /vagrant/pydivert/
     /Users/vagrant/pydivert/pydivert/

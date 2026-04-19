@@ -22,6 +22,7 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,7 +46,7 @@ def test_recv_ex_async_pending(mock_windivert_dll):
     mock_windivert_dll.WinDivertRecvEx.side_effect = pydivert.windivert_dll.WinError(997)
 
     w = pydivert.WinDivert()
-    w._handle = 123
+    w._handle = cast(Any, 123)
     overlapped = Overlapped()
 
     result = w.recv_ex(overlapped=overlapped)
@@ -63,7 +64,7 @@ def test_send_ex_async_pending(mock_windivert_dll):
     mock_windivert_dll.WinDivertSendEx.side_effect = pydivert.windivert_dll.WinError(997)
 
     w = pydivert.WinDivert()
-    w._handle = 123
+    w._handle = cast(Any, 123)
     overlapped = Overlapped()
 
     packet = MagicMock(spec=pydivert.Packet)
@@ -85,7 +86,7 @@ def test_recv_ex_sync_success(mock_windivert_dll):
     mock_windivert_dll.WinDivertRecvEx.return_value = True
 
     w = pydivert.WinDivert()
-    w._handle = 123
+    w._handle = cast(Any, 123)
 
     # We need to mock the Packet creation or let it fail gracefully
     with patch("pydivert.windivert.Packet") as mock_packet:

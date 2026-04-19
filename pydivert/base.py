@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import abc
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, TypeVar
 
 from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
+
+T = TypeVar("T", bound="BaseDivert")
 
 
 class BaseDivert(abc.ABC):
@@ -127,14 +129,14 @@ class BaseDivert(abc.ABC):
         """
         raise NotImplementedError()
 
-    def __enter__(self) -> "BaseDivert":
+    def __enter__(self: T) -> T:
         self.open()
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
-    async def __aenter__(self) -> "BaseDivert":
+    async def __aenter__(self: T) -> T:
         self.open()
         return self
 

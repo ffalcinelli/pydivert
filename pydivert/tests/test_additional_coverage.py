@@ -33,7 +33,8 @@ def test_packet_edge_cases():
 
     # Checksum for packet with unknown protocol
     p2 = Packet(b"\x45\x00\x00\x14\x00\x01\x00\x00\x40\xff\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
-    p2.ip.protocol = 254 # Unknown
+    assert p2.ipv4
+    p2.ipv4.protocol = 254  # Unknown
     p2.recalculate_checksums()
 
 

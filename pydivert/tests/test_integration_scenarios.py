@@ -177,7 +177,7 @@ def test_integration_dns_modification():
         try:
             with pydivert.PyDivert(filt) as w:
                 for packet in w:
-                    if b"Original: " in packet.payload:
+                    if packet.payload and b"Original: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Original: ", b"Modified: ")
 
                     w.send(packet)

@@ -51,10 +51,12 @@ test = [
     "wheel>=0.29",
     "setuptools",
     "scapy>=2.5.0",
-    "NetFilterQueue; sys_platform == 'linux'",
 ]
 docs = [
     "pdoc>=14.0.0",
+]
+linux = [
+    "NetFilterQueue; sys_platform == 'linux'",
 ]
 lint = [
     "ruff>=0.1.0",

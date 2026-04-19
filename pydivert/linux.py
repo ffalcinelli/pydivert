@@ -18,7 +18,7 @@ from pydivert.packet import Packet
 logger = logging.getLogger(__name__)
 
 try:
-    from netfilterqueue import NetfilterQueue as NFQ
+    from netfilterqueue import NetfilterQueue as NFQ  # type: ignore
 except ImportError:
     NFQ = None
 
@@ -142,6 +142,8 @@ class NetFilterQueue(BaseDivert):
         self._thread.start()
 
     def _bind_nfq(self):
+        if NFQ is None:
+            raise ImportError("netfilterqueue library not found.")
         nfq = NFQ()
         for _i in range(10):
             try:

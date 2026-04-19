@@ -236,7 +236,7 @@ def test_example_payload_modification():
             for packet in w:
                 if stop_event.is_set():
                     break
-                if b"secret-token" in packet.payload:
+                if packet.payload and b"secret-token" in packet.payload:
                     packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
                 w.send(packet)
 

@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -190,7 +191,7 @@ def test_recv_ex_error_path():
         mock_dll.WinDivertRecvEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
         w = pydivert.WinDivert()
-        w._handle = 123
+        w._handle = cast(Any, 123)
         with pytest.raises(OSError):
             w.recv_ex()
 
@@ -201,7 +202,7 @@ def test_send_ex_error_path():
         mock_dll.WinDivertSendEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
         w = pydivert.WinDivert()
-        w._handle = 123
+        w._handle = cast(Any, 123)
         raw = bytearray(b"\x45" + b"\x00" * 19)
         p = Packet(raw)
         with pytest.raises(OSError):
@@ -310,7 +311,7 @@ def test_send_ex_sync_success():
         mock_dll.WinDivertSendEx.return_value = True
 
         w = pydivert.WinDivert()
-        w._handle = 123
+        w._handle = cast(Any, 123)
         p = Packet(bytearray(b"\x45" + b"\x00" * 19))
         assert w.send_ex(p) == 0  # send_len.value
 

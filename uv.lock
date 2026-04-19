@@ -486,11 +486,13 @@ docs = [
 lint = [
     { name = "ruff" },
 ]
+linux = [
+    { name = "netfilterqueue", marker = "sys_platform == 'linux'" },
+]
 test = [
     { name = "codecov" },
     { name = "hypothesis" },
     { name = "mock" },
-    { name = "netfilterqueue", marker = "sys_platform == 'linux'" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -510,7 +512,7 @@ requires-dist = [
     { name = "hypothesis", marker = "extra == 'test'", specifier = ">=3.5.3" },
     { name = "lark" },
     { name = "mock", marker = "extra == 'test'", specifier = ">=1.0.1" },
-    { name = "netfilterqueue", marker = "sys_platform == 'linux' and extra == 'test'" },
+    { name = "netfilterqueue", marker = "sys_platform == 'linux' and extra == 'linux'" },
     { name = "pdoc", marker = "extra == 'docs'", specifier = ">=14.0.0" },
     { name = "pdoc", extras = ["docs"], specifier = ">=16.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
@@ -524,7 +526,7 @@ requires-dist = [
     { name = "ty", marker = "extra == 'typecheck'" },
     { name = "wheel", marker = "extra == 'test'", specifier = ">=0.29" },
 ]
-provides-extras = ["docs", "lint", "test", "typecheck"]
+provides-extras = ["docs", "lint", "linux", "test", "typecheck"]
 
 [package.metadata.requires-dev]
 dev = []

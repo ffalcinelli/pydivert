@@ -35,36 +35,36 @@ def run_cmd(cmd, shell=False, check=True, env=None, timeout=None):
     actual_env = os.environ.copy()
     if env:
         actual_env.update(env)
-    
+
     try:
         process = subprocess.Popen(
-            cmd, 
-            shell=shell, 
-            env=actual_env, 
-            stdout=subprocess.PIPE, 
+            cmd,
+            shell=shell,
+            env=actual_env,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
             universal_newlines=True
         )
-        
+
         # Stream output in real-time
         for line in process.stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
-            
+
         return_code = process.wait(timeout=timeout)
-        
+
         if check and return_code != 0:
             print(f"Command failed with exit code {return_code}")
             raise subprocess.CalledProcessError(return_code, cmd)
-            
+
         # Create a mock result object to maintain compatibility with existing code
         class MockResult:
             def __init__(self, rc):
                 self.returncode = rc
         return MockResult(return_code)
-        
+
     except subprocess.CalledProcessError as e:
         return e
     except subprocess.TimeoutExpired as e:
@@ -78,7 +78,7 @@ def run_cmd(cmd, shell=False, check=True, env=None, timeout=None):
 
 def test_target(target):
     print(f"\n--- Testing on {target} ---")
-    
+
     # Ensure a clean project root for each target
     if os.path.exists(".coverage"):
         os.remove(".coverage")
@@ -123,7 +123,7 @@ def test_target(target):
         run_cmd(["vagrant", "up", "freebsd"], check=False, timeout=300)
         run_cmd(["vagrant", "ssh", "freebsd", "-c", "sudo kldload ipdivert || true"], check=False, timeout=60)
         run_cmd(["vagrant", "rsync", "freebsd"], check=False, timeout=60)
-        
+
         # Ensure dependencies are installed
         pkg_cmd = "sudo -S /home/vagrant/pydivert_venv/bin/pip install pytest pytest-cov scapy hypothesis mock pytest-asyncio pytest-timeout lark"
         run_cmd(["vagrant", "ssh", "freebsd", "-c", f"echo 'vagrant' | {pkg_cmd}"], check=False, timeout=300)
@@ -150,23 +150,23 @@ def test_target(target):
         return None
 
     run_cmd(cmd, check=False, env=target_env, timeout=600)
-    
+
     # Wait for filesystem sync
     time.sleep(5)
-    
+
     # Priority 1: Check for .coverage in project root
     if os.path.exists(".coverage"):
         shutil.move(".coverage", target_cov_file)
         print(f"Collected coverage for {target} into {target_cov_file}")
         return target_cov_file
-    
+
     # Priority 2: Check for any .coverage.* file
     for f in os.listdir("."):
         if f.startswith(".coverage") and f != ".coveragerc" and not f.startswith(".coverage."):
              shutil.move(f, target_cov_file)
              print(f"Collected coverage for {target} from {f} into {target_cov_file}")
              return target_cov_file
-    
+
     print(f"Warning: No coverage data found for {target}")
     return None
 
