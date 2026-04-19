@@ -181,21 +181,31 @@ class MacOSDivert(BaseDivert):
         while not self._stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(65535)
-                direction = Direction.OUTBOUND if addr[0] == "0.0.0.0" else Direction.INBOUND
+                # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
+                # However, for consistency with BSD and more reliability, we check if the 
+                # capture address is empty or zeroed.
+                is_outbound = (not addr or addr[0] == "0.0.0.0" or addr[0] == "::")
+                direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
 
                 p = Packet(data, direction=direction)
                 p._bsd_addr = addr
 
                 if p.matches(self.filter):
-                    self._queue.put(p)
-                    if self._loop and self._async_queue:
-                        self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                    try:
+                        self._queue.put(p, block=False)
+                        if self._loop and self._async_queue:
+                            self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                    except (queue.Full, asyncio.QueueFull):
+                        logger.warning("MacOSDivert queue full, dropping intercepted packet")
+                        sock.sendto(data, addr)
                 else:
                     sock.sendto(data, addr)
-            except Exception:
+            except Exception as e:
                 if self._stop_event.is_set():
                     break
-                time.sleep(0.01)
+                # Only sleep if it wasn't a real socket error
+                if not isinstance(e, OSError):
+                    time.sleep(0.01)
 
     def close(self) -> None:
         self._stop_event.set()
@@ -204,7 +214,10 @@ class MacOSDivert(BaseDivert):
             # Unblock the recv loop
             temp_sock = self._socket
             self._socket = None
-            temp_sock.close()
+            try:
+                temp_sock.close()
+            except Exception:
+                pass
 
         # Clean up PF anchor
         try:
@@ -225,11 +238,13 @@ class MacOSDivert(BaseDivert):
                 return self._queue.get(timeout=0.1)
             except queue.Empty:
                 continue
-        raise RuntimeError("Handle is closed.")
+        if self._stop_event.is_set():
+            raise RuntimeError("Socket closed during recv")
+        raise RuntimeError("Socket is not open.")
 
     async def recv_async(self) -> Packet:
         if not self.is_open:
-            raise RuntimeError("Handle is closed.")
+             raise RuntimeError("Socket is not open.")
 
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()

@@ -90,11 +90,18 @@ def test_macos_recv(mock_pfctl, mock_socket):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    mock_socket.recvfrom.return_value = (packet_data, ("192.168.1.1", 0))
+    results = [(packet_data, ("192.168.1.1", 0)), (packet_data, ("0.0.0.0", 0))]
+    def side_effect(*args):
+        if results:
+            return results.pop(0)
+        d._stop_event.set()
+        raise OSError("Stop loop")
+
+    mock_socket.recvfrom.side_effect = side_effect
+
     p = d.recv()
     assert p.direction == Direction.INBOUND
 
-    mock_socket.recvfrom.return_value = (packet_data, ("0.0.0.0", 0))
     p = d.recv()
     assert p.direction == Direction.OUTBOUND
     d.close()
@@ -110,7 +117,12 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    mock_socket.recvfrom.return_value = (packet_data, ("0.0.0.0", 0))
+    
+    def side_effect(*args):
+        d._stop_event.set()
+        return (packet_data, ("0.0.0.0", 0))
+
+    mock_socket.recvfrom.side_effect = side_effect
 
     p = await d.recv_async()
     assert p.direction == Direction.OUTBOUND
@@ -120,6 +132,7 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
     assert sent == len(packet_data)
 
     d.close()
+
 
 
 def test_macos_parse_filter(mock_pfctl, mock_socket):
@@ -182,21 +195,31 @@ def test_macos_open_pf_rules_fail(mock_pfctl, mock_socket):
 def test_macos_recv_error(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
     d.open()
+    # To avoid background thread block/timeout, we must let it exit or handle it
+    d._stop_event.set() 
+    
     mock_socket.recvfrom.side_effect = OSError("Read error")
     with pytest.raises(OSError, match="Read error"):
-        d.recv()
-    d.close()
+        # We call the internal _run_loop one step
+        d._run_loop()
+
+    d._socket = None
     with pytest.raises(RuntimeError, match="Socket is not open."):
         d.recv()
 
+    d = MacOSDivert("true")
     d.open()
 
     def concurrent_close_side_effect(*args):
         d._socket = None  # Simulate another thread closing it
+        d._stop_event.set()
         raise OSError("EBADF")
     mock_socket.recvfrom.side_effect = concurrent_close_side_effect
     with pytest.raises(RuntimeError, match="Socket closed during recv"):
-        d.recv()
+        # Since recv() blocks on queue, we manually trigger the error
+        with patch.object(d._queue, "get", side_effect=queue.Empty):
+            d.recv()
+    d.close()
 
 
 def test_macos_recv_filtering(mock_pfctl, mock_socket):
@@ -216,13 +239,22 @@ def test_macos_recv_filtering(mock_pfctl, mock_socket):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    mock_socket.recvfrom.side_effect = [(packet_data_443, ("0.0.0.0", 0)), (packet_data_80, ("0.0.0.0", 0))]
+    # We need to use a side_effect that eventually stops the loop
+    results = [(packet_data_443, ("0.0.0.0", 0)), (packet_data_80, ("0.0.0.0", 0))]
+    def side_effect(*args):
+        if results:
+            return results.pop(0)
+        d._stop_event.set()
+        raise OSError("Stop loop")
+
+    mock_socket.recvfrom.side_effect = side_effect
 
     p = d.recv()
     assert p.dst_port == 80
     # verify 443 was re-sent
     mock_socket.sendto.assert_any_call(packet_data_443, ("0.0.0.0", 0))
     d.close()
+
 
 
 def test_macos_send_fail(mock_pfctl, mock_socket):
@@ -250,7 +282,12 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
                 b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
                 b'\x50\x02\x20\x00\x00\x00\x00\x00'
             )
-            mock_socket.recvfrom.return_value = (packet_data, ("0.0.0.0", 0))
+            
+            def side_effect(*args):
+                w._impl._stop_event.set()
+                return (packet_data, ("0.0.0.0", 0))
+            
+            mock_socket.recvfrom.side_effect = side_effect
             p = w.recv()
             assert p.direction == Direction.OUTBOUND
 
@@ -270,9 +307,15 @@ async def test_pydivert_macos_facade_async(mock_pfctl, mock_socket):
                 b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
                 b'\x50\x02\x20\x00\x00\x00\x00\x00'
             )
-            mock_socket.recvfrom.return_value = (packet_data, ("0.0.0.0", 0))
+            
+            def side_effect(*args):
+                w._impl._stop_event.set()
+                return (packet_data, ("0.0.0.0", 0))
+
+            mock_socket.recvfrom.side_effect = side_effect
             p = await w.recv_async()
             assert p.direction == Direction.OUTBOUND
 
             mock_socket.sendto.return_value = len(packet_data)
             await w.send_async(p)
+
