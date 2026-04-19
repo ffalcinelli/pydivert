@@ -21,6 +21,17 @@ logger = logging.getLogger(__name__)
 class Divert(BaseDivert):
     """
     FreeBSD implementation of the Divert interface using **Divert Sockets** and **ipfw**.
+
+    This backend intercepts network packets by dynamically adding `ipfw` firewall rules
+    that direct matching traffic to a divert socket. When packets are read via `.recv()`,
+    they are fetched from the socket; when sent via `.send()`, they are injected back
+    into the network stack through the same socket.
+
+    **Requirements:**
+    - FreeBSD with `ipfw` and `ipdivert` kernel modules loaded.
+    - Root privileges to create divert sockets and modify firewall rules.
+
+    When the handle is closed, the injected `ipfw` rules are automatically removed.
     """
     _instances: set[Divert] = set()
 

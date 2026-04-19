@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 class MacOSDivert(BaseDivert):
     """
     macOS implementation of the Divert interface using **Divert Sockets** and **pf**.
+
+    This backend captures and injects network packets by dynamically interacting with
+    the `pf` (Packet Filter) firewall. It sets up an anchor under `com.apple/pydivert`
+    and injects `divert-to` rules to route matching traffic to a divert socket.
+
+    **Requirements:**
+    - macOS with `pf` enabled.
+    - Root privileges to create divert sockets and manipulate the `pf` configuration.
+
+    When the handle is closed, the injected rules and the custom anchor are
+    automatically removed.
     """
     _instances: set[MacOSDivert] = set()
     _anchor_base = "com.apple/pydivert"

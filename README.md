@@ -126,11 +126,12 @@ PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firew
 | `tcp` / `udp` | ✅ | ✅ | ✅ |
 | `tcp.DstPort == 80` | ✅ | ✅ | ✅ |
 | `udp.SrcPort == 53` | ✅ | ✅ | ✅ |
-| `or` / `||` (Simple ports) | ✅ | ✅ | ✅ |
-| `ip.SrcAddr == 1.2.3.4` | ✅ | ❌* | ❌* |
+| `ip.SrcAddr == 1.2.3.4` | ✅ | ✅ | ✅ |
+| `ip.DstAddr == 8.8.8.8` | ✅ | ✅ | ✅ |
+| `icmp` / `ip` | ✅ | ✅ | ✅ |
+| `inbound` / `outbound` | ✅ | ✅ | ✅ |
+| `or` / `||` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
-| `icmp` / `ip` | ✅ | ❌* | ❌* |
-| `inbound` / `outbound` | ✅ | ❌* | ❌* |
 
 *\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux/BSD. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
 

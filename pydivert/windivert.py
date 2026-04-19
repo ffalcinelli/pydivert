@@ -46,8 +46,14 @@ logger = logging.getLogger(__name__)
 
 class WinDivert(BaseDivert):
     """
-    A WinDivert handle that can be used to capture packets.
-    The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
+    Windows-specific Divert backend using the WinDivert driver.
+
+    This class provides direct access to the WinDivert API for capturing and injecting
+    network packets on Windows. While `pydivert.PyDivert` provides a unified cross-platform
+    interface, `WinDivert` exposes advanced Windows-only features like specific layers
+    (`Layer.FLOW`, `Layer.SOCKET`) and asynchronous operations (`recv_ex`, `send_ex`).
+
+    The main methods are `.open()`, `.recv()`, `.send()`, and `.close()`.
 
     Use it like so::
 
@@ -55,7 +61,6 @@ class WinDivert(BaseDivert):
             for packet in w:
                 print(packet)
                 w.send(packet)
-
     """
 
     def __init__(

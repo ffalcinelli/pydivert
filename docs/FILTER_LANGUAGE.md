@@ -69,10 +69,10 @@ To optimize performance, it is recommended to use the subset of filters that can
 | `tcp` / `udp` / `icmp` | ✅ | ✅ | ✅ |
 | `tcp.DstPort == 80` | ✅ | ✅ | ✅ |
 | `udp.SrcPort == 53` | ✅ | ✅ | ✅ |
-| `or` / `||` (Simple ports) | ✅ | ✅ | ✅ |
 | `ip.SrcAddr == 1.2.3.4` | ✅ | ✅ | ✅ |
 | `ip.DstAddr == 8.8.8.8` | ✅ | ✅ | ✅ |
 | `inbound` / `outbound` | ✅ | ✅ | ✅ |
+| `or` / `||` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
 
 *\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules. These packets will be filtered in user-space, which may impact performance for high-traffic environments.*

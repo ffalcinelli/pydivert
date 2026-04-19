@@ -9,7 +9,16 @@ from pydivert.packet import Packet
 
 class BaseDivert(abc.ABC):
     """
-    Abstract base class for Divert implementations.
+    Abstract base class for packet diversion implementations.
+
+    This interface defines the core functionality for capturing, filtering,
+    and re-injecting network packets. It is implemented by OS-specific backends:
+    - `WinDivert` (Windows)
+    - `NetFilterQueue` (Linux)
+    - `Divert` (FreeBSD/macOS)
+
+    For standard cross-platform usage, use the `pydivert.PyDivert` facade instead
+    of instantiating these backends directly.
     """
 
     def __init__(
