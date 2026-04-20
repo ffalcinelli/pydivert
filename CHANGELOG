@@ -1,3 +1,9 @@
+Version 3.1.1
+    - Performance Optimization: Added caching for WinDivertAddress in the Packet class to reduce overhead during metadata access.
+    - Security & Reliability: Improved driver service management by ensuring WinDivert service stop failures are properly handled.
+    - Modernized Type Checking: Migrated from mypy to ty for improved type safety and developer experience.
+    - Architectural Refinement: Centralized dynamic type handling for the WinDivert DLL and improved test coverage for the low-level ctypes wrapper.
+
 Version 3.1.0
     - Modern Python Features: Added support for Structural Pattern Matching (PEP 634) in the Packet class.
     - First-class asyncio Support: Native async with, async for, and async methods for capture and injection.
