@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import queue
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -117,7 +118,7 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     def side_effect(*args):
         d._stop_event.set()
         return (packet_data, ("0.0.0.0", 0))
@@ -196,8 +197,8 @@ def test_macos_recv_error(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
     d.open()
     # To avoid background thread block/timeout, we must let it exit or handle it
-    d._stop_event.set() 
-    
+    d._stop_event.set()
+
     mock_socket.recvfrom.side_effect = OSError("Read error")
     with pytest.raises(OSError, match="Read error"):
         # We call the internal _run_loop one step
@@ -282,11 +283,11 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
                 b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
                 b'\x50\x02\x20\x00\x00\x00\x00\x00'
             )
-            
+
             def side_effect(*args):
                 w._impl._stop_event.set()
                 return (packet_data, ("0.0.0.0", 0))
-            
+
             mock_socket.recvfrom.side_effect = side_effect
             p = w.recv()
             assert p.direction == Direction.OUTBOUND
@@ -307,7 +308,7 @@ async def test_pydivert_macos_facade_async(mock_pfctl, mock_socket):
                 b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
                 b'\x50\x02\x20\x00\x00\x00\x00\x00'
             )
-            
+
             def side_effect(*args):
                 w._impl._stop_event.set()
                 return (packet_data, ("0.0.0.0", 0))

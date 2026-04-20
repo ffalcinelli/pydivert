@@ -182,7 +182,7 @@ class MacOSDivert(BaseDivert):
             try:
                 data, addr = sock.recvfrom(65535)
                 # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
-                # However, for consistency with BSD and more reliability, we check if the 
+                # However, for consistency with BSD and more reliability, we check if the
                 # capture address is empty or zeroed.
                 is_outbound = (not addr or addr[0] == "0.0.0.0" or addr[0] == "::")
                 direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
