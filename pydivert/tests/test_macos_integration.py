@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import queue
 import sys
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -285,7 +286,7 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
             )
 
             def side_effect(*args):
-                w._impl._stop_event.set()
+                cast(MacOSDivert, w._impl)._stop_event.set()
                 return (packet_data, ("0.0.0.0", 0))
 
             mock_socket.recvfrom.side_effect = side_effect
@@ -310,7 +311,7 @@ async def test_pydivert_macos_facade_async(mock_pfctl, mock_socket):
             )
 
             def side_effect(*args):
-                w._impl._stop_event.set()
+                cast(MacOSDivert, w._impl)._stop_event.set()
                 return (packet_data, ("0.0.0.0", 0))
 
             mock_socket.recvfrom.side_effect = side_effect
