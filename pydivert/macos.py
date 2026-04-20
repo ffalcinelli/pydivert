@@ -203,9 +203,10 @@ class MacOSDivert(BaseDivert):
             except Exception as e:
                 if self._stop_event.is_set():
                     break
-                # Only sleep if it wasn't a real socket error
-                if not isinstance(e, OSError):
-                    time.sleep(0.01)
+                logger.error("Error in macOS divert loop: %s", e)
+                if isinstance(e, OSError):
+                    raise
+                time.sleep(0.01)
 
     def close(self) -> None:
         self._stop_event.set()

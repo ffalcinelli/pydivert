@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import asyncio
 import queue
 import sys
+import threading
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -120,13 +122,20 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
+    ready_to_recv = threading.Event()
+
     def side_effect(*args):
+        ready_to_recv.wait(timeout=5)
         d._stop_event.set()
         return (packet_data, ("0.0.0.0", 0))
 
     mock_socket.recvfrom.side_effect = side_effect
 
-    p = await d.recv_async()
+    recv_task = asyncio.create_task(d.recv_async())
+    await asyncio.sleep(0.1)
+    ready_to_recv.set()
+
+    p = await recv_task
     assert p.direction == Direction.OUTBOUND
 
     mock_socket.sendto.return_value = len(packet_data)
@@ -197,12 +206,9 @@ def test_macos_open_pf_rules_fail(mock_pfctl, mock_socket):
 def test_macos_recv_error(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
     d.open()
-    # To avoid background thread block/timeout, we must let it exit or handle it
-    d._stop_event.set()
 
     mock_socket.recvfrom.side_effect = OSError("Read error")
     with pytest.raises(OSError, match="Read error"):
-        # We call the internal _run_loop one step
         d._run_loop()
 
     d._socket = None
@@ -217,12 +223,10 @@ def test_macos_recv_error(mock_pfctl, mock_socket):
         d._stop_event.set()
         raise OSError("EBADF")
     mock_socket.recvfrom.side_effect = concurrent_close_side_effect
-    with pytest.raises(RuntimeError, match="Socket closed during recv"):
-        # Since recv() blocks on queue, we manually trigger the error
-        with patch.object(d._queue, "get", side_effect=queue.Empty):
+    with patch.object(d._queue, "get", side_effect=queue.Empty):
+        with pytest.raises(RuntimeError, match="Socket closed during recv"):
             d.recv()
     d.close()
-
 
 def test_macos_recv_filtering(mock_pfctl, mock_socket):
     d = MacOSDivert("tcp.DstPort == 80")
@@ -310,12 +314,23 @@ async def test_pydivert_macos_facade_async(mock_pfctl, mock_socket):
                 b'\x50\x02\x20\x00\x00\x00\x00\x00'
             )
 
+            # Use a threading event to wait for recv_async to be ready
+            ready_to_recv = threading.Event()
+
             def side_effect(*args):
+                ready_to_recv.wait(timeout=5)
                 cast(MacOSDivert, w._impl)._stop_event.set()
                 return (packet_data, ("0.0.0.0", 0))
 
             mock_socket.recvfrom.side_effect = side_effect
-            p = await w.recv_async()
+
+            # Start recv_async task
+            recv_task = asyncio.create_task(w.recv_async())
+            # Give it a moment to initialize the async queue
+            await asyncio.sleep(0.1)
+            ready_to_recv.set()
+
+            p = await recv_task
             assert p.direction == Direction.OUTBOUND
 
             mock_socket.sendto.return_value = len(packet_data)
