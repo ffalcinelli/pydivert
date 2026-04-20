@@ -43,10 +43,14 @@ Vagrant.configure("2") do |config|
 
   # 4. macOS (Best Effort)
   config.vm.define "macos" do |macos|
-    macos.vm.box = "andrew-heck/macos-monterey"
+    macos.vm.box = "ramsey/macos-catalina"
     macos.vm.provider "virtualbox" do |vb|
       vb.memory = "4096"
       vb.cpus = 2
+      vb.customize ["modifyvm", :id, "--cpuidset", "00000001", "000106e5", "00100800", "0098e3fd", "bfebfbff"]
+      vb.customize ["setextradata", :id, "VBoxInternal/Devices/efi/0/Config/DmiSystemProduct", "iMac11,3"]
+      vb.customize ["setextradata", :id, "VBoxInternal/Devices/smc/0/Config/DeviceKey", "ourhardworkbythesewordsguardedpleasedontsteal(c)AppleComputerInc"]
+      vb.customize ["setextradata", :id, "VBoxInternal/Devices/smc/0/Config/GetKeyFromRealSMC", "1"]
     end
     macos.vm.synced_folder ".", "/Users/vagrant/pydivert"
     macos.vm.provision "shell", path: "scripts/vagrant-provision-macos.sh"
