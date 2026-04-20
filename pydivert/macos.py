@@ -178,6 +178,7 @@ class MacOSDivert(BaseDivert):
         sock = self._socket
         if not sock:
             return
+
         while not self._stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(65535)
@@ -194,7 +195,10 @@ class MacOSDivert(BaseDivert):
                     try:
                         self._queue.put(p, block=False)
                         if self._loop and self._async_queue:
-                            self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                            try:
+                                self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                            except Exception:
+                                pass
                     except (queue.Full, asyncio.QueueFull):
                         logger.warning("MacOSDivert queue full, dropping intercepted packet")
                         sock.sendto(data, addr)
@@ -207,7 +211,6 @@ class MacOSDivert(BaseDivert):
                 if isinstance(e, OSError):
                     raise
                 time.sleep(0.01)
-
     def close(self) -> None:
         self._stop_event.set()
         if self._socket:
@@ -234,14 +237,14 @@ class MacOSDivert(BaseDivert):
         return self._socket is not None
 
     def recv(self) -> Packet:
-        while self.is_open or not self._queue.empty():
+        if not self.is_open:
+            raise RuntimeError("Socket is not open.")
+        while not self._stop_event.is_set() or not self._queue.empty():
             try:
                 return self._queue.get(timeout=0.1)
             except queue.Empty:
                 continue
-        if self._stop_event.is_set():
-            raise RuntimeError("Socket closed during recv")
-        raise RuntimeError("Socket is not open.")
+        raise RuntimeError("Socket closed during recv")
 
     async def recv_async(self) -> Packet:
         if not self.is_open:
@@ -250,6 +253,7 @@ class MacOSDivert(BaseDivert):
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()
             self._async_queue = asyncio.Queue(maxsize=10000)
+            # Drain sync queue into async queue
             try:
                 while True:
                     self._async_queue.put_nowait(self._queue.get_nowait())
