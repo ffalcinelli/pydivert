@@ -192,7 +192,7 @@ class MacOSDivert(BaseDivert):
         if not sock:
             return
 
-        while not self._stop_event.is_set():
+        while self.is_open and not self._stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(65535)
                 # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
@@ -218,12 +218,13 @@ class MacOSDivert(BaseDivert):
                 else:
                     sock.sendto(data, addr)
             except Exception as e:
-                if self._stop_event.is_set():
+                if self._stop_event.is_set() or not self.is_open:
                     break
                 logger.error("Error in macOS divert loop: %s", e)
                 if isinstance(e, OSError):
-                    raise
+                    break
                 time.sleep(0.01)
+
     def close(self) -> None:
         self._stop_event.set()
         if self._socket:
@@ -250,12 +251,14 @@ class MacOSDivert(BaseDivert):
         return self._socket is not None
 
     def recv(self) -> Packet:
-        if not self.is_open:
+        if not self.is_open and self._queue.empty():
             raise RuntimeError("Socket is not open.")
         while not self._stop_event.is_set() or not self._queue.empty():
             try:
                 return self._queue.get(timeout=0.1)
             except queue.Empty:
+                if self._stop_event.is_set():
+                    break
                 continue
         raise RuntimeError("Socket closed during recv")
 

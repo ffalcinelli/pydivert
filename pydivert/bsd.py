@@ -138,7 +138,7 @@ class Divert(BaseDivert):
         sock = self._socket
         if not sock:
             return
-        while not self._stop_event.is_set():
+        while self.is_open and not self._stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(65535)
                 if not data:
@@ -169,7 +169,7 @@ class Divert(BaseDivert):
                         send_addr = tuple(send_addr)
                     sock.sendto(data, send_addr)
             except Exception:
-                if self._stop_event.is_set():
+                if self._stop_event.is_set() or not self.is_open:
                     break
                 time.sleep(0.001)
 

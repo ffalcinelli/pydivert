@@ -162,21 +162,18 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    with patch("socket.socket") as mock_sock_cls:
-        mock_sock = MagicMock()
-        mock_sock_cls.return_value = mock_sock
-        results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
-        def side_effect(*args):
-            if results:
-                return results.pop(0)
-            d._stop_event.set()
-            return (b"", ("0.0.0.0", 0, 0, 0))
-        mock_sock.recvfrom.side_effect = side_effect
+    mock_sock = MagicMock()
+    results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
+    def side_effect(*args):
+        if results:
+            return results.pop(0)
+        d._stop_event.set()
+        return (b"", ("0.0.0.0", 0, 0, 0))
+    mock_sock.recvfrom.side_effect = side_effect
 
-        d.open()
-        time.sleep(0.1)
-        d.close()
-        mock_sock.sendto.assert_called()
+    d._socket = mock_sock
+    d._run_loop()
+    mock_sock.sendto.assert_called()
 
 
 def test_bsd_send(mock_socket, mock_subprocess):

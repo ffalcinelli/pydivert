@@ -254,10 +254,12 @@ class NetFilterQueue(BaseDivert):
         return self._nfqueue is not None
 
     def recv(self) -> Packet:
-        while self.is_open:
+        while self.is_open or not self._queue.empty():
             try:
                 return self._queue.get(timeout=0.1)
             except queue.Empty:
+                if self._stop_event.is_set():
+                    break
                 continue
         raise RuntimeError("Queue is not open.")
 

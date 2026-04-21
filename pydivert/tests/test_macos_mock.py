@@ -206,13 +206,11 @@ def test_macos_open_pf_rules_fail(mock_pfctl, mock_socket):
 
 def test_macos_recv_error(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
-    with patch("socket.socket") as mock_sock_cls:
-        mock_sock = MagicMock()
-        mock_sock_cls.return_value = mock_sock
-        mock_sock.recvfrom.side_effect = OSError("Read error")
-        d.open()
-        with pytest.raises(OSError, match="Read error"):
-            d._run_loop()
+    mock_sock = MagicMock()
+    mock_sock.recvfrom.side_effect = OSError("Read error")
+    d._socket = mock_sock
+    # _run_loop now breaks on OSError instead of re-raising it
+    d._run_loop()
 
     d._socket = None
     with pytest.raises(RuntimeError, match="Socket is not open"):
@@ -231,20 +229,18 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     d._queue.put(Packet(valid_packet_data))
 
     packet_data = valid_packet_data
-    with patch("socket.socket") as mock_sock_cls:
-        mock_sock = MagicMock()
-        mock_sock_cls.return_value = mock_sock
-        results = [(packet_data, ("1.2.3.4", 0))]
-        def side_effect(*args):
-            if results:
-                return results.pop(0)
-            d._stop_event.set()
-            return (b"", ("0.0.0.0", 0))
-        mock_sock.recvfrom.side_effect = side_effect
+    mock_sock = MagicMock()
+    results = [(packet_data, ("1.2.3.4", 0))]
+    def side_effect(*args):
+        if results:
+            return results.pop(0)
+        d._stop_event.set()
+        return (b"", ("0.0.0.0", 0))
+    mock_sock.recvfrom.side_effect = side_effect
 
-        d.open()
-        d._run_loop()
-        mock_sock.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
+    d._socket = mock_sock
+    d._run_loop()
+    mock_sock.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
 
 
 def test_macos_send_fail(mock_pfctl, mock_socket):
@@ -282,4 +278,4 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
                 assert w.is_open
                 p = w.recv()
                 assert p.direction == Direction.OUTBOUND
-                w._impl._stop_event.set()
+                w.close()
