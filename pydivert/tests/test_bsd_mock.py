@@ -102,7 +102,11 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
 
 def test_bsd_recv_inbound(mock_socket, mock_subprocess):
     d = Divert("true")
-    packet_data = b"data"
+    packet_data = (
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+    )
     results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
     def side_effect(*args):
         if results:
@@ -142,10 +146,15 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
 def test_bsd_send(mock_socket, mock_subprocess):
     d = Divert("true")
     d.open()
-    p = Packet(b"data")
+    packet_data = (
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+    )
+    p = Packet(packet_data)
     p._bsd_addr = ("1.2.3.4", 80)
-    d.send(p, recalculate_checksum=True)
-    mock_socket.sendto.assert_called_with(b"data", ("1.2.3.4", 80, 0, 0))
+    d.send(p, recalculate_checksum=False)
+    mock_socket.sendto.assert_called_with(packet_data, ("1.2.3.4", 80, 0, 0))
     d.close()
 
 

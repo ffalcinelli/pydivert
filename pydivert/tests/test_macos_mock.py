@@ -194,9 +194,14 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     d._socket = mock_socket
     # Small queue for test
     d._queue = queue.Queue(maxsize=1)
-    d._queue.put(Packet(b"data"))
+    valid_packet_data = (
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+    )
+    d._queue.put(Packet(valid_packet_data))
 
-    packet_data = b"overflow"
+    packet_data = valid_packet_data
     results = [(packet_data, ("1.2.3.4", 0))]
     def side_effect(*args):
         if results:

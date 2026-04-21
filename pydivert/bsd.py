@@ -201,6 +201,8 @@ class Divert(BaseDivert):
             try:
                 return self._queue.get(timeout=0.1)
             except queue.Empty:
+                if self._stop_event.is_set():
+                    break
                 continue
         raise RuntimeError("Handle is closed.")
 
