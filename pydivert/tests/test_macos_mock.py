@@ -29,7 +29,7 @@ def mock_pfctl():
 def mock_socket():
     import socket as real_socket
     original_socket = real_socket.socket
-    
+
     def socket_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
@@ -73,7 +73,7 @@ def test_macos_open_socket_retry(mock_pfctl, mock_socket):
     import socket as real_socket
     original_socket = real_socket.socket
     IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
-    
+
     call_count = 0
     def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         nonlocal call_count
@@ -265,7 +265,7 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
     packet_data = b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01' \
                   b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00' \
                   b'\x50\x02\x20\x00\x00\x00\x00\x00'
-    
+
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock

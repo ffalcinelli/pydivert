@@ -31,14 +31,14 @@ def test_pydivert_platform_selection():
         # Mock PF initialization or it will fail
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="Status: Enabled", returncode=0)
-            
+
             import socket as real_socket
             original_socket = real_socket.socket
             def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
                 if family == real_socket.AF_INET and type == real_socket.SOCK_RAW:
                     return MagicMock()
                 return original_socket(family, type, proto, fileno)
-                
+
             with patch("socket.socket", side_effect=side_effect):
                 w = PyDivert()
                 assert isinstance(w._impl, MacOSDivert)
@@ -102,13 +102,14 @@ async def test_linux_nfq_mock():
 @pytest.mark.skipif(sys.platform == "win32", reason="WinDivert DLL will fail on this mock")
 @pytest.mark.asyncio
 async def test_bsd_divert_mock():
+    import socket as real_socket
+
     from scapy.all import IP, UDP, raw  # type: ignore
 
     from pydivert.bsd import Divert
-    import socket as real_socket
     original_socket = real_socket.socket
     mock_socket_instance = MagicMock()
-    
+
     def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW:
             return mock_socket_instance
@@ -129,7 +130,7 @@ async def test_bsd_divert_mock():
         await w.send_async(pkt)
         w.close()
         assert not w.is_open
-    
+
     # Test error path
     def error_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW:

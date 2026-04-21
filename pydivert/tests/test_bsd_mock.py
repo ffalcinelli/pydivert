@@ -15,7 +15,7 @@ from pydivert.pydivert import PyDivert
 def mock_socket():
     import socket as real_socket
     original_socket = real_socket.socket
-    
+
     def socket_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
@@ -53,7 +53,7 @@ def test_bsd_open_retry_port(mock_socket, mock_subprocess):
     import socket as real_socket
     original_socket = real_socket.socket
     IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
-    
+
     call_count = 0
     def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         nonlocal call_count
@@ -238,7 +238,6 @@ def test_bsd_parse_filter_extended():
 
 
 def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
-    import socket as real_socket
     with patch("socket.socket", side_effect=OSError(48, "Address already in use")):
         d = Divert("true")
         with pytest.raises(OSError, match="Failed to find a free port"):
