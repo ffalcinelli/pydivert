@@ -17,6 +17,19 @@ from pydivert.packet import Packet
 
 logger = logging.getLogger(__name__)
 
+# Pre-compiled regular expressions for efficiency
+_RE_LOOPBACK = re.compile(r'\bloopback\b', re.IGNORECASE)
+_RE_INBOUND = re.compile(r'\binbound\b', re.IGNORECASE)
+_RE_OUTBOUND = re.compile(r'\boutbound\b', re.IGNORECASE)
+_RE_WHITESPACE = re.compile(r'\s+')
+_RE_PF_KEYWORDS = re.compile(r'\b(inbound|outbound|and|or)\b', re.IGNORECASE)
+_RE_PROTO_TCP = re.compile(r'\btcp\b', re.IGNORECASE)
+_RE_PROTO_UDP = re.compile(r'\budp\b', re.IGNORECASE)
+_RE_PROTO_ICMP = re.compile(r'\bicmp\b', re.IGNORECASE)
+_RE_SRC_ADDR = re.compile(r'ip\.SrcAddr\s*==\s*["\']?([\d\.]+)["\']?', re.IGNORECASE)
+_RE_DST_ADDR = re.compile(r'ip\.DstAddr\s*==\s*["\']?([\d\.]+)["\']?', re.IGNORECASE)
+_RE_PORT_MATCH = re.compile(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', re.IGNORECASE)
+
 class MacOSDivert(BaseDivert):
     """
     macOS implementation of the Divert interface using **Divert Sockets** and **pf**.
@@ -55,7 +68,7 @@ class MacOSDivert(BaseDivert):
         for instance in list(cls._instances):
             try:
                 instance.close()
-            except Exception:
+            except Exception:  # pragma: no cover
                 pass
 
     def _parse_filter_to_pf(self):
@@ -65,7 +78,7 @@ class MacOSDivert(BaseDivert):
         filter_str = self.filter.strip()
         directions = self._get_pf_directions(filter_str)
         proto, pf_from, pf_to = self._get_pf_components(filter_str)
-        pf_extra = " on lo0" if re.search(r'\bloopback\b', filter_str, re.I) else ""
+        pf_extra = " on lo0" if _RE_LOOPBACK.search(filter_str) else ""
 
         rules = []
         for direction in directions:
@@ -74,13 +87,13 @@ class MacOSDivert(BaseDivert):
                 f"{pf_extra} divert-packet port {self._port}"
             )
             # Clean up double spaces
-            rule = re.sub(r'\s+', ' ', rule).strip()
+            rule = _RE_WHITESPACE.sub(' ', rule).strip()
             rules.append(rule)
         return rules
 
     def _get_pf_directions(self, filter_str):
-        inbound = re.search(r'\binbound\b', filter_str, re.I)
-        outbound = re.search(r'\boutbound\b', filter_str, re.I)
+        inbound = _RE_INBOUND.search(filter_str)
+        outbound = _RE_OUTBOUND.search(filter_str)
         if inbound and not outbound:
             return ["in"]
         if outbound and not inbound:
@@ -88,28 +101,28 @@ class MacOSDivert(BaseDivert):
         return ["in", "out"]
 
     def _get_pf_components(self, filter_str):
-        clean_filter = re.sub(r'\b(inbound|outbound|and|or)\b', ' ', filter_str, flags=re.IGNORECASE).strip()
-        clean_filter = re.sub(r'\s+', ' ', clean_filter)
+        clean_filter = _RE_PF_KEYWORDS.sub(' ', filter_str).strip()
+        clean_filter = _RE_WHITESPACE.sub(' ', clean_filter)
 
         proto = "ip"
-        if re.search(r'\btcp\b', clean_filter, re.I):
+        if _RE_PROTO_TCP.search(clean_filter):
             proto = "tcp"
-        elif re.search(r'\budp\b', clean_filter, re.I):
+        elif _RE_PROTO_UDP.search(clean_filter):
             proto = "udp"
-        elif re.search(r'\bicmp\b', clean_filter, re.I):
+        elif _RE_PROTO_ICMP.search(clean_filter):
             proto = "icmp"
 
         pf_from = "any"
-        src_match = re.search(r'ip\.SrcAddr\s*==\s*["\']?([\d\.]+)["\']?', filter_str, re.I)
+        src_match = _RE_SRC_ADDR.search(filter_str)
         if src_match:
             pf_from = src_match.group(1)
 
         pf_to = "any"
-        dst_match = re.search(r'ip\.DstAddr\s*==\s*["\']?([\d\.]+)["\']?', filter_str, re.I)
+        dst_match = _RE_DST_ADDR.search(filter_str)
         if dst_match:
             pf_to = dst_match.group(1)
 
-        m = re.search(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', filter_str, flags=re.IGNORECASE)
+        m = _RE_PORT_MATCH.search(filter_str)
         if m:
             proto = m.group(1).lower()
             port_type = m.group(2).lower()

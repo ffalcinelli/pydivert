@@ -75,8 +75,8 @@ class NetFilterQueue(BaseDivert):
             except Exception:
                 pass
 
-    def _parse_filter_to_iptables(self):
-        rules = []
+    def _parse_filter_to_iptables(self) -> list[tuple[list[str], list[str]]]:
+        rules: list[tuple[list[str], list[str]]] = []
         if self._translated_filter.lower() == "true":
             # Intercept everything EXCEPT SSH to avoid breaking Vagrant
             rules.append((["INPUT", "OUTPUT", "FORWARD"], ["-p", "tcp", "!", "--dport", "22", "!", "--sport", "22"]))
@@ -92,23 +92,26 @@ class NetFilterQueue(BaseDivert):
             rules.extend(self._build_iptables_rule(rule_dict))
         return rules
 
-    def _build_iptables_rule(self, rule_dict):
+    def _build_iptables_rule(self, rule_dict: dict[str, Any]) -> list[tuple[list[str], list[str]]]:
         ipt_args = []
         chains = ["INPUT", "OUTPUT", "FORWARD"]
-        if "proto" in rule_dict:
-            ipt_args.extend(["-p", rule_dict["proto"]])
-        if "dport" in rule_dict:
-            ipt_args.extend(["--dport", rule_dict["dport"]])
-        if "sport" in rule_dict:
-            ipt_args.extend(["--sport", rule_dict["sport"]])
-        if "srcaddr" in rule_dict:
-            ipt_args.extend(["-s", rule_dict["srcaddr"]])
-        if "dstaddr" in rule_dict:
-            ipt_args.extend(["-d", rule_dict["dstaddr"]])
 
-        if rule_dict.get("direction") == "inbound":
+        mapping = {
+            "proto": "-p",
+            "dport": "--dport",
+            "sport": "--sport",
+            "srcaddr": "-s",
+            "dstaddr": "-d",
+        }
+
+        for key, flag in mapping.items():
+            if val := rule_dict.get(key):
+                ipt_args.extend([flag, val])
+
+        direction = rule_dict.get("direction")
+        if direction == "inbound":
             chains = ["INPUT", "FORWARD"]
-        elif rule_dict.get("direction") == "outbound":
+        elif direction == "outbound":
             chains = ["OUTPUT", "FORWARD"]
 
         if rule_dict.get("loopback"):
@@ -141,7 +144,7 @@ class NetFilterQueue(BaseDivert):
         self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-nfq-{self._queue_num}", daemon=True)
         self._thread.start()
 
-    def _bind_nfq(self):
+    def _bind_nfq(self) -> None:
         if NFQ is None:
             raise ImportError("netfilterqueue library not found.")
         nfq = NFQ()
@@ -154,18 +157,18 @@ class NetFilterQueue(BaseDivert):
                 self._queue_num += 1
         raise OSError("Failed to bind to any NFQueue. Are you root?")
 
-    def _cleanup_stale_rules(self):
+    def _cleanup_stale_rules(self) -> None:
+        pattern = f"--queue-num {self._queue_num}"
         for chain in ["INPUT", "OUTPUT", "FORWARD"]:
             try:
                 if subprocess.run(["iptables", "-L", chain], capture_output=True).returncode != 0:
                     continue
                 res = subprocess.run(["iptables", "-S", chain], capture_output=True, text=True)
                 if res.returncode == 0:
-                    pattern = f"--queue-num {self._queue_num}"
                     to_delete = [line for line in res.stdout.splitlines() if pattern in line]
                     for line in to_delete:
                         delete_cmd = line.replace("-A ", "-D ").split()
-                        subprocess.run(["iptables", *delete_cmd[1:]], check=False)
+                        subprocess.run(["iptables", *delete_cmd], check=False)
             except Exception:
                 pass
 

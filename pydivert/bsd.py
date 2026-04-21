@@ -58,7 +58,7 @@ class Divert(BaseDivert):
             except Exception:
                 pass
 
-    def _parse_filter_to_ipfw(self):
+    def _parse_filter_to_ipfw(self) -> list[str]:
         rules = []
         prefix = f"divert {self._port}"
 
@@ -76,27 +76,29 @@ class Divert(BaseDivert):
             rules.append(self._build_ipfw_rule(rule_dict, prefix))
         return rules
 
-    def _build_ipfw_rule(self, rule_dict, prefix):
+    def _build_ipfw_rule(self, rule_dict: dict[str, Any], prefix: str) -> str:
         proto = rule_dict.get("proto", "ip")
         src = rule_dict.get("srcaddr", "any")
         dst = rule_dict.get("dstaddr", "any")
 
-        rule = f"{prefix} {proto} from {src}"
-        if "sport" in rule_dict:
-            rule += f" {rule_dict['sport']}"
+        parts = [prefix, proto, "from", src]
+        if sport := rule_dict.get("sport"):
+            parts.append(str(sport))
 
-        rule += f" to {dst}"
-        if "dport" in rule_dict:
-            rule += f" {rule_dict['dport']}"
+        parts.extend(["to", dst])
+        if dport := rule_dict.get("dport"):
+            parts.append(str(dport))
 
-        if rule_dict.get("direction") == "inbound":
-            rule += " in"
-        elif rule_dict.get("direction") == "outbound":
-            rule += " out"
+        direction = rule_dict.get("direction")
+        if direction == "inbound":
+            parts.append("in")
+        elif direction == "outbound":
+            parts.append("out")
 
         if rule_dict.get("loopback"):
-            rule += " via lo0"
-        return rule
+            parts.append("via lo0")
+
+        return " ".join(parts)
     def open(self) -> None:
         if self.is_open:
             raise RuntimeError("Divert handle is already open.")

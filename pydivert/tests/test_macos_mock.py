@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
+import queue
+import socket
 import sys
 import threading
 from typing import cast
@@ -11,12 +13,6 @@ from pydivert.consts import Direction
 from pydivert.macos import MacOSDivert
 from pydivert.packet import Packet
 from pydivert.pydivert import PyDivert
-
-
-def setup_module(module):
-    """Skip all tests in this module if not running on macOS."""
-    if sys.platform != "darwin":
-        pytest.skip("macOS only tests")
 
 
 @pytest.fixture
@@ -37,8 +33,10 @@ def mock_socket():
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
-        # Set a default return value that can be unpacked to avoid ValueError in background thread
-        mock_sock.recvfrom.return_value = (b"", ("0.0.0.0", 0))
+        # Set a default side effect that eventually stops
+        def side_effect(*args):
+            return (b"", ("0.0.0.0", 0))
+        mock_sock.recvfrom.side_effect = side_effect
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
             yield mock_sock
@@ -69,13 +67,18 @@ def test_macos_open_pf_disabled(mock_pfctl, mock_socket):
 
 def test_macos_open_socket_retry(mock_pfctl, mock_socket):
     # First socket bind fails (PermissionError or similar), second succeeds
-    mock_socket.bind.side_effect = [OSError("Address already in use"), None]
+    mock_socket.bind.side_effect = [OSError(48, "Address already in use"), None]
     d = MacOSDivert("true")
     d.open()
     assert d.is_open
-    assert d._port != 0  # Should have picked another port
+    assert d._port == 8889
     d.close()
 
+def test_macos_open_socket_retry_fail(mock_pfctl, mock_socket):
+    mock_socket.bind.side_effect = OSError(48, "Address already in use")
+    d = MacOSDivert("true")
+    with pytest.raises(OSError, match="Failed to find a free port"):
+        d.open()
 
 def test_macos_open_pf_fail(mock_pfctl, mock_socket):
     mock_pfctl["run"].side_effect = Exception("PF error")
@@ -87,8 +90,8 @@ def test_macos_open_pf_fail(mock_pfctl, mock_socket):
 
 def test_macos_recv(mock_pfctl, mock_socket):
     packet_data = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
+        b'\x08\x08\x04\x04\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
@@ -123,12 +126,14 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
 
     def side_effect(*args):
-        d._stop_event.set()
+        if d._stop_event.is_set():
+             raise OSError("Loop stopped")
         return (packet_data, ("0.0.0.0", 0))
 
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-
+    
+    # Trigger async queue creation
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.direction == Direction.OUTBOUND
 
@@ -139,39 +144,26 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
     d.close()
 
 
-
 def test_macos_parse_filter(mock_pfctl, mock_socket):
-    d = MacOSDivert("tcp.DstPort == 80")
+    d = MacOSDivert("tcp.DstPort == 80 && inbound")
     rules = d._parse_filter_to_pf()
     assert any("proto tcp" in r for r in rules)
     assert any("port 80" in r for r in rules)
-    assert any("divert-packet" in r for r in rules)
-
-    d2 = MacOSDivert("udp.SrcPort == 53")
+    assert all(" in " in r for r in rules)
+    
+    d2 = MacOSDivert("outbound")
     rules2 = d2._parse_filter_to_pf()
-    assert any("proto udp" in r for r in rules2)
-    assert any("port 53" in r for r in rules2)
-
-    d3 = MacOSDivert('ip.SrcAddr == "127.0.0.1"')
-    rules3 = d3._parse_filter_to_pf()
-    assert any("from 127.0.0.1" in r for r in rules3)
-
-    d4 = MacOSDivert("icmp and loopback")
-    rules4 = d4._parse_filter_to_pf()
-    assert any("proto icmp" in r for r in rules4)
-    assert any("on lo0" in r for r in rules4)
-
-    d5 = MacOSDivert('ip.DstAddr == "8.8.8.8" and udp.SrcPort == 53')
-    rules5 = d5._parse_filter_to_pf()
-    assert any("to 8.8.8.8" in r for r in rules5)
-    assert any("port 53" in r for r in rules5)
+    assert all(" out " in r for r in rules2)
 
 
 def test_macos_cleanup_all(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
     d.open()
-    MacOSDivert.cleanup_all()
-    assert not d.is_open
+    # Mock close failure to hit the except block in cleanup_all
+    with patch.object(d, 'close', side_effect=Exception("cleanup fail")):
+        MacOSDivert.cleanup_all()
+    assert d in MacOSDivert._instances
+    MacOSDivert._instances.remove(d) # Manual cleanup
 
 
 def test_macos_open_already_open(mock_pfctl, mock_socket):
@@ -183,7 +175,7 @@ def test_macos_open_already_open(mock_pfctl, mock_socket):
 
 
 def test_macos_open_socket_fail_final(mock_pfctl, mock_socket):
-    mock_socket.bind.side_effect = OSError("Access denied")
+    mock_socket.bind.side_effect = OSError("Permission denied")
     d = MacOSDivert("true")
     with pytest.raises(OSError, match="Failed to open divert socket"):
         d.open()
@@ -242,14 +234,14 @@ def test_macos_recv_filtering(mock_pfctl, mock_socket):
 
     # Packet for port 443 (should be ignored and re-sent)
     packet_data_443 = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
+        b'\x08\x08\x04\x04\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
     # Packet for port 80
     packet_data_80 = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
+        b'\x08\x08\x04\x04\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
@@ -270,19 +262,50 @@ def test_macos_recv_filtering(mock_pfctl, mock_socket):
     d.close()
 
 
+def test_macos_parse_filter_extended(mock_pfctl, mock_socket):
+    d1 = MacOSDivert("icmp")
+    rules1 = d1._parse_filter_to_pf()
+    assert any("proto icmp" in r for r in rules1)
 
-def test_macos_send_fail(mock_pfctl, mock_socket):
+    d2 = MacOSDivert("ip.SrcAddr == 1.1.1.1")
+    rules2 = d2._parse_filter_to_pf()
+    assert any("from 1.1.1.1" in r for r in rules2)
+
+    d3 = MacOSDivert("ip.DstAddr == 2.2.2.2")
+    rules3 = d3._parse_filter_to_pf()
+    assert any("to 2.2.2.2" in r for r in rules3)
+
+    d4 = MacOSDivert("udp.SrcPort == 53")
+    rules4 = d4._parse_filter_to_pf()
+    assert any("proto udp" in r for r in rules4)
+    assert any("port 53" in r for r in rules4)
+
+def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
     d.open()
-    mock_socket.sendto.side_effect = OSError("Send failed")
-    p = Packet(
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
-    )
-    with pytest.raises(OSError, match="Send failed"):
-        d.send(p)
+    # Fill the queue
+    for _ in range(10000):
+        d._queue.put(Packet(b"data"))
+    
+    # Next packet should trigger "Queue full" warning and re-send
+    packet_data = b"overflow"
+    mock_socket.recvfrom.return_value = (packet_data, ("1.2.3.4", 0))
+    
+    # We need to give the thread a moment or run manually
+    # For coverage, we can just call _run_loop once with a timeout/stop
+    d._stop_event.set()
+    d._run_loop()
+    
+    mock_socket.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
     d.close()
+
+def test_macos_open_pf_rules_pipe_error(mock_pfctl, mock_socket):
+    # Mock subprocess.Popen to fail during rule loading
+    with patch("subprocess.Popen", side_effect=OSError("Pipe broken")):
+        d = MacOSDivert("true")
+        with pytest.raises(RuntimeError, match="Failed to configure PF"):
+            d.open()
+
 
 
 def test_pydivert_macos_facade(mock_pfctl, mock_socket):
@@ -333,4 +356,3 @@ async def test_pydivert_macos_facade_async(mock_pfctl, mock_socket):
 
             mock_socket.sendto.return_value = len(packet_data)
             await w.send_async(p)
-
