@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import queue
-import socket
-import sys
 import threading
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -132,7 +129,7 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
 
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-    
+
     # Trigger async queue creation
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.direction == Direction.OUTBOUND
@@ -150,7 +147,7 @@ def test_macos_parse_filter(mock_pfctl, mock_socket):
     assert any("proto tcp" in r for r in rules)
     assert any("port 80" in r for r in rules)
     assert all(" in " in r for r in rules)
-    
+
     d2 = MacOSDivert("outbound")
     rules2 = d2._parse_filter_to_pf()
     assert all(" out " in r for r in rules2)
@@ -286,16 +283,16 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     # Fill the queue
     for _ in range(10000):
         d._queue.put(Packet(b"data"))
-    
+
     # Next packet should trigger "Queue full" warning and re-send
     packet_data = b"overflow"
     mock_socket.recvfrom.return_value = (packet_data, ("1.2.3.4", 0))
-    
+
     # We need to give the thread a moment or run manually
     # For coverage, we can just call _run_loop once with a timeout/stop
     d._stop_event.set()
     d._run_loop()
-    
+
     mock_socket.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
     d.close()
 

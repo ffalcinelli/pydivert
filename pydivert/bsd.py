@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Any
 
 from pydivert.base import BaseDivert
 from pydivert.consts import Direction, Flag, Layer

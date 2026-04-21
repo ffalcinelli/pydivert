@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import socket
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -58,7 +56,10 @@ def test_freebsd_rules_apply(mock_socket, mock_subprocess):
     with patch("sys.platform", "freebsd14"):
         d = Divert("tcp.DstPort == 80")
         d.open()
-        mock_subprocess.assert_any_call(["ipfw", "add", "50", "divert", "8888", "tcp", "from", "any", "to", "any", "80"], check=True, capture_output=True)
+        mock_subprocess.assert_any_call(
+            ["ipfw", "add", "50", "divert", "8888", "tcp", "from", "any", "to", "any", "80"],
+            check=True, capture_output=True
+        )
         d.close()
         mock_subprocess.assert_any_call(["ipfw", "delete", "50"], check=False, capture_output=True)
 
@@ -79,7 +80,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     # We run the loop once manually or mock it
     def side_effect(*args):
         if d._stop_event.is_set():
@@ -87,7 +88,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         d._stop_event.set()
         return (packet_data, ("1.2.3.4", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     p = d.recv()
     assert p.direction == Direction.OUTBOUND
@@ -104,7 +105,7 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
         d._stop_event.set()
         return (packet_data, ("1.2.3.4", 1234, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     p = d.recv()
     assert p.direction == Direction.INBOUND
@@ -113,20 +114,20 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
 
 def test_bsd_recv_filtering(mock_socket, mock_subprocess):
     d = Divert("tcp.DstPort == 80")
-    
+
     packet_data_443 = (
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
         b'\x7f\x00\x00\x01\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     def side_effect(*args):
         if d._stop_event.is_set():
              raise OSError("Loop stopped")
         d._stop_event.set()
         return (packet_data_443, ("1.2.3.4", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     # Let it run for a bit
     import time
@@ -147,21 +148,21 @@ def test_bsd_send(mock_socket, mock_subprocess):
 @pytest.mark.asyncio
 async def test_bsd_async_methods(mock_socket, mock_subprocess):
     d = Divert("true")
-    
+
     packet_data = (
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     def side_effect(*args):
         if d._stop_event.is_set():
              raise OSError("Loop stopped")
         return (packet_data, ("1.2.3.4", 0, 0, 0))
-    
+
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-    
+
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.raw is not None
     await d.send_async(p)
@@ -204,7 +205,7 @@ def test_bsd_parse_filter_extended():
     d1 = Divert("tcp.SrcPort == 53")
     rules1 = d1._parse_filter_to_ipfw()
     assert "53" in rules1[0]
-    
+
     d2 = Divert("icmp")
     rules2 = d2._parse_filter_to_ipfw()
     assert "icmp" in rules2[0]

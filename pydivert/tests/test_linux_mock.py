@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import queue
-import socket
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -83,7 +80,7 @@ def test_linux_callback_logic(mock_nfq, mock_subprocess):
     )
     mock_pkt.indev = 0
     mock_pkt.outdev = 2
-    
+
     nfq._callback(mock_pkt)
 
     p = nfq.recv()
@@ -114,7 +111,7 @@ def test_linux_callback_loopback(mock_nfq, mock_subprocess):
 def test_linux_callback_filtering(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("tcp.DstPort == 80")
     nfq.open()
-    
+
     # Non-matching packet
     mock_pkt_443 = MagicMock()
     mock_pkt_443.get_payload.return_value = (
@@ -144,11 +141,11 @@ def test_linux_callback_filtering(mock_nfq, mock_subprocess):
 def test_linux_send_accept(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("true")
     nfq.open()
-    
+
     mock_pkt = MagicMock()
     p = Packet(b"data")
     p._nfq_pkt = mock_pkt
-    
+
     nfq.send(p)
     mock_pkt.set_payload.assert_called_once()
     mock_pkt.accept.assert_called_once()
@@ -158,13 +155,13 @@ def test_linux_send_accept(mock_nfq, mock_subprocess):
 def test_linux_send_inject(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("true")
     nfq.open()
-    
+
     p = Packet(
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value.__enter__.return_value = mock_sock
@@ -177,16 +174,16 @@ def test_linux_send_inject(mock_nfq, mock_subprocess):
 async def test_linux_async_methods(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("true")
     nfq.open()
-    
+
     mock_pkt = MagicMock()
     mock_pkt.get_payload.return_value = b"data"
     mock_pkt.indev = 0
     mock_pkt.outdev = 2
     nfq._callback(mock_pkt)
-    
+
     p = await asyncio.wait_for(nfq.recv_async(), timeout=1.0)
     assert p.raw == b"data"
-    
+
     await nfq.send_async(p)
     mock_pkt.accept.assert_called_once()
     nfq.close()
@@ -201,7 +198,10 @@ def test_linux_cleanup_stale(mock_nfq, mock_subprocess):
     mock_subprocess.side_effect = side_effect
     nfq = NetFilterQueue("true", priority=0)
     nfq._cleanup_stale_rules()
-    mock_subprocess.assert_any_call(["iptables", "-D", "INPUT", "-p", "tcp", "--dport", "80", "-j", "NFQUEUE", "--queue-num", "0"], check=False)
+    mock_subprocess.assert_any_call(
+        ["iptables", "-D", "INPUT", "-p", "tcp", "--dport", "80", "-j", "NFQUEUE", "--queue-num", "0"],
+        check=False
+    )
 
 
 def test_linux_parse_filter_true():
