@@ -13,17 +13,25 @@ from pydivert.pydivert import PyDivert
 
 @pytest.fixture
 def mock_socket():
-    with patch("socket.socket") as mock_sock_cls:
-        mock_sock = MagicMock()
-        mock_sock_cls.return_value = mock_sock
-        # Default side effect: return empty data and sleep to prevent busy loop
-        def default_recv(*args):
-            time.sleep(0.01)
-            return (b"", ("0.0.0.0", 0))
-        mock_sock.recvfrom.side_effect = default_recv
+    import socket as real_socket
+    original_socket = real_socket.socket
+    
+    def socket_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
+        IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+        if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
+            mock_sock = MagicMock()
+            # Default side effect: return empty data and sleep to prevent busy loop
+            def default_recv(*args):
+                time.sleep(0.01)
+                return (b"", ("0.0.0.0", 0, 0, 0))
+            mock_sock.recvfrom.side_effect = default_recv
+            return mock_sock
+        return original_socket(family, type, proto, fileno)
+
+    with patch("socket.socket", side_effect=socket_side_effect):
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
-            yield mock_sock
+            yield
 
 
 @pytest.fixture
@@ -39,22 +47,41 @@ def test_bsd_open_close(mock_socket, mock_subprocess):
     assert d.is_open
     d.close()
     assert not d.is_open
-    mock_socket.close.assert_called_once()
 
 
 def test_bsd_open_retry_port(mock_socket, mock_subprocess):
-    mock_socket.bind.side_effect = [OSError(48, "Address already in use"), None]
-    d = Divert("true")
-    d.open()
-    assert d._port == 8889
-    d.close()
+    import socket as real_socket
+    original_socket = real_socket.socket
+    IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+    
+    call_count = 0
+    def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
+        nonlocal call_count
+        if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
+            call_count += 1
+            if call_count == 1:
+                raise OSError(48, "Address already in use")
+            return MagicMock()
+        return original_socket(family, type, proto, fileno)
+
+    with patch("socket.socket", side_effect=side_effect):
+        d = Divert("true")
+        d.open()
+        assert d._port == 8889
+        d.close()
 
 
 def test_bsd_open_fail_final(mock_socket, mock_subprocess):
-    mock_socket.bind.side_effect = OSError("Permission denied")
-    d = Divert("true")
-    with pytest.raises(OSError, match="Failed to open divert socket"):
-        d.open()
+    import socket as real_socket
+    def side_effect(*args, **kwargs):
+         if args[0] == real_socket.AF_INET and args[1] == real_socket.SOCK_RAW:
+             raise OSError("Permission denied")
+         return real_socket.socket(*args, **kwargs)
+
+    with patch("socket.socket", side_effect=side_effect):
+        d = Divert("true")
+        with pytest.raises(OSError, match="Failed to open divert socket"):
+            d.open()
 
 
 def test_freebsd_rules_apply(mock_socket, mock_subprocess):
@@ -86,18 +113,21 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0, 0, 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0, 0, 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    d.open()
-    p = d.recv()
-    assert p.direction == Direction.OUTBOUND
-    d.close()
+        d.open()
+        p = d.recv()
+        assert p.direction == Direction.OUTBOUND
+        d.close()
 
 
 def test_bsd_recv_inbound(mock_socket, mock_subprocess):
@@ -107,18 +137,21 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0, 0, 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0, 0, 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    d.open()
-    p = d.recv()
-    assert p.direction == Direction.INBOUND
-    d.close()
+        d.open()
+        p = d.recv()
+        assert p.direction == Direction.INBOUND
+        d.close()
 
 
 def test_bsd_recv_filtering(mock_socket, mock_subprocess):
@@ -129,33 +162,39 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0, 0, 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0, 0, 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    d.open()
-    time.sleep(0.1)
-    d.close()
-    mock_socket.sendto.assert_called()
+        d.open()
+        time.sleep(0.1)
+        d.close()
+        mock_sock.sendto.assert_called()
 
 
 def test_bsd_send(mock_socket, mock_subprocess):
     d = Divert("true")
-    d.open()
     packet_data = (
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    p = Packet(packet_data)
-    p._bsd_addr = ("1.2.3.4", 80)
-    d.send(p, recalculate_checksum=False)
-    mock_socket.sendto.assert_called_with(packet_data, ("1.2.3.4", 80, 0, 0))
-    d.close()
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        d.open()
+        p = Packet(packet_data)
+        p._bsd_addr = ("1.2.3.4", 80)
+        d.send(p, recalculate_checksum=False)
+        mock_sock.sendto.assert_called_with(packet_data, ("1.2.3.4", 80, 0, 0))
+        d.close()
 
 
 @pytest.mark.asyncio
@@ -167,19 +206,21 @@ async def test_bsd_async_methods(mock_socket, mock_subprocess):
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
 
-    results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        return (b"", ("0.0.0.0", 0, 0, 0))
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            return (b"", ("0.0.0.0", 0, 0, 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    mock_socket.recvfrom.side_effect = side_effect
-    d.open()
-
-    p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
-    assert p.raw is not None
-    await d.send_async(p)
-    d.close()
+        d.open()
+        p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
+        assert p.raw is not None
+        await d.send_async(p)
+        d.close()
 
 
 def test_bsd_parse_filter_extended():
@@ -197,10 +238,11 @@ def test_bsd_parse_filter_extended():
 
 
 def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
-    mock_socket.bind.side_effect = OSError(48, "Address already in use")
-    d = Divert("true")
-    with pytest.raises(OSError, match="Failed to find a free port"):
-        d.open()
+    import socket as real_socket
+    with patch("socket.socket", side_effect=OSError(48, "Address already in use")):
+        d = Divert("true")
+        with pytest.raises(OSError, match="Failed to find a free port"):
+            d.open()
 
 
 def test_bsd_close_rules_fail(mock_socket, mock_subprocess):

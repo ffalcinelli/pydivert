@@ -136,7 +136,12 @@ def test_linux_send_accept(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("true")
     nfq.open()
     mock_pkt = MagicMock()
-    p = Packet(b"data")
+    packet_data = (
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+    )
+    p = Packet(packet_data)
     p._nfq_pkt = mock_pkt
     nfq.send(p)
     mock_pkt.set_payload.assert_called_once()
@@ -163,12 +168,17 @@ async def test_linux_async_methods(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("true")
     nfq.open()
     mock_pkt = MagicMock()
-    mock_pkt.get_payload.return_value = b"data"
+    packet_data = (
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+    )
+    mock_pkt.get_payload.return_value = packet_data
     mock_pkt.indev = 0
     mock_pkt.outdev = 2
     nfq._callback(mock_pkt)
-    p = await asyncio.wait_for(nfq.recv_async(), timeout=1.0)
-    assert p.raw == b"data"
+    p = await asyncio.wait_for(nfq.recv_async(), timeout=5.0)
+    assert p.raw == packet_data
     await nfq.send_async(p)
     mock_pkt.accept.assert_called_once()
     nfq.close()

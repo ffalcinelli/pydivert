@@ -27,18 +27,25 @@ def mock_pfctl():
 
 @pytest.fixture
 def mock_socket():
-    with patch("socket.socket") as mock_sock_cls:
-        mock_sock = MagicMock()
-        mock_sock_cls.return_value = mock_sock
+    import socket as real_socket
+    original_socket = real_socket.socket
+    
+    def socket_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
+        IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+        if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
+            mock_sock = MagicMock()
+            # Default side effect: return empty data and sleep to prevent busy loop
+            def default_recv(*args):
+                time.sleep(0.01)
+                return (b"", ("0.0.0.0", 0))
+            mock_sock.recvfrom.side_effect = default_recv
+            return mock_sock
+        return original_socket(family, type, proto, fileno)
 
-        # Default side effect: return empty data and sleep to prevent busy loop
-        def default_recv(*args):
-            time.sleep(0.01)
-            return (b"", ("0.0.0.0", 0))
-        mock_sock.recvfrom.side_effect = default_recv
+    with patch("socket.socket", side_effect=socket_side_effect):
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
-            yield mock_sock
+            yield
 
 
 def test_macos_open_close(mock_pfctl, mock_socket):
@@ -63,18 +70,32 @@ def test_macos_open_pf_disabled(mock_pfctl, mock_socket):
 
 
 def test_macos_open_socket_retry(mock_pfctl, mock_socket):
-    mock_socket.bind.side_effect = [OSError(48, "Address already in use"), None]
-    d = MacOSDivert("true")
-    d.open()
-    assert d.is_open
-    assert d._port == 8889
-    d.close()
+    import socket as real_socket
+    original_socket = real_socket.socket
+    IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+    
+    call_count = 0
+    def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
+        nonlocal call_count
+        if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
+            call_count += 1
+            if call_count == 1:
+                raise OSError(48, "Address already in use")
+            return MagicMock()
+        return original_socket(family, type, proto, fileno)
+
+    with patch("socket.socket", side_effect=side_effect):
+        d = MacOSDivert("true")
+        d.open()
+        assert d.is_open
+        assert d._port == 8889
+        d.close()
 
 def test_macos_open_socket_retry_fail(mock_pfctl, mock_socket):
-    mock_socket.bind.side_effect = OSError(48, "Address already in use")
-    d = MacOSDivert("true")
-    with pytest.raises(OSError, match="Failed to find a free port"):
-        d.open()
+    with patch("socket.socket", side_effect=OSError(48, "Address already in use")):
+        d = MacOSDivert("true")
+        with pytest.raises(OSError, match="Failed to find a free port"):
+            d.open()
 
 def test_macos_open_pf_fail(mock_pfctl, mock_socket):
     mock_pfctl["run"].side_effect = Exception("PF error")
@@ -92,20 +113,23 @@ def test_macos_recv(mock_pfctl, mock_socket):
     )
 
     d = MacOSDivert("true")
-    results = [(packet_data, ("192.168.1.1", 0)), (packet_data, ("0.0.0.0", 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("192.168.1.1", 0)), (packet_data, ("0.0.0.0", 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    d.open()
-    p = d.recv()
-    assert p.direction == Direction.INBOUND
-    p = d.recv()
-    assert p.direction == Direction.OUTBOUND
-    d.close()
+        d.open()
+        p = d.recv()
+        assert p.direction == Direction.INBOUND
+        p = d.recv()
+        assert p.direction == Direction.OUTBOUND
+        d.close()
 
 
 @pytest.mark.asyncio
@@ -117,23 +141,26 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
     )
 
     d = MacOSDivert("true")
-    results = [(packet_data, ("0.0.0.0", 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0))
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("0.0.0.0", 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0))
 
-    mock_socket.recvfrom.side_effect = side_effect
-    d.open()
+        mock_sock.recvfrom.side_effect = side_effect
+        d.open()
 
-    p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
-    assert p.direction == Direction.OUTBOUND
+        p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
+        assert p.direction == Direction.OUTBOUND
 
-    mock_socket.sendto.return_value = len(packet_data)
-    sent = await d.send_async(p)
-    assert sent == len(packet_data)
-    d.close()
+        mock_sock.sendto.return_value = len(packet_data)
+        sent = await d.send_async(p)
+        assert sent == len(packet_data)
+        d.close()
 
 
 def test_macos_parse_filter_extended(mock_pfctl, mock_socket):
@@ -179,10 +206,13 @@ def test_macos_open_pf_rules_fail(mock_pfctl, mock_socket):
 
 def test_macos_recv_error(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
-    d._socket = mock_socket
-    mock_socket.recvfrom.side_effect = OSError("Read error")
-    with pytest.raises(OSError, match="Read error"):
-        d._run_loop()
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        mock_sock.recvfrom.side_effect = OSError("Read error")
+        d.open()
+        with pytest.raises(OSError, match="Read error"):
+            d._run_loop()
 
     d._socket = None
     with pytest.raises(RuntimeError, match="Socket is not open"):
@@ -191,7 +221,6 @@ def test_macos_recv_error(mock_pfctl, mock_socket):
 
 def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
-    d._socket = mock_socket
     # Small queue for test
     d._queue = queue.Queue(maxsize=1)
     valid_packet_data = (
@@ -202,44 +231,55 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     d._queue.put(Packet(valid_packet_data))
 
     packet_data = valid_packet_data
-    results = [(packet_data, ("1.2.3.4", 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        d._stop_event.set()
-        return (b"", ("0.0.0.0", 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("1.2.3.4", 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            d._stop_event.set()
+            return (b"", ("0.0.0.0", 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    d._run_loop()
-    mock_socket.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
+        d.open()
+        d._run_loop()
+        mock_sock.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
 
 
 def test_macos_send_fail(mock_pfctl, mock_socket):
     d = MacOSDivert("true")
-    d._socket = mock_socket
-    mock_socket.sendto.side_effect = OSError("Send failed")
-    p = Packet(b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-               b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-               b'\x50\x02\x20\x00\x00\x00\x00\x00')
-    with pytest.raises(OSError, match="Send failed"):
-        d.send(p)
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        mock_sock.sendto.side_effect = OSError("Send failed")
+        d.open()
+        p = Packet(b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
+                   b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
+                   b'\x50\x02\x20\x00\x00\x00\x00\x00')
+        with pytest.raises(OSError, match="Send failed"):
+            d.send(p)
 
 
 def test_pydivert_macos_facade(mock_pfctl, mock_socket):
     packet_data = b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01' \
                   b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00' \
                   b'\x50\x02\x20\x00\x00\x00\x00\x00'
-    results = [(packet_data, ("0.0.0.0", 0))]
-    def side_effect(*args):
-        if results:
-            return results.pop(0)
-        return (b"", ("0.0.0.0", 0))
-    mock_socket.recvfrom.side_effect = side_effect
+    
+    with patch("socket.socket") as mock_sock_cls:
+        mock_sock = MagicMock()
+        mock_sock_cls.return_value = mock_sock
+        results = [(packet_data, ("0.0.0.0", 0))]
+        def side_effect(*args):
+            if results:
+                return results.pop(0)
+            return (b"", ("0.0.0.0", 0))
+        mock_sock.recvfrom.side_effect = side_effect
 
-    with patch("sys.platform", "darwin"):
-        with PyDivert("true") as w:
-            assert isinstance(w._impl, MacOSDivert)
-            assert w.is_open
-            p = w.recv()
-            assert p.direction == Direction.OUTBOUND
-            w._impl._stop_event.set()
+        with patch("sys.platform", "darwin"):
+            with PyDivert("true") as w:
+                assert isinstance(w._impl, MacOSDivert)
+                assert w.is_open
+                p = w.recv()
+                assert p.direction == Direction.OUTBOUND
+                w._impl._stop_event.set()
