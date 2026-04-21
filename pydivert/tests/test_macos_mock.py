@@ -1,11 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
 import queue
-import socket
-import sys
-import threading
 import time
-from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -34,7 +30,7 @@ def mock_socket():
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
-        
+
         # Default side effect: return empty data and sleep to prevent busy loop
         def default_recv(*args):
             time.sleep(0.01)
@@ -130,7 +126,7 @@ async def test_macos_async_methods(mock_pfctl, mock_socket):
 
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-    
+
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.direction == Direction.OUTBOUND
 
@@ -146,7 +142,7 @@ def test_macos_parse_filter_extended(mock_pfctl, mock_socket):
     assert any("proto tcp" in r for r in rules)
     assert any("port 80" in r for r in rules)
     assert all(" in " in r for r in rules)
-    
+
     d2 = MacOSDivert("icmp")
     rules2 = d2._parse_filter_to_pf()
     assert any("proto icmp" in r for r in rules2)
@@ -199,7 +195,7 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
     # Small queue for test
     d._queue = queue.Queue(maxsize=1)
     d._queue.put(Packet(b"data"))
-    
+
     packet_data = b"overflow"
     results = [(packet_data, ("1.2.3.4", 0))]
     def side_effect(*args):
@@ -208,7 +204,7 @@ def test_macos_run_loop_queue_full(mock_pfctl, mock_socket):
         d._stop_event.set()
         return (b"", ("0.0.0.0", 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d._run_loop()
     mock_socket.sendto.assert_any_call(packet_data, ("1.2.3.4", 0))
 
@@ -241,4 +237,4 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
             assert w.is_open
             p = w.recv()
             assert p.direction == Direction.OUTBOUND
-            cast(MacOSDivert, w._impl)._stop_event.set()
+            w._impl._stop_event.set()

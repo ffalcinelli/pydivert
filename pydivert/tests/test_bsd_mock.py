@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import socket
-import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -87,7 +85,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
         if results:
@@ -95,7 +93,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         d._stop_event.set()
         return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     p = d.recv()
     assert p.direction == Direction.OUTBOUND
@@ -112,7 +110,7 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
         d._stop_event.set()
         return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     p = d.recv()
     assert p.direction == Direction.INBOUND
@@ -126,7 +124,7 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
         b'\x08\x08\x04\x04\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
         if results:
@@ -134,7 +132,7 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
         d._stop_event.set()
         return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-    
+
     d.open()
     time.sleep(0.1)
     d.close()
@@ -159,16 +157,16 @@ async def test_bsd_async_methods(mock_socket, mock_subprocess):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-    
+
     results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
         if results:
             return results.pop(0)
         return (b"", ("0.0.0.0", 0, 0, 0))
-    
+
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-    
+
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.raw is not None
     await d.send_async(p)
@@ -179,7 +177,7 @@ def test_bsd_parse_filter_extended():
     d = Divert('ip.SrcAddr == 1.2.3.4 && tcp.DstPort == 80 && inbound')
     rules = d._parse_filter_to_ipfw()
     assert any("1.2.3.4" in r and "80" in r and "in" in r for r in rules)
-    
+
     d2 = Divert('true')
     rules2 = d2._parse_filter_to_ipfw()
     assert any("not dst-port 22" in r for r in rules2)

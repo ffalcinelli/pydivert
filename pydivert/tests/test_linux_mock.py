@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import queue
-import socket
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -80,7 +77,7 @@ def test_linux_callback_logic(mock_nfq, mock_subprocess):
     )
     mock_pkt.indev = 0
     mock_pkt.outdev = 2
-    
+
     nfq._callback(mock_pkt)
     p = nfq.recv()
     assert p.dst_port == 80
@@ -110,7 +107,7 @@ def test_linux_callback_loopback(mock_nfq, mock_subprocess):
 def test_linux_callback_filtering(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue("tcp.DstPort == 80")
     nfq.open()
-    
+
     mock_pkt_443 = MagicMock()
     mock_pkt_443.get_payload.return_value = (
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
