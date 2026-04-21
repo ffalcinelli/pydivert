@@ -63,7 +63,7 @@ class NetFilterQueue(BaseDivert):
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._translated_filter = self.filter
-        self._applied_rules: list[list[str]] = []
+        self._applied_rules: list[tuple[list[str], list[str]]] = []
         self._stop_event = threading.Event()
         NetFilterQueue._instances.add(self)
 

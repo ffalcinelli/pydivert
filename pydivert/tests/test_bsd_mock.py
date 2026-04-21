@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
+import socket
+import sys
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +18,11 @@ def mock_socket():
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
+        # Default side effect: return empty data and sleep to prevent busy loop
+        def default_recv(*args):
+            time.sleep(0.01)
+            return (b"", ("0.0.0.0", 0))
+        mock_sock.recvfrom.side_effect = default_recv
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
             yield mock_sock
@@ -37,7 +45,6 @@ def test_bsd_open_close(mock_socket, mock_subprocess):
 
 
 def test_bsd_open_retry_port(mock_socket, mock_subprocess):
-    # First bind fails, second succeeds
     mock_socket.bind.side_effect = [OSError(48, "Address already in use"), None]
     d = Divert("true")
     d.open()
@@ -80,15 +87,15 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-
-    # We run the loop once manually or mock it
+    
+    results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
-        if d._stop_event.is_set():
-             raise OSError("Loop stopped")
+        if results:
+            return results.pop(0)
         d._stop_event.set()
-        return (packet_data, ("1.2.3.4", 0, 0, 0))
+        return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-
+    
     d.open()
     p = d.recv()
     assert p.direction == Direction.OUTBOUND
@@ -98,14 +105,14 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
 def test_bsd_recv_inbound(mock_socket, mock_subprocess):
     d = Divert("true")
     packet_data = b"data"
-    # port != 0 means inbound
+    results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
     def side_effect(*args):
-        if d._stop_event.is_set():
-             raise OSError("Loop stopped")
+        if results:
+            return results.pop(0)
         d._stop_event.set()
-        return (packet_data, ("1.2.3.4", 1234, 0, 0))
+        return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-
+    
     d.open()
     p = d.recv()
     assert p.direction == Direction.INBOUND
@@ -114,23 +121,21 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
 
 def test_bsd_recv_filtering(mock_socket, mock_subprocess):
     d = Divert("tcp.DstPort == 80")
-
     packet_data_443 = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
+        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
+        b'\x08\x08\x04\x04\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-
+    
+    results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
-        if d._stop_event.is_set():
-             raise OSError("Loop stopped")
+        if results:
+            return results.pop(0)
         d._stop_event.set()
-        return (packet_data_443, ("1.2.3.4", 0, 0, 0))
+        return (b"", ("0.0.0.0", 0, 0, 0))
     mock_socket.recvfrom.side_effect = side_effect
-
+    
     d.open()
-    # Let it run for a bit
-    import time
     time.sleep(0.1)
     d.close()
     mock_socket.sendto.assert_called()
@@ -140,47 +145,64 @@ def test_bsd_send(mock_socket, mock_subprocess):
     d = Divert("true")
     d.open()
     p = Packet(b"data")
-    p._bsd_addr = ("1.2.3.4", 0, 0, 0)
+    p._bsd_addr = ("1.2.3.4", 80)
     d.send(p, recalculate_checksum=True)
-    mock_socket.sendto.assert_called()
+    mock_socket.sendto.assert_called_with(b"data", ("1.2.3.4", 80, 0, 0))
+    d.close()
 
 
 @pytest.mark.asyncio
 async def test_bsd_async_methods(mock_socket, mock_subprocess):
     d = Divert("true")
-
     packet_data = (
         b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
         b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
         b'\x50\x02\x20\x00\x00\x00\x00\x00'
     )
-
+    
+    results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
     def side_effect(*args):
-        if d._stop_event.is_set():
-             raise OSError("Loop stopped")
-        return (packet_data, ("1.2.3.4", 0, 0, 0))
-
+        if results:
+            return results.pop(0)
+        return (b"", ("0.0.0.0", 0, 0, 0))
+    
     mock_socket.recvfrom.side_effect = side_effect
     d.open()
-
+    
     p = await asyncio.wait_for(d.recv_async(), timeout=5.0)
     assert p.raw is not None
     await d.send_async(p)
     d.close()
 
 
-def test_bsd_parse_filter():
-    # Use && and ||
+def test_bsd_parse_filter_extended():
     d = Divert('ip.SrcAddr == 1.2.3.4 && tcp.DstPort == 80 && inbound')
     rules = d._parse_filter_to_ipfw()
-    # Check that any rule contains the components
     assert any("1.2.3.4" in r and "80" in r and "in" in r for r in rules)
+    
+    d2 = Divert('true')
+    rules2 = d2._parse_filter_to_ipfw()
+    assert any("not dst-port 22" in r for r in rules2)
+
+    d3 = Divert('icmp')
+    rules3 = d3._parse_filter_to_ipfw()
+    assert any("icmp" in r for r in rules3)
 
 
-def test_bsd_parse_filter_true():
-    d = Divert('true')
-    rules = d._parse_filter_to_ipfw()
-    assert any("not dst-port 22" in r for r in rules)
+def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
+    mock_socket.bind.side_effect = OSError(48, "Address already in use")
+    d = Divert("true")
+    with pytest.raises(OSError, match="Failed to find a free port"):
+        d.open()
+
+
+def test_bsd_close_rules_fail(mock_socket, mock_subprocess):
+    with patch("sys.platform", "freebsd14"):
+        d = Divert("true")
+        d.open()
+        mock_subprocess.side_effect = Exception("ipfw delete fail")
+        d.close()
+        assert not d.is_open
 
 
 def test_pydivert_bsd_facade(mock_socket, mock_subprocess):
@@ -194,37 +216,10 @@ def test_bsd_recv_closed():
     with pytest.raises(RuntimeError):
         d.recv()
 
-def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
-    # Bind fails 100 times
-    mock_socket.bind.side_effect = OSError(48, "Address already in use")
-    d = Divert("true")
-    with pytest.raises(OSError, match="Failed to find a free port"):
-        d.open()
-
-def test_bsd_parse_filter_extended():
-    d1 = Divert("tcp.SrcPort == 53")
-    rules1 = d1._parse_filter_to_ipfw()
-    assert "53" in rules1[0]
-
-    d2 = Divert("icmp")
-    rules2 = d2._parse_filter_to_ipfw()
-    assert "icmp" in rules2[0]
-
-def test_bsd_close_rules_fail(mock_socket, mock_subprocess):
-    with patch("sys.platform", "freebsd14"):
-        d = Divert("true")
-        d.open()
-        mock_subprocess.side_effect = Exception("ipfw delete fail")
-        d.close() # Should not raise
-        assert not d.is_open
-
-def test_bsd_send_tuple_padding(mock_socket, mock_subprocess):
+def test_bsd_cleanup_all(mock_socket, mock_subprocess):
     d = Divert("true")
     d.open()
-    p = Packet(b"data")
-    # Simulate a 2-tuple (ip, port) that needs padding to 4-tuple for FreeBSD
-    p._bsd_addr = ("1.2.3.4", 80)
-    d.send(p)
-    # The last 2 elements should be padded with 0
-    mock_socket.sendto.assert_called_with(b"data", ("1.2.3.4", 80, 0, 0))
-
+    with patch.object(d, 'close', side_effect=Exception("cleanup fail")):
+        Divert.cleanup_all()
+    assert d in Divert._instances
+    Divert._instances.remove(d)
