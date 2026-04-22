@@ -28,6 +28,7 @@ These tests verify that PyDivert can correctly intercept and modify HTTP traffic
 Note: These tests must be run on Windows with administrator privileges.
 """
 
+import asyncio
 import socket
 import threading
 import time
@@ -60,7 +61,35 @@ def get_free_port():
         return s.getsockname()[1]
 
 
-def test_http_port_redirection():  # noqa: C901
+def _run_http_redirection_diverter(filt, fake_port, real_port, stop_event, use_async):  # noqa: C901
+    if use_async:
+        async def run_async():
+            async with pydivert.PyDivert(filt) as w:
+                async for packet in w:
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = real_port
+                    elif packet.src_port == real_port:
+                        packet.src_port = fake_port
+                    await w.send_async(packet)
+                    if stop_event.is_set():
+                        break
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_async())
+    else:
+        with pydivert.PyDivert(filt) as w:
+            for packet in w:
+                if packet.dst_port == fake_port:
+                    packet.dst_port = real_port
+                elif packet.src_port == real_port:
+                    packet.src_port = fake_port
+                w.send(packet)
+                if stop_event.is_set():
+                    break
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_http_port_redirection(use_async):  # noqa: C901
     class SimpleHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -89,53 +118,58 @@ def test_http_port_redirection():  # noqa: C901
     while fake_port == real_port:
         fake_port = get_free_port()
 
-    # Filter to capture:
-    # 1. Inbound to fake_port (to redirect to real_port)
-    # 2. Outbound from real_port (to redirect back to fake_port)
     filt = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port})"
-
     stop_event = threading.Event()
 
-    def divert_and_redirect():
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                # Client -> Fake Port: Redirect to Real Port
-                if packet.dst_port == fake_port:
-                    packet.dst_port = real_port
-                # Server -> Client: Redirect Source Port back to Fake Port
-                elif packet.src_port == real_port:
-                    packet.src_port = fake_port
-
-                w.send(packet)
-
-                if stop_event.is_set():
-                    break
-
-    divert_thread = threading.Thread(target=divert_and_redirect, daemon=True)
+    divert_thread = threading.Thread(
+        target=_run_http_redirection_diverter,
+        args=(filt, fake_port, real_port, stop_event, use_async),
+        daemon=True
+    )
     divert_thread.start()
 
-    # Give some time for WinDivert to start
     time.sleep(2.0)
     try:
-        # Client connects to the FAKE port
         url = f"http://127.0.0.1:{fake_port}/"
         with urllib.request.urlopen(url, timeout=10) as response:
             body = response.read()
             assert body == b"Port Redirection Success"
     finally:
         stop_event.set()
-        # Unblock WinDivert loop by sending a final packet
         try:
             with socket.create_connection(("127.0.0.1", fake_port), timeout=0.1) as s:
                 s.close()
         except OSError:
             pass
-
         httpd.shutdown()
         divert_thread.join(timeout=1)
 
 
-def test_http_modification():  # noqa: C901
+def _run_http_modification_diverter(filt, stop_event, use_async):
+    if use_async:
+        async def run_async():
+            async with pydivert.PyDivert(filt) as w:
+                async for packet in w:
+                    if packet.payload and b"Hello, World!" in packet.payload:
+                        packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
+                    await w.send_async(packet)
+                    if stop_event.is_set():
+                        break
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_async())
+    else:
+        with pydivert.PyDivert(filt) as w:
+            for packet in w:
+                if packet.payload and b"Hello, World!" in packet.payload:
+                    packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
+                w.send(packet)
+                if stop_event.is_set():
+                    break
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_http_modification(use_async):  # noqa: C901
     class SimpleHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
@@ -146,7 +180,6 @@ def test_http_modification():  # noqa: C901
         def log_message(self, format, *args):
             pass
 
-    # Bind to 127.0.0.1:0 to get a random free port
     httpd = HTTPServer(("127.0.0.1", 0), SimpleHandler)
     port = httpd.server_address[1]
 
@@ -160,30 +193,16 @@ def test_http_modification():  # noqa: C901
     server_thread.daemon = True
     server_thread.start()
 
-    # WinDivert filter for our HTTP server port
-    # We want to capture packets going to or coming from the server port
-    # For loopback, capturing outbound is sufficient and avoids double-processing.
     filt = f"(tcp.DstPort == {port} or tcp.SrcPort == {port})"
-
-    # Event to stop the diverter thread
     stop_event = threading.Event()
 
-    def divert_and_modify():
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                # Check if the packet contains our target string
-                if packet.payload and b"Hello, World!" in packet.payload:
-                    packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
-
-                w.send(packet)
-
-                if stop_event.is_set():
-                    break
-
-    divert_thread = threading.Thread(target=divert_and_modify, daemon=True)
+    divert_thread = threading.Thread(
+        target=_run_http_modification_diverter,
+        args=(filt, stop_event, use_async),
+        daemon=True
+    )
     divert_thread.start()
 
-    # Give some time for WinDivert to start
     time.sleep(2.0)
     try:
         url = f"http://127.0.0.1:{port}/"
@@ -192,12 +211,10 @@ def test_http_modification():  # noqa: C901
             assert body == b"PyDiv, World!"
     finally:
         stop_event.set()
-        # Unblock WinDivert loop by sending a final packet
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.1) as s:
                 s.close()
         except OSError:
             pass
-
         httpd.shutdown()
         divert_thread.join(timeout=1)

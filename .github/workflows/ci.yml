@@ -141,6 +141,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - name: Test in FreeBSD
@@ -148,11 +152,11 @@ jobs:
       with:
         usesh: true
         prepare: |
-          pkg install -y python311 py311-pip py311-sqlite3 curl git
+          pkg install -y python${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }} py${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }}-pip curl git
           kldload ipdivert || true
           sysctl net.inet.ip.divert_on_loopback=1 || true
         run: |
-          python3.11 -m venv venv
+          python${{ matrix.python-version }} -m venv venv
           ./venv/bin/pip install -e .[test]
           sudo ./venv/bin/pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     - name: Upload coverage
