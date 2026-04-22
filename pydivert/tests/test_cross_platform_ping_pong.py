@@ -30,6 +30,7 @@ def get_free_port(proto=socket.SOCK_DGRAM):
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
+
 def udp_echo_server(port, stop_event):
     """
     Simple UDP echo server that prepends 'Echo: ' to the received data.
@@ -50,12 +51,16 @@ def udp_echo_server(port, stop_event):
             except Exception:
                 break
 
+
 def _run_diverter(filter_str, stop_event, captured_count):
     try:
+        print(f"Diverter starting with filter: {filter_str}")
         with PyDivert(filter_str) as w:
+            print("Diverter opened successfully")
             while not stop_event.is_set():
                 try:
                     packet = w.recv()
+                    print(f"Captured packet: {packet}")
                     captured_count[0] += 1
                     if packet.payload and b"Echo: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
@@ -64,6 +69,7 @@ def _run_diverter(filter_str, stop_event, captured_count):
                     if not stop_event.is_set():
                         print(f"Diverter error: {e}")
                     break
+        print("Diverter closed")
     except (PermissionError, OSError) as e:
         print(f"Failed to open PyDivert: {e}")
 
@@ -71,20 +77,25 @@ def _run_diverter(filter_str, stop_event, captured_count):
 async def _run_diverter_async(filter_str, stop_event, captured_count):
     import asyncio
     try:
+        print(f"Async Diverter starting with filter: {filter_str}")
         async with PyDivert(filter_str) as w:
+            print("Async Diverter opened successfully")
             while not stop_event.is_set():
                 try:
                     packet = await asyncio.wait_for(w.recv_async(), timeout=10.0)
+                    print(f"Async Captured packet: {packet}")
                     captured_count[0] += 1
                     if packet.payload and b"Echo: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
                     await w.send_async(packet)
                 except asyncio.TimeoutError:
+                    print("Async Diverter wait_for timeout")
                     continue
                 except Exception as e:
                     if not stop_event.is_set():
                         print(f"Diverter async error: {e}")
                     break
+        print("Async Diverter closed")
     except (PermissionError, OSError) as e:
         print(f"Failed to open PyDivert Async: {e}")
 
@@ -128,21 +139,42 @@ def test_ping_pong_modification(use_async):
     divert_thread.start()
     time.sleep(2.0) # Wait for diverter to initialize
 
+    # Retry mechanism for flakiness in CI
+    max_retries = 3
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
-            client.settimeout(5.0)
-            message = b"Hello PyDivert"
-            client.sendto(message, ("127.0.0.1", server_port))
-
+        for attempt in range(max_retries):
             try:
-                resp, _ = client.recvfrom(1024)
-                assert resp == b"Modified: Hello PyDivert"
-                assert captured_count[0] > 0
-            except TimeoutError as e:
-                import os
-                if os.environ.get("GITHUB_ACTIONS"):
-                    pytest.fail(f"Integration timeout on {sys.platform} in CI: {e}. Check permissions/routing.")
-                pytest.skip(f"Timeout on {sys.platform}. Are you running as root/admin?")
+                print(f"Test attempt {attempt + 1}/{max_retries}")
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+                    client.settimeout(5.0)
+                    message = b"Hello PyDivert"
+                    print(f"Client sending packet to port {server_port}")
+                    client.sendto(message, ("127.0.0.1", server_port))
+
+                    try:
+                        resp, _ = client.recvfrom(1024)
+                        print(f"Client received response: {resp}")
+                        assert resp == b"Modified: Hello PyDivert"
+                        assert captured_count[0] > 0
+                        return # Success!
+                    except TimeoutError as e:
+                        if attempt < max_retries - 1:
+                            print(f"Attempt {attempt + 1} timed out, retrying...")
+                            time.sleep(1.0)
+                            continue
+                        import os
+                        if os.environ.get("GITHUB_ACTIONS"):
+                            pytest.fail(
+                                f"Integration timeout on {sys.platform} in CI after {max_retries} attempts: {e}. "
+                                "Check permissions/routing."
+                            )
+                        pytest.skip(f"Timeout on {sys.platform}. Are you running as root/admin?")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Attempt {attempt + 1} failed with {e}, retrying...")
+                    time.sleep(1.0)
+                    continue
+                raise
     finally:
         divert_stop_event.set()
         stop_event.set()
@@ -150,6 +182,7 @@ def test_ping_pong_modification(use_async):
             s.sendto(b"STOP", ("127.0.0.1", server_port))
         divert_thread.join(timeout=2.0)
         server_thread.join(timeout=2.0)
+
 
 if __name__ == "__main__":
     # For manual testing

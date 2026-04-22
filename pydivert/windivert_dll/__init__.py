@@ -148,6 +148,18 @@ try:
             return f(dwErrCode)
         return None
 
+    def GetOverlappedResult(handle, overlapped, bytes_transferred, wait):
+        f = windll.kernel32.GetOverlappedResult
+        f.argtypes = [HANDLE, c_void_p, POINTER(c_uint), c_int]
+        f.restype = c_int
+        return f(handle, overlapped, bytes_transferred, wait)
+
+    def CancelIoEx(handle, overlapped):
+        f = windll.kernel32.CancelIoEx
+        f.argtypes = [HANDLE, c_void_p]
+        f.restype = c_int
+        return f(handle, overlapped)
+
     def WinError(code=None, desc=None):
         return ctypes.WinError(code, desc)
 
@@ -191,6 +203,12 @@ except (ImportError, AttributeError):  # pragma: no cover
         if windll:
             return windll.kernel32.SetLastError(dwErrCode)
         return None
+
+    def GetOverlappedResult(handle, overlapped, bytes_transferred, wait):
+        return 0
+
+    def CancelIoEx(handle, overlapped):
+        return 0
 
     def WinError(code=None, desc=None):
         err = OSError(code, desc)
