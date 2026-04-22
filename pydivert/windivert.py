@@ -77,7 +77,6 @@ class WinDivert(BaseDivert):
         """
         super().__init__(filter, layer, priority, flags)
         self._handle: ctypes.c_void_p | None = None
-        self._event: ctypes.c_void_p | None = None
         self._recv_buf: bytearray | None = None
         self._recv_buf_c: ctypes.Array[ctypes.c_char] | None = None
         self._pending_ops: list[Overlapped] = []
@@ -171,7 +170,6 @@ class WinDivert(BaseDivert):
             raise RuntimeError("WinDivert handle is already open.")
         filter_bytes = self._filter if isinstance(self._filter, bytes) else self._filter.encode()
         self._handle = windivert_dll.WinDivertOpen(filter_bytes, self._layer, self._priority, self._flags)
-        self._event = windivert_dll.CreateEventW(None, False, False, None)
 
     @property
     def is_open(self) -> bool:
@@ -197,9 +195,6 @@ class WinDivert(BaseDivert):
         windivert_dll.WinDivertClose(self._handle)
         self._handle = None
         self._pending_ops.clear()
-        if self._event:
-            windivert_dll.CloseHandle(self._event)
-            self._event = None
 
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
         """
@@ -238,51 +233,56 @@ class WinDivert(BaseDivert):
         """
         Asynchronously receives a diverted packet using Windows Overlapped I/O.
         """
-        if self._handle is None or self._event is None:
+        if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
 
-        # For async operations, we use a fresh buffer each time to avoid race conditions
-        # and "underlying buffer is not writable" errors if multiple recvs are pending.
-        packet = bytearray(bufsize)
-        packet_ = (ctypes.c_char * bufsize).from_buffer(packet)
-        address = WinDivertAddress()
-        recv_len = ctypes.c_uint(0)
-        overlapped = Overlapped(hEvent=self._event)
-
-        # Keep references to objects used in overlapped I/O
-        # These are attached to the overlapped object to prevent GC
-        overlapped._packet = packet
-        overlapped._address = address
-        overlapped._recv_len = recv_len
-        self._pending_ops.append(overlapped)
-
+        event = windivert_dll.CreateEventW(None, False, False, None)
         try:
-            # Call the async version from DLL
-            res = windivert_dll.WinDivertRecvEx(
-                self._handle, packet_, bufsize, byref(recv_len), 0, byref(address), None, byref(overlapped)
-            )
+            # For async operations, we use a fresh buffer each time to avoid race conditions
+            # and "underlying buffer is not writable" errors if multiple recvs are pending.
+            packet = bytearray(bufsize)
+            packet_ = (ctypes.c_char * bufsize).from_buffer(packet)
+            address = WinDivertAddress()
+            recv_len = ctypes.c_uint(0)
+            overlapped = Overlapped(hEvent=event)
 
-            if not res:
-                error = windivert_dll.GetLastError()
-                if error == windivert_dll.ERROR_IO_PENDING:
-                    # Wait for the event in a thread pool without blocking the main event loop
-                    loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(
-                        None, windivert_dll.WaitForSingleObject, self._event, INFINITE
-                    )
-                else:
-                    raise windivert_dll.WinError(error)
-            # Operation completed successfully (either synchronously or after waiting)
-            self._pending_ops.remove(overlapped)
-            return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
-        except asyncio.CancelledError:
-            # If cancelled, the overlapped object remains in _pending_ops to prevent GC
-            # until the handle is closed, which will cancel the pending operation.
-            raise
-        except Exception:  # pragma: no cover
-            if overlapped in self._pending_ops:
-                self._pending_ops.remove(overlapped)
-            raise
+            # Keep references to objects used in overlapped I/O
+            # These are attached to the overlapped object to prevent GC
+            overlapped._packet = packet
+            overlapped._address = address
+            overlapped._recv_len = recv_len
+            self._pending_ops.append(overlapped)
+
+            try:
+                # Call the async version from DLL
+                res = windivert_dll.WinDivertRecvEx(
+                    self._handle, packet_, bufsize, byref(recv_len), 0, byref(address), None, byref(overlapped)
+                )
+
+                if not res:
+                    error = windivert_dll.GetLastError()
+                    if error == windivert_dll.ERROR_IO_PENDING:
+                        # Wait for the event in a thread pool without blocking the main event loop
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            None, windivert_dll.WaitForSingleObject, event, INFINITE
+                        )
+                    else:
+                        raise windivert_dll.WinError(error)
+                # Operation completed successfully (either synchronously or after waiting)
+                if overlapped in self._pending_ops:
+                    self._pending_ops.remove(overlapped)
+                return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
+            except asyncio.CancelledError:
+                # If cancelled, the overlapped object remains in _pending_ops to prevent GC
+                # until the handle is closed, which will cancel the pending operation.
+                raise
+            except Exception:  # pragma: no cover
+                if overlapped in self._pending_ops:
+                    self._pending_ops.remove(overlapped)
+                raise
+        finally:
+            windivert_dll.CloseHandle(event)
 
     @staticmethod
     def _parse_packet(packet, recv_len, address):
@@ -415,61 +415,66 @@ class WinDivert(BaseDivert):
         """
         Asynchronously injects a packet into the network stack using Windows Overlapped I/O.
         """
-        if self._handle is None or self._event is None:
+        if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
 
         if recalculate_checksum:
             packet.recalculate_checksums()
 
-        send_len = c_uint(0)
-        raw = packet.raw
-        buff = (c_char * len(packet.raw)).from_buffer(raw)
-        wd_addr = packet.wd_addr
-        overlapped = Overlapped(hEvent=self._event)
-
-        # Keep references to objects used in overlapped I/O
-        # These are attached to the overlapped object to prevent GC
-        overlapped._packet = packet
-        overlapped._buff = buff
-        overlapped._wd_addr = wd_addr
-        overlapped._send_len = send_len
-        self._pending_ops.append(overlapped)
-
+        event = windivert_dll.CreateEventW(None, False, False, None)
         try:
-            # Call the async version from DLL
-            res = windivert_dll.WinDivertSendEx(
-                self._handle,
-                buff,
-                len(packet.raw),
-                byref(send_len),
-                0,
-                byref(wd_addr),
-                ctypes.sizeof(WinDivertAddress),
-                byref(overlapped),
-            )
+            send_len = c_uint(0)
+            raw = packet.raw
+            buff = (c_char * len(packet.raw)).from_buffer(raw)
+            wd_addr = packet.wd_addr
+            overlapped = Overlapped(hEvent=event)
 
-            if not res:
-                error = windivert_dll.GetLastError()
-                if error == windivert_dll.ERROR_IO_PENDING:
-                    # Wait for the event in a thread pool without blocking the main event loop
-                    loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(
-                        None, windivert_dll.WaitForSingleObject, self._event, INFINITE
-                    )
-                else:
-                    raise windivert_dll.WinError(error)
+            # Keep references to objects used in overlapped I/O
+            # These are attached to the overlapped object to prevent GC
+            overlapped._packet = packet
+            overlapped._buff = buff
+            overlapped._wd_addr = wd_addr
+            overlapped._send_len = send_len
+            self._pending_ops.append(overlapped)
 
-            # Operation completed successfully
-            self._pending_ops.remove(overlapped)
-            return send_len.value
-        except asyncio.CancelledError:
-            # If cancelled, the overlapped object remains in _pending_ops to prevent GC
-            # until the handle is closed, which will cancel the pending operation.
-            raise
-        except Exception:  # pragma: no cover
-            if overlapped in self._pending_ops:
-                self._pending_ops.remove(overlapped)
-            raise
+            try:
+                # Call the async version from DLL
+                res = windivert_dll.WinDivertSendEx(
+                    self._handle,
+                    buff,
+                    len(packet.raw),
+                    byref(send_len),
+                    0,
+                    byref(wd_addr),
+                    ctypes.sizeof(WinDivertAddress),
+                    byref(overlapped),
+                )
+
+                if not res:
+                    error = windivert_dll.GetLastError()
+                    if error == windivert_dll.ERROR_IO_PENDING:
+                        # Wait for the event in a thread pool without blocking the main event loop
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            None, windivert_dll.WaitForSingleObject, event, INFINITE
+                        )
+                    else:
+                        raise windivert_dll.WinError(error)
+
+                # Operation completed successfully
+                if overlapped in self._pending_ops:
+                    self._pending_ops.remove(overlapped)
+                return send_len.value
+            except asyncio.CancelledError:
+                # If cancelled, the overlapped object remains in _pending_ops to prevent GC
+                # until the handle is closed, which will cancel the pending operation.
+                raise
+            except Exception:  # pragma: no cover
+                if overlapped in self._pending_ops:
+                    self._pending_ops.remove(overlapped)
+                raise
+        finally:
+            windivert_dll.CloseHandle(event)
 
     def send_ex(
         self, packet: Packet, recalculate_checksum: bool = True, flags: int = 0, overlapped: Overlapped | None = None

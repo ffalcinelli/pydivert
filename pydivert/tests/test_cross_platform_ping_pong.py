@@ -38,7 +38,9 @@ def udp_echo_server(port, stop_event):
         while not stop_event.is_set():
             try:
                 data, addr = s.recvfrom(1024)
+                # Echo 'STOP' back so the diverter catches it and exits
                 if data == b"STOP":
+                    s.sendto(b"Echo: STOP", addr)
                     break
                 s.sendto(b"Echo: " + data, addr)
             except TimeoutError:
@@ -70,7 +72,7 @@ async def _run_diverter_async(filter_str, stop_event, captured_count):
         async with PyDivert(filter_str) as w:
             while not stop_event.is_set():
                 try:
-                    packet = await asyncio.wait_for(w.recv_async(), timeout=1.0)
+                    packet = await asyncio.wait_for(w.recv_async(), timeout=10.0)
                     captured_count[0] += 1
                     if packet.payload and b"Echo: " in packet.payload:
                         packet.payload = packet.payload.replace(b"Echo: ", b"Modified: ")
@@ -122,11 +124,11 @@ def test_ping_pong_modification(use_async):
         )
 
     divert_thread.start()
-    time.sleep(1.0) # Wait for diverter to initialize
+    time.sleep(2.0) # Wait for diverter to initialize
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
-            client.settimeout(2.0)
+            client.settimeout(5.0)
             message = b"Hello PyDivert"
             client.sendto(message, ("127.0.0.1", server_port))
 
