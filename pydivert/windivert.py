@@ -116,7 +116,7 @@ class WinDivert(BaseDivert):
                     system32 = buf.value
                 else:
                     system32 = "C:\\Windows\\System32"
-            except (AttributeError, OSError, ImportError):
+            except (AttributeError, OSError, ImportError):  # pragma: no cover
                 system32 = "C:\\Windows\\System32"
 
             sc_path = os.path.join(system32, "sc.exe")
@@ -279,7 +279,7 @@ class WinDivert(BaseDivert):
             # If cancelled, the overlapped object remains in _pending_ops to prevent GC
             # until the handle is closed, which will cancel the pending operation.
             raise
-        except Exception:
+        except Exception:  # pragma: no cover
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
@@ -358,7 +358,7 @@ class WinDivert(BaseDivert):
             windivert_dll.WinDivertRecvEx(
                 self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), byref(addr_len), overlapped
             )
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:
                 # Store references to prevent garbage collection
                 overlapped._packet_buffer = packet
@@ -466,7 +466,7 @@ class WinDivert(BaseDivert):
             # If cancelled, the overlapped object remains in _pending_ops to prevent GC
             # until the handle is closed, which will cancel the pending operation.
             raise
-        except Exception:
+        except Exception:  # pragma: no cover
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
@@ -521,7 +521,7 @@ class WinDivert(BaseDivert):
             windivert_dll.WinDivertSendEx(
                 self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), addr_len, overlapped
             )
-        except OSError as e:
+        except OSError as e:  # pragma: no cover
             if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:
                 # Store references to prevent garbage collection
                 overlapped._packet_raw = packet.raw

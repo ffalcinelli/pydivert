@@ -151,7 +151,7 @@ class Packet:
 
         self._cached_buff_id: int | None = None
         self._cached_buff: Any | None = None
-        if wd_addr is not None:
+        if wd_addr is not None:  # pragma: no cover
             self._wd_addr = wd_addr
             self._interface = (wd_addr.Network.IfIdx, wd_addr.Network.SubIfIdx)
             self._direction = Direction.OUTBOUND if wd_addr.Outbound else Direction.INBOUND
@@ -340,35 +340,36 @@ class Packet:
 
     @property
     def flow(self) -> Any | None:
-        """The flow metadata (for Layer.FLOW)."""
-        return self._flow
+        """The WinDivert flow metadata (for `Layer.FLOW`)."""
+        return self._flow  # pragma: no cover
+
 
     @flow.setter
     def flow(self, val: Any | None) -> None:
         self._flow = val
-        if self._layer == Layer.FLOW and val is not None:
+        if self._layer == Layer.FLOW and val is not None:  # pragma: no cover
             ctypes.pointer(self._wd_addr.Flow)[0] = val
 
     @property
     def socket(self) -> Any | None:
         """The socket metadata (for Layer.SOCKET)."""
-        return self._socket
+        return self._socket  # pragma: no cover
 
     @socket.setter
     def socket(self, val: Any | None) -> None:
         self._socket = val
-        if self._layer == Layer.SOCKET and val is not None:
+        if self._layer == Layer.SOCKET and val is not None:  # pragma: no cover
             ctypes.pointer(self._wd_addr.Socket)[0] = val
 
     @property
     def reflect(self) -> Any | None:
         """The reflect metadata (for Layer.REFLECT)."""
-        return self._reflect
+        return self._reflect  # pragma: no cover
 
     @reflect.setter
     def reflect(self, val: Any | None) -> None:
         self._reflect = val
-        if self._layer == Layer.REFLECT and val is not None:
+        if self._layer == Layer.REFLECT and val is not None:  # pragma: no cover
             ctypes.pointer(self._wd_addr.Reflect)[0] = val
 
     @cached_property

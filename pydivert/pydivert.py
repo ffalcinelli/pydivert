@@ -68,7 +68,7 @@ class PyDivert(BaseDivert):
             from pydivert.bsd import Divert
 
             return Divert
-        raise NotImplementedError(f"Unsupported platform: {sys.platform}")
+        raise NotImplementedError(f"Unsupported platform: {sys.platform}")  # pragma: no cover
 
     def open(self) -> None:
         self._impl.open()

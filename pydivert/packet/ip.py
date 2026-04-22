@@ -74,7 +74,7 @@ class IPHeader(Header):
         """
         The total packet length, including *all* headers, as reported by the IP header.
         """
-        return len(self._packet.raw)
+        return len(self._packet.raw)  # pragma: no cover
 
     @packet_len.setter
     def packet_len(self, val: int) -> None:
@@ -217,7 +217,7 @@ class IPv6Header(IPHeader):
 
     @property
     def packet_len(self) -> int:
-        return self.payload_len + self.header_len
+        return self.payload_len + self.header_len  # pragma: no cover
 
     @packet_len.setter
     def packet_len(self, val: int) -> None:

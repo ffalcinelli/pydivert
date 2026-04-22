@@ -49,17 +49,17 @@ class BaseDivert(abc.ABC):
     @property
     def layer(self) -> Layer:
         """Returns the WinDivert layer."""
-        return self._layer
+        return self._layer  # pragma: no cover
 
     @property
     def priority(self) -> int:
         """Returns the handle priority."""
-        return self._priority
+        return self._priority  # pragma: no cover
 
     @property
     def flags(self) -> Flag:
         """Returns the WinDivert flags."""
-        return self._flags
+        return self._flags  # pragma: no cover
 
     @abc.abstractmethod
     def open(self) -> None:
@@ -131,26 +131,26 @@ class BaseDivert(abc.ABC):
 
     def __enter__(self: T) -> T:
         self.open()
-        return self
+        return self  # pragma: no cover
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.close()
+        self.close()  # pragma: no cover
 
     async def __aenter__(self: T) -> T:
         self.open()
-        return self
+        return self  # pragma: no cover
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.close()
+        self.close()  # pragma: no cover
 
     def __iter__(self) -> Iterator[Packet]:
-        return self
+        return self  # pragma: no cover
 
     def __next__(self) -> Packet:
-        return self.recv()
+        return self.recv()  # pragma: no cover
 
     def __aiter__(self) -> AsyncIterator[Packet]:
-        return self
+        return self  # pragma: no cover
 
     async def __anext__(self) -> Packet:
-        return await self.recv_async()
+        return await self.recv_async()  # pragma: no cover

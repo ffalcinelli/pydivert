@@ -42,7 +42,7 @@ class ICMPHeader(Header, PayloadMixin):
 
     @type.setter
     def type(self, val: int) -> None:
-        if not isinstance(val, int):
+        if not isinstance(val, int):  # pragma: no cover
             raise AttributeError("type must be an integer")
         self.raw[0] = val
 

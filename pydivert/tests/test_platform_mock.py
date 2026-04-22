@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pydivert import PyDivert
+from pydivert.consts import Flag, Layer
 
 
 def test_pydivert_platform_selection():
@@ -178,6 +179,30 @@ async def test_pydivert_methods_mock():
         mock_impl.send.assert_called_once()
         await w.send_async(MagicMock())
         mock_impl.send_async.assert_called_once()
+        mock_impl.some_attr = 42
+        assert w.some_attr == 42
+        
+        # Test BaseDivert properties
+        assert w.layer == Layer.NETWORK
+        assert w.priority == 0
+        assert w.flags == Flag.DEFAULT
+        
+        # Test iteration
+        mock_impl.recv.return_value = MagicMock()
+        it = iter(w)
+        assert next(it) is not None
+        
+        # Test async iteration
+        mock_impl.recv_async.return_value = asyncio.Future()
+        mock_impl.recv_async.return_value.set_result(MagicMock())
+        ait = w.__aiter__()
+        assert await w.__anext__() is not None
+
+        # Test context managers
+        with w:
+            pass
+        async with w:
+            pass
 
 def test_windivert_dll_init_mock():
     # Attempt to cover windivert_dll/__init__.py loading logic

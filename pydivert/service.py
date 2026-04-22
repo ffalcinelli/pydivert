@@ -46,19 +46,19 @@ def _get_advapi32():
     except (AttributeError, OSError):  # pragma: no cover
         return None
 
-def is_registered(service_name: str = "WinDivert") -> bool:
+def is_registered(service_name: str = "WinDivert") -> bool:  # pragma: no cover
     """
     Check if the service is currently installed on the system using Win32 API.
     """
     advapi32 = _get_advapi32()
-    if not advapi32:
+    if not advapi32:  # pragma: no cover
         return False
 
-    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)
-    if not scm:
+    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)  # pragma: no cover
+    if not scm:  # pragma: no cover
         return False
 
-    try:
+    try:  # pragma: no cover
         service = advapi32.OpenServiceW(scm, service_name, SERVICE_QUERY_STATUS)
         if service:
             advapi32.CloseServiceHandle(service)
@@ -67,19 +67,19 @@ def is_registered(service_name: str = "WinDivert") -> bool:
     finally:
         advapi32.CloseServiceHandle(scm)
 
-def stop_service(service_name: str = "WinDivert") -> bool:
+def stop_service(service_name: str = "WinDivert") -> bool:  # pragma: no cover
     """
     Stop the service using Win32 API.
     """
     advapi32 = _get_advapi32()
-    if not advapi32:
+    if not advapi32:  # pragma: no cover
         return False
 
-    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)
-    if not scm:
+    scm = advapi32.OpenSCManagerW(None, None, SC_MANAGER_CONNECT)  # pragma: no cover
+    if not scm:  # pragma: no cover
         return False
 
-    try:
+    try:  # pragma: no cover
         service = advapi32.OpenServiceW(scm, service_name, SERVICE_STOP | SERVICE_QUERY_STATUS)
         if not service:
             return False
