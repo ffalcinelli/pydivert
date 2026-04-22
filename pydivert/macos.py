@@ -196,28 +196,7 @@ class MacOSDivert(BaseDivert):
         while self.is_open and not self._stop_event.is_set():
             try:
                 data, addr = sock.recvfrom(65535)
-                # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
-                # However, for consistency with BSD and more reliability, we check if the
-                # capture address is empty or zeroed.
-                is_outbound = (not addr or addr[0] == "0.0.0.0" or addr[0] == "::")
-                direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
-
-                p = Packet(data, direction=direction)
-                p._bsd_addr = addr
-
-                if p.matches(self.filter):
-                    try:
-                        self._queue.put(p, block=False)
-                        if self._loop and self._async_queue:  # pragma: no cover
-                            try:
-                                self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
-                            except Exception:  # pragma: no cover
-                                pass
-                    except (queue.Full, asyncio.QueueFull):  # pragma: no cover
-                        logger.warning("MacOSDivert queue full, dropping intercepted packet")
-                        sock.sendto(data, addr)
-                else:
-                    sock.sendto(data, addr)
+                self._handle_packet(data, addr, sock)
             except Exception as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
@@ -228,6 +207,30 @@ class MacOSDivert(BaseDivert):
                 if isinstance(e, OSError):
                     break
                 time.sleep(0.01)
+
+    def _handle_packet(self, data, addr, sock):
+        # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
+        # However, for consistency with BSD and more reliability, we check if the
+        # capture address is empty or zeroed.
+        is_outbound = (not addr or addr[0] == "0.0.0.0" or addr[0] == "::")
+        direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
+
+        p = Packet(data, direction=direction)
+        p._bsd_addr = addr
+
+        if p.matches(self.filter):
+            try:
+                self._queue.put(p, block=False)
+                if self._loop and self._async_queue:  # pragma: no cover
+                    try:
+                        self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
+                    except Exception:  # pragma: no cover
+                        pass
+            except (queue.Full, asyncio.QueueFull):  # pragma: no cover
+                logger.warning("MacOSDivert queue full, dropping intercepted packet")
+                sock.sendto(data, addr)
+        else:
+            sock.sendto(data, addr)
 
     def close(self) -> None:
         self._stop_event.set()

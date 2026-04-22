@@ -64,6 +64,8 @@ lint = [
 typecheck = [
     "ty",
     "pytest>=7.0.0",
+    "hypothesis",
+    "scapy",
 ]
 
 [project.urls]

@@ -181,21 +181,21 @@ async def test_pydivert_methods_mock():
         mock_impl.send_async.assert_called_once()
         mock_impl.some_attr = 42
         assert w.some_attr == 42
-        
+
         # Test BaseDivert properties
         assert w.layer == Layer.NETWORK
         assert w.priority == 0
         assert w.flags == Flag.DEFAULT
-        
+
         # Test iteration
         mock_impl.recv.return_value = MagicMock()
         it = iter(w)
         assert next(it) is not None
-        
+
         # Test async iteration
         mock_impl.recv_async.return_value = asyncio.Future()
         mock_impl.recv_async.return_value.set_result(MagicMock())
-        ait = w.__aiter__()
+        _ = w.__aiter__()
         assert await w.__anext__() is not None
 
         # Test context managers
