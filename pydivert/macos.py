@@ -195,13 +195,18 @@ class MacOSDivert(BaseDivert):
 
         while self.is_open and not self._stop_event.is_set():
             try:
-                data, addr = sock.recvfrom(65535)
+                res = sock.recvfrom(65535)
+                if not res:
+                    if self._stop_event.is_set():
+                        break
+                    continue
+                data, addr = res
                 self._handle_packet(data, addr, sock)
             except Exception as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
-                if sys.platform != "darwin" and isinstance(e, ValueError) and "not enough values to unpack" in str(e):
-                    # Suppress mock-related unpacking errors during shutdown on non-macOS platforms
+                # Suppress errors if we are shutting down or if it's a mock error
+                if isinstance(e, (ValueError, TypeError)):
                     break
                 logger.error("Error in macOS divert loop: %s", e)
                 if isinstance(e, OSError):
@@ -209,10 +214,13 @@ class MacOSDivert(BaseDivert):
                 time.sleep(0.01)
 
     def _handle_packet(self, data, addr, sock):
+        if not data:
+            return
+
         # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
         # However, for consistency with BSD and more reliability, we check if the
         # capture address is empty or zeroed.
-        is_outbound = (not addr or addr[0] == "0.0.0.0" or addr[0] == "::")
+        is_outbound = (not addr or (isinstance(addr, (list, tuple)) and addr and addr[0] in ("0.0.0.0", "::")))
         direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
 
         p = Packet(data, direction=direction)
@@ -238,7 +246,7 @@ class MacOSDivert(BaseDivert):
             logger.info("Closing macOS divert socket on port %d", self._port)
             # Unblock the recv loop
             temp_sock = self._socket
-            self._socket = None
+            self._socket = None # Mark as closed first
             try:
                 temp_sock.close()
             except Exception:  # pragma: no cover
@@ -267,7 +275,7 @@ class MacOSDivert(BaseDivert):
                 if self._stop_event.is_set():
                     break
                 continue
-        raise RuntimeError("Socket closed during recv")  # pragma: no cover
+        raise RuntimeError("Socket closed during recv or queue is empty.")  # pragma: no cover
 
     async def recv_async(self) -> Packet:
         if not self.is_open:  # pragma: no cover

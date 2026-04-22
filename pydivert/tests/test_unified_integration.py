@@ -23,6 +23,8 @@ async def test_unified_open_close():
             pass
         import os
         if os.environ.get("GITHUB_ACTIONS"):
+             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
+                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
              pytest.fail(f"Opening handle failed on {sys.platform} in CI: {e}. Check permissions.")
         # On Linux/BSD this might fail if not root, or if not implemented
         pytest.skip(f"Opening handle failed on {sys.platform}: {e}")
@@ -39,6 +41,8 @@ async def test_unified_async_context_manager():
     except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
         import os
         if os.environ.get("GITHUB_ACTIONS"):
+             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
+                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
              pytest.fail(f"Async opening handle failed on {sys.platform} in CI: {e}. Check permissions.")
         pytest.skip(f"Async opening handle failed on {sys.platform}: {e}")
 
