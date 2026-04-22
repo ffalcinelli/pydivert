@@ -13,10 +13,13 @@ def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized.
     Requires Administrator (Windows) or Root (Linux/BSD) privileges.
     """
+    import os
     try:
         with PyDivert("true"):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
+        if os.environ.get("GITHUB_ACTIONS"):
+            pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
         pytest.skip(f"PyDivert not available: {e}. Are you running as Administrator/Root?")
 
 
@@ -131,7 +134,10 @@ def test_ping_pong_modification(use_async):
                 resp, _ = client.recvfrom(1024)
                 assert resp == b"Modified: Hello PyDivert"
                 assert captured_count[0] > 0
-            except TimeoutError:
+            except TimeoutError as e:
+                import os
+                if os.environ.get("GITHUB_ACTIONS"):
+                    pytest.fail(f"Integration timeout on {sys.platform} in CI: {e}. Check permissions/routing.")
                 pytest.skip(f"Timeout on {sys.platform}. Are you running as root/admin?")
     finally:
         divert_stop_event.set()

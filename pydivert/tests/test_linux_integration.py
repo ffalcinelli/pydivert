@@ -13,11 +13,17 @@ def setup_module(module):
 
 def test_linux_open_close():
     # This might fail if not running as root, but we want to check the logic
+    import os
     nfq = NetFilterQueue("tcp.DstPort == 80")
     try:
         nfq.open()
         assert nfq.is_open or not nfq.is_open # Placeholder for actual check
     except Exception as e:
+        if os.environ.get("GITHUB_ACTIONS"):
+            pytest.fail(
+                f"Could not open NetFilterQueue in CI: {e}. "
+                "Ensure tests run as root and libnetfilter-queue is present."
+            )
         pytest.skip(f"Could not open NetFilterQueue: {e} (maybe need root?)")
     finally:
         nfq.close()

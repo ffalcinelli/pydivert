@@ -13,11 +13,14 @@ def setup_module(module):
 
 def test_bsd_open_close():
     # This might fail if not running as root
+    import os
     d = Divert("tcp.DstPort == 80")
     try:
         d.open()
         assert d.is_open or not d.is_open # Placeholder for actual check
     except Exception as e:
+        if os.environ.get("GITHUB_ACTIONS"):
+            pytest.fail(f"Could not open BSD/macOS Divert in CI: {e}. Ensure tests run as root.")
         pytest.skip(f"Could not open BSD Divert: {e} (maybe need root?)")
     finally:
         d.close()

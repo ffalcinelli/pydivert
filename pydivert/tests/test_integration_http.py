@@ -41,10 +41,13 @@ import pydivert
 
 def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized."""
+    import os
     try:
         with pydivert.PyDivert("true"):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
+        if os.environ.get("GITHUB_ACTIONS"):
+            pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
         pytest.skip(f"PyDivert not available: {e}")
 
 

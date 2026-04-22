@@ -82,14 +82,17 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --extra test
+        uv sync --extra test --extra linux
     
+    - name: Configure loopback
+      run: |
+        sudo ethtool -K lo rx off tx off || true
+
     - name: Run tests
       run: |
-        # We run as sudo to allow NetFilterQueue tests to at least try to open
-        # although GitHub Actions might still restrict it.
-        # Most integration tests will gracefully skip if they can't bind.
-        uv run pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+        # We run with sudo to allow NetFilterQueue and iptables operations.
+        # Most integration tests will gracefully skip if they still can't bind.
+        sudo -E .venv/bin/pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
@@ -122,8 +125,9 @@ jobs:
     
     - name: Run tests
       run: |
-        # macOS tests use Divert Sockets which might require privileges.
-        uv run pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+        # macOS tests use Divert Sockets which require root privileges.
+        # We use the full path to the python interpreter in the venv to ensure consistency.
+        sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
@@ -150,7 +154,7 @@ jobs:
         run: |
           python3.11 -m venv venv
           ./venv/bin/pip install -e .[test]
-          ./venv/bin/pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+          sudo ./venv/bin/pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
       with:

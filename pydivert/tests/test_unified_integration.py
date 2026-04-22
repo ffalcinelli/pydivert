@@ -19,6 +19,11 @@ async def test_unified_open_close():
         with PyDivert(filter_str) as w:
             assert w.is_open or not w.is_open # Implementation dependent, but should not crash
     except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
+        if "os" in locals() or "os" in globals() or "GITHUB_ACTIONS" in str(e): # simplistic
+            pass
+        import os
+        if os.environ.get("GITHUB_ACTIONS"):
+             pytest.fail(f"Opening handle failed on {sys.platform} in CI: {e}. Check permissions.")
         # On Linux/BSD this might fail if not root, or if not implemented
         pytest.skip(f"Opening handle failed on {sys.platform}: {e}")
 
@@ -32,6 +37,9 @@ async def test_unified_async_context_manager():
         async with PyDivert(filter_str) as w:
             assert w is not None
     except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
+        import os
+        if os.environ.get("GITHUB_ACTIONS"):
+             pytest.fail(f"Async opening handle failed on {sys.platform} in CI: {e}. Check permissions.")
         pytest.skip(f"Async opening handle failed on {sys.platform}: {e}")
 
 def test_backend_selection():
