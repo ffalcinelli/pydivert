@@ -22,7 +22,8 @@ def test_bsd_open_close():
         if os.environ.get("GITHUB_ACTIONS"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
-            pytest.fail(f"Could not open BSD/macOS Divert in CI: {e}. Ensure tests run as root.")
+            else:
+                pytest.fail(f"Could not open BSD/macOS Divert in CI: {e}. Ensure tests run as root.")
         pytest.skip(f"Could not open BSD Divert: {e} (maybe need root?)")
     finally:
         d.close()

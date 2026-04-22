@@ -152,7 +152,10 @@ jobs:
       with:
         usesh: true
         prepare: |
-          pkg install -y python${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }} py${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }}-pip curl git
+          pkg install -y python${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }} curl git
+          # pip might be named differently or need ensurepip
+          python${{ matrix.python-version }} -m ensurepip || true
+          python${{ matrix.python-version }} -m pip install --upgrade pip || true
           kldload ipdivert || true
           sysctl net.inet.ip.divert_on_loopback=1 || true
         run: |

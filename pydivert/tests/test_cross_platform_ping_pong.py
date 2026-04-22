@@ -21,7 +21,8 @@ def setup_module(module):
         if os.environ.get("GITHUB_ACTIONS"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
-            pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
+            else:
+                pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
         pytest.skip(f"PyDivert not available: {e}. Are you running as Administrator/Root?")
 
 
