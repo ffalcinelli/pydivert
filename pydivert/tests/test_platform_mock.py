@@ -123,7 +123,7 @@ async def test_bsd_divert_mock():
         assert w.is_open
         # Provide a real IPv4 packet so Packet parsing doesn't fail
         real_packet = raw(IP(dst="1.2.3.4")/UDP(dport=80)/b"payload")
-        
+
         call_count = 0
         def recv_side_effect(bufsize):
             nonlocal call_count
@@ -133,7 +133,7 @@ async def test_bsd_divert_mock():
             import time
             time.sleep(0.01)
             return b"", None
-            
+
         mock_socket_instance.recvfrom.side_effect = recv_side_effect
         pkt = w.recv()
         assert pkt is not None
