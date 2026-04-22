@@ -71,8 +71,9 @@ def test_icmp_echo_reply_modification(use_async):
     time.sleep(2.0)
 
     try:
-        from scapy.all import ICMP, IP, conf, sr1
-        _ = conf.L3socket # Force scapy init
+        from scapy.all import conf, sr1
+        from scapy.layers.inet import ICMP, IP
+        _ = conf.L3socket  # Force scapy init
 
         # We send an ICMP Echo Request with "abc" in payload
         # The OS will respond with Echo Reply containing "abc"
