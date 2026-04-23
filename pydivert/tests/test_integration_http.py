@@ -154,7 +154,7 @@ def test_http_port_redirection(use_async):  # noqa: C901
         divert_thread.join(timeout=1)
 
 
-def _run_http_modification_diverter(filt, stop_event, use_async):
+def _run_http_modification_diverter(filt, stop_event, use_async):  # noqa: C901
     if use_async:
 
         async def run_async():

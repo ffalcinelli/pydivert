@@ -103,7 +103,7 @@ def test_example_basic_capture():
                     client.sendall(b"test")
                     assert client.recv(1024) == b"test"
                 break
-            except (TimeoutError, ConnectionRefusedError, socket.timeout):
+            except (TimeoutError, ConnectionRefusedError):
                 time.sleep(1.0)
         else:
             pytest.fail("Failed to connect to server after 3 attempts")
@@ -117,7 +117,7 @@ def test_example_basic_capture():
         t2.join(timeout=1.0)
 
 
-def test_example_packet_modification_redirection():
+def test_example_packet_modification_redirection():  # noqa: C901
     # Example: Packet Modification (Port Redirection)
     real_port = get_free_port()
     fake_port = get_free_port()
@@ -170,7 +170,7 @@ def test_example_packet_modification_redirection():
                     client.sendall(b"hi")
                     assert client.recv(1024) == b"redirected"
                 break
-            except (TimeoutError, ConnectionRefusedError, socket.timeout):
+            except (TimeoutError, ConnectionRefusedError):
                 time.sleep(1.0)
         else:
             pytest.fail("Failed to connect to server after 3 attempts")
@@ -231,7 +231,7 @@ def test_example_firewall_drop():
         t2.join(timeout=1.0)
 
 
-def test_example_payload_modification():
+def test_example_payload_modification():  # noqa: C901
     # Example: Payload Inspection and Modification
     port = get_free_port()
 
@@ -278,7 +278,7 @@ def test_example_payload_modification():
                     assert b"REDACTED" in data
                     assert b"secret-token" not in data
                 break
-            except (TimeoutError, ConnectionRefusedError, socket.timeout):
+            except (TimeoutError, ConnectionRefusedError):
                 time.sleep(1.0)
         else:
             pytest.fail("Failed to connect to server after 3 attempts")

@@ -184,7 +184,7 @@ def _udp_server(port):
             pass
 
 
-def _run_dns_modification_diverter(filt, stop_event, use_async):
+def _run_dns_modification_diverter(filt, stop_event, use_async):  # noqa: C901
     if use_async:
         async def run_async():
             try:
