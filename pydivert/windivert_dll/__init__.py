@@ -221,6 +221,7 @@ except (ImportError, AttributeError):  # pragma: no cover
 
 
 ERROR_IO_PENDING = 997
+WAIT_TIMEOUT = 0x102
 INFINITE = 0xFFFFFFFF
 
 
