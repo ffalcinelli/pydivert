@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import re
 import socket
 import struct
 
@@ -121,47 +120,44 @@ def _recalc_proto_checksums(packet, pseudo_hdr, proto_start, flags):
     return count
 
 
+class AggregateField:
+    """Helper for matching aggregate fields like ip.addr or tcp.port."""
+
+    def __init__(self, *values):
+        self.values = values
+
+    def __eq__(self, other):
+        return any(v == other for v in self.values)
+
+    def __ne__(self, other):
+        return all(v != other for v in self.values)
+
+    def __gt__(self, other):
+        return any(v > other for v in self.values)
+
+    def __ge__(self, other):
+        return any(v >= other for v in self.values)
+
+    def __lt__(self, other):
+        return any(v < other for v in self.values)
+
+    def __le__(self, other):
+        return any(v <= other for v in self.values)
+
+    def __bool__(self):
+        return any(bool(v) for v in self.values)
+
+
 def fallback_matches(packet, filter: str) -> bool:
     """Non-Windows fallback for filter evaluation."""
-    filter_lower = filter.lower()
-    if filter_lower == "true":
-        return True
-    if filter_lower == "false":
-        return False  # pragma: no cover
+    from pydivert.filter import transpile_to_python
 
-    # Simple eval logic for tests
-    py_filter = re.sub(r"\b(or)\b", " or ", filter_lower)
-    py_filter = re.sub(r"\b(and)\b", " and ", py_filter)
-    py_filter = py_filter.replace("||", " or ").replace("&&", " and ")
-
-    mapping = {
-        "tcp.dstport": str(packet.dst_port) if packet.tcp else "None",
-        "tcp.srcport": str(packet.src_port) if packet.tcp else "None",
-        "tcp.payloadlength": str(len(packet.payload)) if packet.tcp and packet.payload else "0",
-        "udp.dstport": str(packet.dst_port) if packet.udp else "None",
-        "udp.srcport": str(packet.src_port) if packet.udp else "None",
-        "udp.payloadlength": str(len(packet.payload)) if packet.udp and packet.payload else "0",
-        "ip.dstaddr": f"'{packet.dst_addr}'",
-        "ip.srcaddr": f"'{packet.src_addr}'",
-        "tcp": "True" if packet.tcp else "False",
-        "udp": "True" if packet.udp else "False",
-        "icmp": "True" if packet.icmp else "False",
-        "ipv4": "True" if packet.ipv4 else "False",
-        "ipv6": "True" if packet.ipv6 else "False",
-        "outbound": "True" if packet.is_outbound else "False",
-        "inbound": "True" if packet.is_inbound else "False",
-        "loopback": "True" if packet.is_loopback else "False",
-    }
-
-    # Sort keys by length descending to match more specific fields first
-    for k_orig in sorted(mapping.keys(), key=len, reverse=True):
-        k = str(k_orig)
-        v = mapping[k]
-        # Use regex to replace only whole words/fields
-        py_filter = re.sub(rf"\b{re.escape(k)}\b", v, py_filter)
+    py_filter = transpile_to_python(filter)
 
     try:
-        return bool(eval(py_filter, {"__builtins__": {}}))
+        return bool(
+            eval(py_filter, {"__builtins__": {}, "AggregateField": AggregateField, "packet": packet, "len": len})
+        )
     except Exception:  # pragma: no cover
         # If eval fails, we return True to be safe (intercept rather than drop)
         return True

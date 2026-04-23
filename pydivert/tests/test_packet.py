@@ -536,11 +536,31 @@ def test_filter_match():
         "4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
         "807696e2d61646472046172706100000c0001"
     )
+    # src: 192.168.43.9, dst: 192.168.43.1
+    # src_port: 51677, dst_port: 53
     p_pkt = pydivert.Packet(raw, (1, 1), Direction.OUTBOUND)
 
     assert p_pkt.matches("true")
     assert p_pkt.matches("udp and outbound")
     assert not p_pkt.matches("tcp")
+
+    # Aggregate fields
+    assert p_pkt.matches("ip.Addr == 192.168.43.9")
+    assert p_pkt.matches("ip.Addr == 192.168.43.1")
+    assert not p_pkt.matches("ip.Addr == 1.2.3.4")
+
+    assert p_pkt.matches("udp.Port == 51677")
+    assert p_pkt.matches("udp.Port == 53")
+    assert not p_pkt.matches("udp.Port == 80")
+
+    # Complex combinations
+    assert p_pkt.matches("(udp.Port == 53) and ip.Addr == 192.168.43.9")
+    assert p_pkt.matches("(udp.Port == 80 or udp.Port == 53) and ip.Addr == 192.168.43.9")
+    assert not p_pkt.matches("(udp.Port == 80) and ip.Addr == 192.168.43.9")
+
+    # Aliases
+    assert p_pkt.matches("ip.Src == 192.168.43.9")
+    assert p_pkt.matches("ip.Dst == 192.168.43.1")
 
 
 def test_ip_addr_invalid_length():

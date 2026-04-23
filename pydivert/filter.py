@@ -66,13 +66,19 @@ class WinDivertTransformer(Transformer):
         return rules
 
     def logic_and(self, children):
-        # Cartesian product of rule lists for AND (simplified for kernel rules)
-        # For simplicity, we just merge the first rule from each list
-        merged = {}
+        # We want the Cartesian product of all lists of rules
+        result_rules = [{}]
         for child in children:
-            if isinstance(child, list) and child:
-                merged.update(child[0])
-        return [merged]
+            if not isinstance(child, list) or not child:
+                continue
+            new_result = []
+            for existing_rule in result_rules:
+                for new_rule_part in child:
+                    merged = existing_rule.copy()
+                    merged.update(new_rule_part)
+                    new_result.append(merged)
+            result_rules = new_result
+        return result_rules
 
     def comparison(self, children):
         left, op, right = children
@@ -81,14 +87,24 @@ class WinDivertTransformer(Transformer):
 
         # Basic equality transpilation for iptables
         if op == "==":
-            if field == "tcp.dstport" or field == "udp.dstport":
+            # Ports
+            if field in ("tcp.dstport", "udp.dstport"):
                 return [{"proto": field.split(".")[0], "dport": val}]
-            if field == "tcp.srcport" or field == "udp.srcport":
+            if field in ("tcp.srcport", "udp.srcport"):
                 return [{"proto": field.split(".")[0], "sport": val}]
-            if field == "ip.srcaddr":
+            if field in ("tcp.port", "udp.port"):
+                # Matches both source and destination
+                proto = field.split(".")[0]
+                return [{"proto": proto, "dport": val}, {"proto": proto, "sport": val}]
+
+            # IP Addresses
+            if field in ("ip.srcaddr", "ip.src", "ipv6.srcaddr", "ipv6.src"):
                 return [{"srcaddr": val}]
-            if field == "ip.dstaddr":
+            if field in ("ip.dstaddr", "ip.dst", "ipv6.dstaddr", "ipv6.dst"):
                 return [{"dstaddr": val}]
+            if field in ("ip.addr", "ipv6.addr"):
+                # Matches both source and destination
+                return [{"srcaddr": val}, {"dstaddr": val}]
 
         # For other operators, we return an empty dict to allow user-space filtering
         # while still having a basic hook if other AND conditions match.
@@ -175,6 +191,83 @@ class LegacyTransformer(Transformer):
         return str(children[0])
 
 
+class PythonEvalTransformer(Transformer):
+    """
+    Converts AST to a Python expression that can be evaluated with a packet.
+    """
+
+    def true_val(self, _):
+        return "True"
+
+    def false_val(self, _):
+        return "False"
+
+    def field_access(self, children):
+        field_name = str(children[0]).lower()
+        # Map WinDivert fields to packet properties/methods
+        mapping = {
+            "ip.srcaddr": "packet.src_addr",
+            "ip.src": "packet.src_addr",
+            "ip.dstaddr": "packet.dst_addr",
+            "ip.dst": "packet.dst_addr",
+            "ip.addr": "AggregateField(packet.src_addr, packet.dst_addr)",
+            "ipv6.srcaddr": "packet.src_addr",
+            "ipv6.src": "packet.src_addr",
+            "ipv6.dstaddr": "packet.dst_addr",
+            "ipv6.dst": "packet.dst_addr",
+            "ipv6.addr": "AggregateField(packet.src_addr, packet.dst_addr)",
+            "tcp.srcport": "packet.src_port",
+            "tcp.dstport": "packet.dst_port",
+            "tcp.port": "AggregateField(packet.src_port, packet.dst_port)",
+            "tcp.payloadlength": "len(packet.payload) if packet.payload else 0",
+            "udp.srcport": "packet.src_port",
+            "udp.dstport": "packet.dst_port",
+            "udp.port": "AggregateField(packet.src_port, packet.dst_port)",
+            "udp.payloadlength": "len(packet.payload) if packet.payload else 0",
+            "tcp": "packet.tcp",
+            "udp": "packet.udp",
+            "icmp": "packet.icmp",
+            "ipv4": "packet.ipv4",
+            "ipv6": "packet.ipv6",
+            "inbound": "packet.is_inbound",
+            "outbound": "packet.is_outbound",
+            "loopback": "packet.is_loopback",
+        }
+        return mapping.get(field_name, "None")
+
+    def value(self, children):
+        val = str(children[0])
+        # If it looks like an IP address, quote it
+        if "." in val or ":" in val:
+            return f"'{val}'"
+        return val
+
+    def comparison(self, children):
+        return f"({children[0]} {children[1]} {children[2]})"
+
+    def logic_and(self, children):
+        # filter out operators
+        parts = [str(c) for c in children if str(c) not in ("&&", "and")]
+        return "(" + " and ".join(parts) + ")"
+
+    def logic_or(self, children):
+        # filter out operators
+        parts = [str(c) for c in children if str(c) not in ("||", "or")]
+        return "(" + " or ".join(parts) + ")"
+
+    def not_expr(self, children):
+        return f"(not {children[0]})"
+
+    def ternary(self, children):
+        return f"({children[1]} if {children[0]} else {children[2]})"
+
+    def parenthesized(self, children):
+        return f"({children[0]})"
+
+    def expression(self, children):
+        return str(children[0])
+
+
 def transpile(filter_str):
     """
     Legacy transpile function that returns the filter string representation.
@@ -182,6 +275,18 @@ def transpile(filter_str):
     parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
     tree = parser.parse(filter_str)
     return LegacyTransformer().transform(tree)
+
+
+def transpile_to_python(filter_str: str) -> str:
+    """
+    Parses a WinDivert filter and returns a Python expression for evaluation.
+    """
+    try:
+        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
+        tree = parser.parse(filter_str)
+        return PythonEvalTransformer().transform(tree)
+    except Exception:  # pragma: no cover
+        return "True"
 
 
 def transpile_to_rules(filter_str):
