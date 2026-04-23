@@ -6,6 +6,7 @@
 [![docs](https://img.shields.io/badge/docs-pdoc-blue.svg)](https://ffalcinelli.github.io/pydivert/)
 [![python_versions](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://pypi.python.org/pypi/pydivert)
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
+[![snyk](https://img.shields.io/badge/snyk-security-violet)](https://security.snyk.io/package/pip/pydivert)
 
 **PyDivert** is a powerful network packet capture and injection library for Python. While it started as a binding for [WinDivert](https://reqrypt.org/windivert.html), **version 4.0.0** introduces a unified, cross-platform abstraction layer that allows you to write network tools once and run them on **Windows, Linux, and BSD**.
 
