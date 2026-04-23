@@ -151,7 +151,7 @@ class Divert(BaseDivert):
                 # and the interface address for inbound packets.
                 # The port field encodes the ipfw rule number.
                 ip_addr = addr[0] if addr else '0.0.0.0'
-                
+
                 direction = Direction.OUTBOUND if ip_addr == '0.0.0.0' else Direction.INBOUND
                 # On loopback, FreeBSD divert socket often gives '0.0.0.0' or '127.0.0.1'
                 is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1' or ip_addr == '::1' or not ip_addr)
