@@ -134,7 +134,10 @@ class Divert(BaseDivert):
                 if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
                     self._port += 1
                     continue
-                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
+                err_msg = f"Failed to open divert socket on port {self._port}: {e}. Are you root?"
+                if hasattr(e, "errno") and e.errno is not None:
+                    raise OSError(e.errno, err_msg) from e
+                raise OSError(err_msg) from e
         else:  # pragma: no cover
             raise OSError("Failed to find a free port for divert socket.")
 

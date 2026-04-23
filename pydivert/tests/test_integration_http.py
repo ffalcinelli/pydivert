@@ -68,29 +68,35 @@ def _run_http_redirection_diverter(filt, fake_port, real_port, stop_event, use_a
     if use_async:
 
         async def run_async():
-            async with pydivert.PyDivert(filt) as w:
-                async for packet in w:
-                    if packet.dst_port == fake_port:
-                        packet.dst_port = real_port
-                    elif packet.src_port == real_port:
-                        packet.src_port = fake_port
-                    await w.send_async(packet)
-                    if stop_event.is_set():
-                        break
+            try:
+                async with pydivert.PyDivert(filt) as w:
+                    async for packet in w:
+                        if packet.dst_port == fake_port:
+                            packet.dst_port = real_port
+                        elif packet.src_port == real_port:
+                            packet.src_port = fake_port
+                        await w.send_async(packet)
+                        if stop_event.is_set():
+                            break
+            except (RuntimeError, OSError):
+                pass
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
     else:
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                if packet.dst_port == fake_port:
-                    packet.dst_port = real_port
-                elif packet.src_port == real_port:
-                    packet.src_port = fake_port
-                w.send(packet)
-                if stop_event.is_set():
-                    break
+        try:
+            with pydivert.PyDivert(filt) as w:
+                for packet in w:
+                    if packet.dst_port == fake_port:
+                        packet.dst_port = real_port
+                    elif packet.src_port == real_port:
+                        packet.src_port = fake_port
+                    w.send(packet)
+                    if stop_event.is_set():
+                        break
+        except (RuntimeError, OSError):
+            pass
 
 
 @pytest.mark.parametrize("use_async", [False, True])
@@ -152,25 +158,31 @@ def _run_http_modification_diverter(filt, stop_event, use_async):
     if use_async:
 
         async def run_async():
-            async with pydivert.PyDivert(filt) as w:
-                async for packet in w:
-                    if packet.payload and b"Hello, World!" in packet.payload:
-                        packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
-                    await w.send_async(packet)
-                    if stop_event.is_set():
-                        break
+            try:
+                async with pydivert.PyDivert(filt) as w:
+                    async for packet in w:
+                        if packet.payload and b"Hello, World!" in packet.payload:
+                            packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
+                        await w.send_async(packet)
+                        if stop_event.is_set():
+                            break
+            except (RuntimeError, OSError):
+                pass
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
     else:
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                if packet.payload and b"Hello, World!" in packet.payload:
-                    packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
-                w.send(packet)
-                if stop_event.is_set():
-                    break
+        try:
+            with pydivert.PyDivert(filt) as w:
+                for packet in w:
+                    if packet.payload and b"Hello, World!" in packet.payload:
+                        packet.payload = packet.payload.replace(b"Hello", b"PyDiv")
+                    w.send(packet)
+                    if stop_event.is_set():
+                        break
+        except (RuntimeError, OSError):
+            pass
 
 
 @pytest.mark.parametrize("use_async", [False, True])

@@ -25,8 +25,8 @@ sysctl -w net.ipv4.conf.all.route_localnet=1
 VENV_PATH="/home/vagrant/pydivert_venv"
 python3 -m venv "$VENV_PATH"
 "$VENV_PATH/bin/pip" install --upgrade pip
-"$VENV_PATH/bin/pip" install -e /home/vagrant/pydivert[test]
+"$VENV_PATH/bin/pip" install -e /home/vagrant/pydivert[test,linux]
 
 # Also ensure uv works within the project folder
 cd /home/vagrant/pydivert
-uv sync --extra test
+uv sync --extra test --extra linux

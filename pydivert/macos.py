@@ -154,7 +154,10 @@ class MacOSDivert(BaseDivert):
                     self._port += 1
                     self._anchor_name = f"{self._anchor_base}.{self._port}"
                     continue
-                raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
+                err_msg = f"Failed to open divert socket on port {self._port}: {e}. Are you root?"
+                if hasattr(e, "errno") and e.errno is not None:
+                    raise OSError(e.errno, err_msg) from e
+                raise OSError(err_msg) from e
         else:  # pragma: no cover
             raise OSError("Failed to find a free port for divert socket.")
 

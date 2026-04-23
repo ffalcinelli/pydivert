@@ -186,27 +186,31 @@ def _udp_server(port):
 
 def _run_dns_modification_diverter(filt, stop_event, use_async):
     if use_async:
-
         async def run_async():
-            async with pydivert.PyDivert(filt) as w:
-                async for packet in w:
-                    if packet.payload and b"Original: " in packet.payload:
-                        packet.payload = packet.payload.replace(b"Original: ", b"Modified: ")
-                    await w.send_async(packet)
-                    if stop_event.is_set():
-                        break
-
+            try:
+                async with pydivert.PyDivert(filt) as w:
+                    async for packet in w:
+                        if packet.payload and b"test data" in packet.payload:
+                            packet.payload = packet.payload.replace(b"Original", b"Modified")
+                        await w.send_async(packet)
+                        if stop_event.is_set():
+                            break
+            except (RuntimeError, OSError):
+                pass
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
     else:
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                if packet.payload and b"Original: " in packet.payload:
-                    packet.payload = packet.payload.replace(b"Original: ", b"Modified: ")
-                w.send(packet)
-                if stop_event.is_set():
-                    break
+        try:
+            with pydivert.PyDivert(filt) as w:
+                for packet in w:
+                    if packet.payload and b"test data" in packet.payload:
+                        packet.payload = packet.payload.replace(b"Original", b"Modified")
+                    w.send(packet)
+                    if stop_event.is_set():
+                        break
+        except (RuntimeError, OSError):
+            pass
 
 
 @pytest.mark.parametrize("use_async", [False, True])
