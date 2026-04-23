@@ -19,6 +19,7 @@ from pydivert.packet import Packet
 
 logger = logging.getLogger(__name__)
 
+
 class Divert(BaseDivert):
     """
     FreeBSD implementation of the Divert interface using **Divert Sockets** and **ipfw**.
@@ -34,6 +35,7 @@ class Divert(BaseDivert):
 
     When the handle is closed, the injected `ipfw` rules are automatically removed.
     """
+
     _instances: set[Divert] = set()
 
     def __init__(
@@ -80,13 +82,13 @@ class Divert(BaseDivert):
             # If the rule is for TCP/IP and doesn't specify ports, protect SSH
             proto = rule_dict.get("proto", "ip")
             if (proto in ("tcp", "ip")) and not rule_dict.get("dport") and not rule_dict.get("sport"):
-                 if proto == "ip":
-                     # For broad IP rules, we must explicitly allow SSH to avoid interception
-                     rules.append("tcp from any to any not dst-port 22 not src-port 22")
-                     rules.append("udp from any to any")
-                     rules.append("icmp from any to any")
-                 else:
-                     rules.append(self._build_ipfw_rule(rule_dict, "") + " not dst-port 22 not src-port 22")
+                if proto == "ip":
+                    # For broad IP rules, we must explicitly allow SSH to avoid interception
+                    rules.append("tcp from any to any not dst-port 22 not src-port 22")
+                    rules.append("udp from any to any")
+                    rules.append("icmp from any to any")
+                else:
+                    rules.append(self._build_ipfw_rule(rule_dict, "") + " not dst-port 22 not src-port 22")
             else:
                 rules.append(self._build_ipfw_rule(rule_dict, ""))
         return [r.strip() for r in rules]
@@ -122,19 +124,19 @@ class Divert(BaseDivert):
         if self.is_open:  # pragma: no cover
             raise RuntimeError("Divert handle is already open.")
 
-        IPPROTO_DIVERT = getattr(socket, 'IPPROTO_DIVERT', 258)
+        IPPROTO_DIVERT = getattr(socket, "IPPROTO_DIVERT", 258)
         for _i in range(100):
             try:
                 self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
-                self._socket.bind(('0.0.0.0', self._port))
+                self._socket.bind(("0.0.0.0", self._port))
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
-                if getattr(e, 'errno', None) == 48 or "Address already in use" in str(e):
+                if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
                     self._port += 1
                     continue
                 raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
         else:  # pragma: no cover
-             raise OSError("Failed to find a free port for divert socket.")
+            raise OSError("Failed to find a free port for divert socket.")
 
         if sys.platform.startswith("freebsd"):
             self._applied_rules_with_numbers = []
@@ -171,11 +173,11 @@ class Divert(BaseDivert):
                 # The ip_addr field is INADDR_ANY (0.0.0.0) for outbound packets,
                 # and the interface address for inbound packets.
                 # The port field encodes the ipfw rule number.
-                ip_addr = addr[0] if addr else '0.0.0.0'
+                ip_addr = addr[0] if addr else "0.0.0.0"
 
-                direction = Direction.OUTBOUND if ip_addr == '0.0.0.0' else Direction.INBOUND
+                direction = Direction.OUTBOUND if ip_addr == "0.0.0.0" else Direction.INBOUND
                 # On loopback, FreeBSD divert socket often gives '0.0.0.0' or '127.0.0.1'
-                is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1' or ip_addr == '::1' or not ip_addr)
+                is_loopback = ip_addr == "0.0.0.0" or ip_addr == "127.0.0.1" or ip_addr == "::1" or not ip_addr
 
                 p = Packet(data, direction=direction, loopback=is_loopback)
                 p._bsd_addr = addr
@@ -264,7 +266,7 @@ class Divert(BaseDivert):
         if recalculate_checksum:
             packet.recalculate_checksums()
 
-        addr = getattr(packet, '_bsd_addr', ('0.0.0.0', 0))
+        addr = getattr(packet, "_bsd_addr", ("0.0.0.0", 0))
         try:
             raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
 
@@ -283,5 +285,6 @@ class Divert(BaseDivert):
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)
+
 
 atexit.register(Divert.cleanup_all)

@@ -344,7 +344,7 @@ def flow_layer_server(port):
             pass
 
 
-@pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 def test_example_flow_layer():
     # Example: WinDivert Layers (FLOW)
     port = get_free_port()
@@ -381,7 +381,7 @@ def test_example_flow_layer():
     assert any(hasattr(e, "layer") and e.layer == Layer.FLOW for e in events if not isinstance(e, Exception))
 
 
-@pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 def test_example_sniff_mode():
     # Example: Flags (SNIFF)
     port = get_free_port()
@@ -501,7 +501,7 @@ def test_example_pattern_matching():
     raw = bytearray(40)
     raw[0] = 0x45
     raw[9] = 6
-    raw[22:24] = b"\x00\x50" # port 80
+    raw[22:24] = b"\x00\x50"  # port 80
     packet = Packet(raw)
 
     matched_http = False

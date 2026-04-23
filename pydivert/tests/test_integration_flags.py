@@ -4,7 +4,7 @@ import pytest
 
 from pydivert import Flag, WinDivert
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
 
 def test_intflag_combinations():
@@ -24,9 +24,9 @@ def test_intflag_combinations():
     except PermissionError:
         pytest.skip("Test requires administrator privileges to open WinDivert handle.")
     except OSError as e:
-        if getattr(e, "winerror", None) == 5: # ERROR_ACCESS_DENIED
-             pytest.skip("Test requires administrator privileges to open WinDivert handle.")
-        elif getattr(e, "winerror", None) == 2: # ERROR_FILE_NOT_FOUND (driver missing on linux)
-             pytest.skip("WinDivert driver is not installed (expected on Linux).")
+        if getattr(e, "winerror", None) == 5:  # ERROR_ACCESS_DENIED
+            pytest.skip("Test requires administrator privileges to open WinDivert handle.")
+        elif getattr(e, "winerror", None) == 2:  # ERROR_FILE_NOT_FOUND (driver missing on linux)
+            pytest.skip("WinDivert driver is not installed (expected on Linux).")
         else:
-             pytest.fail(f"WinDivert failed with combined flags: {e}")
+            pytest.fail(f"WinDivert failed with combined flags: {e}")

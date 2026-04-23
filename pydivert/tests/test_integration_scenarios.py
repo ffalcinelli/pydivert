@@ -35,11 +35,13 @@ import pydivert
 def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized."""
     import os
+
     try:
         with pydivert.PyDivert("true"):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
         import sys
+
         if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
@@ -52,6 +54,7 @@ def get_free_port(proto=socket.SOCK_STREAM):
     with socket.socket(socket.AF_INET, proto) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
 
 def _backend_server(port):
     with socket.socket() as s:
@@ -67,6 +70,7 @@ def _backend_server(port):
             conn.close()
         except Exception:
             pass
+
 
 def _proxy_server(proxy_port, backend_port):
     with socket.socket() as s:
@@ -88,8 +92,10 @@ def _proxy_server(proxy_port, backend_port):
         except Exception:
             pass
 
+
 def _run_tcp_proxy_diverter(filt, public_port, proxy_port, stop_event, use_async):  # noqa: C901
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -100,6 +106,7 @@ def _run_tcp_proxy_diverter(filt, public_port, proxy_port, stop_event, use_async
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -113,6 +120,7 @@ def _run_tcp_proxy_diverter(filt, public_port, proxy_port, stop_event, use_async
                 w.send(packet)
                 if stop_event.is_set():
                     break
+
 
 @pytest.mark.parametrize("use_async", [False, True])
 def test_integration_tcp_proxy_transform(use_async):
@@ -137,9 +145,7 @@ def test_integration_tcp_proxy_transform(use_async):
     stop_event = threading.Event()
 
     divert_thread = threading.Thread(
-        target=_run_tcp_proxy_diverter,
-        args=(filt, public_port, proxy_port, stop_event, use_async),
-        daemon=True
+        target=_run_tcp_proxy_diverter, args=(filt, public_port, proxy_port, stop_event, use_async), daemon=True
     )
     divert_thread.start()
     time.sleep(2.0)
@@ -160,6 +166,7 @@ def test_integration_tcp_proxy_transform(use_async):
             pass
         divert_thread.join(timeout=1)
 
+
 def _udp_server(port):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.settimeout(5.0)
@@ -176,8 +183,10 @@ def _udp_server(port):
         except Exception:
             pass
 
+
 def _run_dns_modification_diverter(filt, stop_event, use_async):
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -186,6 +195,7 @@ def _run_dns_modification_diverter(filt, stop_event, use_async):
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -197,6 +207,7 @@ def _run_dns_modification_diverter(filt, stop_event, use_async):
                 w.send(packet)
                 if stop_event.is_set():
                     break
+
 
 @pytest.mark.parametrize("use_async", [False, True])
 def test_integration_dns_modification(use_async):
@@ -214,9 +225,7 @@ def test_integration_dns_modification(use_async):
     stop_event = threading.Event()
 
     divert_thread = threading.Thread(
-        target=_run_dns_modification_diverter,
-        args=(filt, stop_event, use_async),
-        daemon=True
+        target=_run_dns_modification_diverter, args=(filt, stop_event, use_async), daemon=True
     )
     divert_thread.start()
     time.sleep(2.0)
@@ -234,6 +243,7 @@ def test_integration_dns_modification(use_async):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"stop", ("127.0.0.1", server_port))
         divert_thread.join(timeout=1)
+
 
 @pytest.mark.skip(reason="Unregistering driver is too disruptive for VM state and subsequent tests")
 def test_integration_driver_management():

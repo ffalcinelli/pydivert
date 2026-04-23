@@ -36,6 +36,7 @@ def _run_icmp_modifier(stop_event, use_async):
     # Intercept ICMP Echo Replies (Type 0)
     filt = "icmp.Type == 0"
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -47,6 +48,7 @@ def _run_icmp_modifier(stop_event, use_async):
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -74,27 +76,28 @@ def test_icmp_echo_reply_modification(use_async):
     try:
         from scapy.all import conf, sr1
         from scapy.layers.inet import ICMP, IP
+
         _ = conf.L3socket  # Force scapy init
 
         # We send an ICMP Echo Request with "abc" in payload
         # The OS will respond with Echo Reply containing "abc"
         # PyDivert should change it to "xyz"
-        pkt = IP(dst="127.0.0.1")/ICMP(type=8)/b"abc"
+        pkt = IP(dst="127.0.0.1") / ICMP(type=8) / b"abc"
         try:
             reply = sr1(pkt, timeout=5, verbose=False)
         except ValueError as e:
-             if "Interface" in str(e) and "not found" in str(e):
-                 pytest.skip(f"Scapy could not find loopback interface on this host: {e}")
-             raise
+            if "Interface" in str(e) and "not found" in str(e):
+                pytest.skip(f"Scapy could not find loopback interface on this host: {e}")
+            raise
 
         if reply and ICMP in reply:
-             # Type 0 is Echo Reply
-             if reply[ICMP].type == 0:
-                 assert b"xyz" in bytes(reply[ICMP].payload)
-             else:
-                 pytest.skip(f"Received unexpected ICMP type: {reply[ICMP].type}")
+            # Type 0 is Echo Reply
+            if reply[ICMP].type == 0:
+                assert b"xyz" in bytes(reply[ICMP].payload)
+            else:
+                pytest.skip(f"Received unexpected ICMP type: {reply[ICMP].type}")
         else:
-             pytest.skip("No ICMP reply received (blocked by firewall or OS?)")
+            pytest.skip("No ICMP reply received (blocked by firewall or OS?)")
     except ImportError:
         pytest.skip("Scapy not installed, skipping ICMP test")
     except PermissionError:
@@ -109,6 +112,7 @@ def _run_tcp_throttler(port, stop_event, use_async):
     # Intercept TCP traffic to a specific port
     filt = f"tcp.DstPort == {port}"
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -117,6 +121,7 @@ def _run_tcp_throttler(port, stop_event, use_async):
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -172,7 +177,7 @@ def test_tcp_latency_simulation(use_async):
     finally:
         stop_event.set()
         try:
-             socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            socket.create_connection(("127.0.0.1", port), timeout=0.1)
         except Exception:
-             pass
+            pass
         divert_thread.join(timeout=1)

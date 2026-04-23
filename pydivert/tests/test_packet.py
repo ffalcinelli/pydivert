@@ -64,8 +64,7 @@ def test_ip_modify():
     a = x.raw.tobytes()
     assert (
         x.recalculate_checksums(
-            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM
-            | pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM
+            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM | pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM
         )
         >= 0
     )
@@ -176,8 +175,7 @@ def test_tcp_modify():
     a = x.raw.tobytes()
     assert (
         x.recalculate_checksums(
-            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM
-            | pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM
+            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM | pydivert.CalcChecksumsOption.NO_TCP_CHECKSUM
         )
         >= 0
     )
@@ -193,9 +191,7 @@ def test_tcp_modify():
 
 
 def test_udp_modify():
-    raw = util.fromhex(
-        "45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 01" "00 35 00 35 00 08 00 00"
-    )
+    raw = util.fromhex("45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 0100 35 00 35 00 08 00 00")
     x = p(raw)
     assert x.udp is not None
     assert x.udp.header_len == 8
@@ -203,7 +199,7 @@ def test_udp_modify():
     x.udp.dst_port = 5353
     assert x.udp.dst_port == 5353
     assert x.raw.tobytes() == util.fromhex(
-        "45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 01" "00 35 14 e9 00 08 00 00"
+        "45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 0100 35 14 e9 00 08 00 00"
     )
 
     with pytest.raises(AttributeError):
@@ -212,8 +208,7 @@ def test_udp_modify():
     x.payload = b"test"
     assert x.payload == b"test"
     assert x.raw.tobytes() == util.fromhex(
-        "45 00 00 20 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 01"
-        "00 35 14 e9 00 0c 00 00 74 65 73 74"
+        "45 00 00 20 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 0100 35 14 e9 00 0c 00 00 74 65 73 74"
     )
 
     with pytest.raises(AttributeError):
@@ -224,8 +219,7 @@ def test_udp_modify():
     a = x.raw.tobytes()
     assert (
         x.recalculate_checksums(
-            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM
-            | pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM
+            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM | pydivert.CalcChecksumsOption.NO_UDP_CHECKSUM
         )
         >= 0
     )
@@ -236,9 +230,7 @@ def test_udp_modify():
 
 
 def test_icmp_modify():
-    raw = util.fromhex(
-        "45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 01" "08 00 00 00 00 00 00 00"
-    )
+    raw = util.fromhex("45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 0108 00 00 00 00 00 00 00")
     x = p(raw)
     assert x.icmp is not None
     assert x.icmp.header_len == 8
@@ -246,7 +238,7 @@ def test_icmp_modify():
     x.icmp.type = 0
     assert x.icmp.type == 0
     assert x.raw.tobytes() == util.fromhex(
-        "45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 01" "00 00 00 00 00 00 00 00"
+        "45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 0100 00 00 00 00 00 00 00"
     )
 
     with pytest.raises(AttributeError):
@@ -263,8 +255,7 @@ def test_icmp_modify():
     a = x.raw.tobytes()
     assert (
         x.recalculate_checksums(
-            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM
-            | pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM
+            pydivert.CalcChecksumsOption.NO_IP_CHECKSUM | pydivert.CalcChecksumsOption.NO_ICMP_CHECKSUM
         )
         >= 0
     )

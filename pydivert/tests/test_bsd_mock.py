@@ -14,16 +14,19 @@ from pydivert.pydivert import PyDivert
 @pytest.fixture
 def mock_socket():
     import socket as real_socket
+
     original_socket = real_socket.socket
 
     def socket_side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
-        IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+        IPPROTO_DIVERT = getattr(real_socket, "IPPROTO_DIVERT", 258)
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
             mock_sock = MagicMock()
+
             # Default side effect: return empty data and sleep to prevent busy loop
             def default_recv(*args):
                 time.sleep(0.01)
                 return (b"", ("0.0.0.0", 0, 0, 0))
+
             mock_sock.recvfrom.side_effect = default_recv
             return mock_sock
         return original_socket(family, type, proto, fileno)
@@ -51,10 +54,12 @@ def test_bsd_open_close(mock_socket, mock_subprocess):
 
 def test_bsd_open_retry_port(mock_socket, mock_subprocess):
     import socket as real_socket
+
     original_socket = real_socket.socket
-    IPPROTO_DIVERT = getattr(real_socket, 'IPPROTO_DIVERT', 258)
+    IPPROTO_DIVERT = getattr(real_socket, "IPPROTO_DIVERT", 258)
 
     call_count = 0
+
     def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
         nonlocal call_count
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
@@ -73,10 +78,11 @@ def test_bsd_open_retry_port(mock_socket, mock_subprocess):
 
 def test_bsd_open_fail_final(mock_socket, mock_subprocess):
     import socket as real_socket
+
     def side_effect(*args, **kwargs):
-         if args[0] == real_socket.AF_INET and args[1] == real_socket.SOCK_RAW:
-             raise OSError("Permission denied")
-         return real_socket.socket(*args, **kwargs)
+        if args[0] == real_socket.AF_INET and args[1] == real_socket.SOCK_RAW:
+            raise OSError("Permission denied")
+        return real_socket.socket(*args, **kwargs)
 
     with patch("socket.socket", side_effect=side_effect):
         d = Divert("true")
@@ -90,7 +96,8 @@ def test_freebsd_rules_apply(mock_socket, mock_subprocess):
         d.open()
         mock_subprocess.assert_any_call(
             ["ipfw", "add", "50", "divert", "8888", "tcp", "from", "any", "to", "any", "80"],
-            check=True, capture_output=True
+            check=True,
+            capture_output=True,
         )
         d.close()
         mock_subprocess.assert_any_call(["ipfw", "delete", "50"], check=False, capture_output=True)
@@ -108,20 +115,22 @@ def test_freebsd_rules_fail(mock_socket, mock_subprocess):
 def test_bsd_recv_logic(mock_socket, mock_subprocess):
     d = Divert("true")
     packet_data = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01"
+        b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
+        b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
 
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
+
         def side_effect(*args):
             if results:
                 return results.pop(0)
             d._stop_event.set()
             return (b"", ("0.0.0.0", 0, 0, 0))
+
         mock_sock.recvfrom.side_effect = side_effect
 
         d.open()
@@ -133,19 +142,21 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
 def test_bsd_recv_inbound(mock_socket, mock_subprocess):
     d = Divert("true")
     packet_data = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01"
+        b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
+        b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
+
         def side_effect(*args):
             if results:
                 return results.pop(0)
             d._stop_event.set()
             return (b"", ("0.0.0.0", 0, 0, 0))
+
         mock_sock.recvfrom.side_effect = side_effect
 
         d.open()
@@ -157,18 +168,20 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
 def test_bsd_recv_filtering(mock_socket, mock_subprocess):
     d = Divert("tcp.DstPort == 80")
     packet_data_443 = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08'
-        b'\x08\x08\x04\x04\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x08\x08\x08\x08"
+        b"\x08\x08\x04\x04\x00\x50\x01\xbb\x00\x00\x00\x00\x00\x00\x00\x00"
+        b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
 
     mock_sock = MagicMock()
     results = [(packet_data_443, ("0.0.0.0", 0, 0, 0))]
+
     def side_effect(*args):
         if results:
             return results.pop(0)
         d._stop_event.set()
         return (b"", ("0.0.0.0", 0, 0, 0))
+
     mock_sock.recvfrom.side_effect = side_effect
 
     d._socket = mock_sock
@@ -179,9 +192,9 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
 def test_bsd_send(mock_socket, mock_subprocess):
     d = Divert("true")
     packet_data = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01"
+        b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
+        b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
@@ -198,19 +211,21 @@ def test_bsd_send(mock_socket, mock_subprocess):
 async def test_bsd_async_methods(mock_socket, mock_subprocess):
     d = Divert("true")
     packet_data = (
-        b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-        b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-        b'\x50\x02\x20\x00\x00\x00\x00\x00'
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01"
+        b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
+        b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
 
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
+
         def side_effect(*args):
             if results:
                 return results.pop(0)
             return (b"", ("0.0.0.0", 0, 0, 0))
+
         mock_sock.recvfrom.side_effect = side_effect
 
         d.open()
@@ -221,19 +236,19 @@ async def test_bsd_async_methods(mock_socket, mock_subprocess):
 
 
 def test_bsd_parse_filter_extended():
-    d = Divert('ip.SrcAddr == 1.2.3.4 && tcp.DstPort == 80 && inbound')
+    d = Divert("ip.SrcAddr == 1.2.3.4 && tcp.DstPort == 80 && inbound")
     rules = d._parse_filter_to_ipfw()
     assert any("1.2.3.4" in r and "80" in r and "in" in r for r in rules)
 
-    d2 = Divert('true')
+    d2 = Divert("true")
     rules2 = d2._parse_filter_to_ipfw()
     assert any("not dst-port 22" in r for r in rules2)
 
-    d3 = Divert('icmp')
+    d3 = Divert("icmp")
     rules3 = d3._parse_filter_to_ipfw()
     assert any("icmp" in r for r in rules3)
 
-    d4 = Divert('tcp.DstPort == 80 or tcp.DstPort == 8080')
+    d4 = Divert("tcp.DstPort == 80 or tcp.DstPort == 8080")
     rules4 = d4._parse_filter_to_ipfw()
     assert len(rules4) == 2
     assert "80" in rules4[0] or "80" in rules4[1]
@@ -262,15 +277,17 @@ def test_pydivert_bsd_facade(mock_socket, mock_subprocess):
             assert w._impl.__class__.__name__ == "Divert"
             assert w.is_open
 
+
 def test_bsd_recv_closed():
     d = Divert()
     with pytest.raises(RuntimeError):
         d.recv()
 
+
 def test_bsd_cleanup_all(mock_socket, mock_subprocess):
     d = Divert("true")
     d.open()
-    with patch.object(d, 'close', side_effect=Exception("cleanup fail")):
+    with patch.object(d, "close", side_effect=Exception("cleanup fail")):
         Divert.cleanup_all()
     assert d in Divert._instances
     Divert._instances.remove(d)

@@ -15,6 +15,7 @@ def test_pydivert_platform_selection():
         if "pydivert.linux" in sys.modules:
             del sys.modules["pydivert.linux"]
         from pydivert.linux import NetFilterQueue
+
         w = PyDivert()
         assert isinstance(w._impl, NetFilterQueue)
 
@@ -22,6 +23,7 @@ def test_pydivert_platform_selection():
         if "pydivert.bsd" in sys.modules:
             del sys.modules["pydivert.bsd"]
         from pydivert.bsd import Divert
+
         w = PyDivert()
         assert isinstance(w._impl, Divert)
 
@@ -29,12 +31,15 @@ def test_pydivert_platform_selection():
         if "pydivert.macos" in sys.modules:
             del sys.modules["pydivert.macos"]
         from pydivert.macos import MacOSDivert
+
         # Mock PF initialization or it will fail
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(stdout="Status: Enabled", returncode=0)
 
             import socket as real_socket
+
             original_socket = real_socket.socket
+
             def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
                 if family == real_socket.AF_INET and type == real_socket.SOCK_RAW:
                     return MagicMock()
@@ -48,12 +53,15 @@ def test_pydivert_platform_selection():
         # We need to mock WinDivert DLL loading or it will fail on Linux
         with patch("pydivert.windivert_dll.WinDivertOpen", return_value=123):
             from pydivert.windivert import WinDivert
+
             w = PyDivert()
             assert isinstance(w._impl, WinDivert)
+
 
 @pytest.mark.asyncio
 async def test_linux_nfq_mock():
     from pydivert.linux import NetFilterQueue
+
     # Mock NFQ and subprocess.run
     mock_nfq_lib = MagicMock()
     with patch("pydivert.linux.NFQ", mock_nfq_lib), patch("subprocess.run") as mock_run:
@@ -63,9 +71,9 @@ async def test_linux_nfq_mock():
         assert w.is_open
         p = MagicMock()
         packet_data = (
-            b'\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01'
-            b'\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00'
-            b'\x50\x02\x20\x00\x00\x00\x00\x00'
+            b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01"
+            b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
+            b"\x50\x02\x20\x00\x00\x00\x00\x00"
         )
         p.raw = memoryview(bytearray(packet_data))
         w.send(p)
@@ -100,6 +108,7 @@ async def test_linux_nfq_mock():
         with pytest.raises(ImportError):
             w.open()
 
+
 @pytest.mark.skipif(sys.platform == "win32", reason="WinDivert DLL will fail on this mock")
 @pytest.mark.asyncio
 async def test_bsd_divert_mock():
@@ -108,6 +117,7 @@ async def test_bsd_divert_mock():
     from scapy.all import IP, UDP, raw  # type: ignore
 
     from pydivert.bsd import Divert
+
     original_socket = real_socket.socket
     mock_socket_instance = MagicMock()
 
@@ -119,15 +129,17 @@ async def test_bsd_divert_mock():
     with patch("socket.socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
         # Provide a real IPv4 packet so Packet parsing doesn't fail
-        real_packet = raw(IP(dst="1.2.3.4")/UDP(dport=80)/b"payload")
+        real_packet = raw(IP(dst="1.2.3.4") / UDP(dport=80) / b"payload")
 
         call_count = 0
+
         def recv_side_effect(bufsize):
             nonlocal call_count
             if call_count == 0:
                 call_count += 1
                 return real_packet, ("1.2.3.4", 0)
             import time
+
             time.sleep(1.0)
             return b"", None
 
@@ -162,6 +174,7 @@ async def test_bsd_divert_mock():
             w = Divert()
             with pytest.raises(RuntimeError, match="Failed to apply ipfw rule"):
                 w.open()
+
 
 @pytest.mark.asyncio
 async def test_pydivert_methods_mock():
@@ -216,6 +229,7 @@ async def test_pydivert_methods_mock():
         async with w:
             pass
 
+
 def test_windivert_dll_init_mock():
     # Attempt to cover windivert_dll/__init__.py loading logic
     with patch("sys.platform", "win32"):
@@ -224,33 +238,41 @@ def test_windivert_dll_init_mock():
             # This is tricky because of the singleton-like nature of the module
             # but we can try to call _init directly if we find it
             from pydivert import windivert_dll
+
             try:
                 windivert_dll._init()
             except Exception:
                 pass
 
+
 def test_linux_nfq_errors():
     from pydivert.linux import NetFilterQueue
+
     w = NetFilterQueue()
     with pytest.raises(RuntimeError):
         w.recv()
     with pytest.raises(RuntimeError):
         w.send(MagicMock())
 
+
 def test_bsd_divert_errors():
     from pydivert.bsd import Divert
+
     w = Divert()
     with pytest.raises(RuntimeError):
         w.recv()
     with pytest.raises(RuntimeError):
         w.send(MagicMock())
 
+
 def test_unsupported_platform():
     with patch("sys.platform", "unknown"):
         # We need to clear the cache if any
         if "pydivert.pydivert" in sys.modules:
             import importlib
+
             importlib.reload(sys.modules["pydivert.pydivert"])
         from pydivert.pydivert import PyDivert
+
         with pytest.raises(NotImplementedError):
             PyDivert()

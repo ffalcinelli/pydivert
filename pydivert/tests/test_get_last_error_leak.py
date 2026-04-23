@@ -8,7 +8,7 @@ import pytest
 
 from pydivert import WinDivert
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
 
 def test_get_last_error_leak_mock():
@@ -38,6 +38,7 @@ def test_get_last_error_leak_real():
     error_code = 1234
     try:
         from typing import Any, cast
+
         cast(Any, ctypes.windll).kernel32.SetLastError(error_code)
     except (AttributeError, OSError, ImportError):
         pytest.skip("SetLastError not available (non-Windows)")

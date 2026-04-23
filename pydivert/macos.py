@@ -18,17 +18,18 @@ from pydivert.packet import Packet
 logger = logging.getLogger(__name__)
 
 # Pre-compiled regular expressions for efficiency
-_RE_LOOPBACK = re.compile(r'\bloopback\b', re.IGNORECASE)
-_RE_INBOUND = re.compile(r'\binbound\b', re.IGNORECASE)
-_RE_OUTBOUND = re.compile(r'\boutbound\b', re.IGNORECASE)
-_RE_WHITESPACE = re.compile(r'\s+')
-_RE_PF_KEYWORDS = re.compile(r'\b(inbound|outbound|and|or)\b', re.IGNORECASE)
-_RE_PROTO_TCP = re.compile(r'\btcp\b', re.IGNORECASE)
-_RE_PROTO_UDP = re.compile(r'\budp\b', re.IGNORECASE)
-_RE_PROTO_ICMP = re.compile(r'\bicmp\b', re.IGNORECASE)
+_RE_LOOPBACK = re.compile(r"\bloopback\b", re.IGNORECASE)
+_RE_INBOUND = re.compile(r"\binbound\b", re.IGNORECASE)
+_RE_OUTBOUND = re.compile(r"\boutbound\b", re.IGNORECASE)
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_PF_KEYWORDS = re.compile(r"\b(inbound|outbound|and|or)\b", re.IGNORECASE)
+_RE_PROTO_TCP = re.compile(r"\btcp\b", re.IGNORECASE)
+_RE_PROTO_UDP = re.compile(r"\budp\b", re.IGNORECASE)
+_RE_PROTO_ICMP = re.compile(r"\bicmp\b", re.IGNORECASE)
 _RE_SRC_ADDR = re.compile(r'ip\.SrcAddr\s*==\s*["\']?([\d\.]+)["\']?', re.IGNORECASE)
 _RE_DST_ADDR = re.compile(r'ip\.DstAddr\s*==\s*["\']?([\d\.]+)["\']?', re.IGNORECASE)
-_RE_PORT_MATCH = re.compile(r'(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)', re.IGNORECASE)
+_RE_PORT_MATCH = re.compile(r"(tcp|udp)\.(DstPort|SrcPort)\s*==\s*(\d+)", re.IGNORECASE)
+
 
 class MacOSDivert(BaseDivert):
     """
@@ -45,6 +46,7 @@ class MacOSDivert(BaseDivert):
     When the handle is closed, the injected rules and the custom anchor are
     automatically removed.
     """
+
     _instances: set[MacOSDivert] = set()
     _anchor_base = "com.apple/pydivert"
 
@@ -87,7 +89,7 @@ class MacOSDivert(BaseDivert):
                 f"{pf_extra} divert-packet port {self._port}"
             )
             # Clean up double spaces
-            rule = _RE_WHITESPACE.sub(' ', rule).strip()
+            rule = _RE_WHITESPACE.sub(" ", rule).strip()
             rules.append(rule)
         return rules
 
@@ -101,8 +103,8 @@ class MacOSDivert(BaseDivert):
         return ["in", "out"]
 
     def _get_pf_components(self, filter_str):
-        clean_filter = _RE_PF_KEYWORDS.sub(' ', filter_str).strip()
-        clean_filter = _RE_WHITESPACE.sub(' ', clean_filter)
+        clean_filter = _RE_PF_KEYWORDS.sub(" ", filter_str).strip()
+        clean_filter = _RE_WHITESPACE.sub(" ", clean_filter)
 
         proto = "ip"
         if _RE_PROTO_TCP.search(clean_filter):
@@ -127,7 +129,7 @@ class MacOSDivert(BaseDivert):
             proto = m.group(1).lower()
             port_type = m.group(2).lower()
             port = m.group(3)
-            if port_type == 'dstport':
+            if port_type == "dstport":
                 pf_to += f" port {port}"
             else:
                 pf_from += f" port {port}"  # pragma: no cover
@@ -141,20 +143,20 @@ class MacOSDivert(BaseDivert):
         logger.info("Opening macOS divert socket on port %d with filter: %s", self._port, self.filter)
 
         # 1. Open Socket
-        IPPROTO_DIVERT = getattr(socket, 'IPPROTO_DIVERT', 258)
+        IPPROTO_DIVERT = getattr(socket, "IPPROTO_DIVERT", 258)
         for _i in range(10):
             try:
                 self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
-                self._socket.bind(('0.0.0.0', self._port))
+                self._socket.bind(("0.0.0.0", self._port))
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
-                if getattr(e, 'errno', None) == 48 or "Address already in use" in str(e):
+                if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
                     self._port += 1
                     self._anchor_name = f"{self._anchor_base}.{self._port}"
                     continue
                 raise OSError(f"Failed to open divert socket on port {self._port}: {e}. Are you root?") from e
         else:  # pragma: no cover
-             raise OSError("Failed to find a free port for divert socket.")
+            raise OSError("Failed to find a free port for divert socket.")
 
         # 2. Configure PF
         try:
@@ -173,7 +175,10 @@ class MacOSDivert(BaseDivert):
 
             process = subprocess.Popen(
                 ["pfctl", "-a", self._anchor_name, "-f", "-"],
-                stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
             )
             stdout, stderr = process.communicate(input=rules_str)
             if process.returncode != 0:  # pragma: no cover
@@ -219,7 +224,7 @@ class MacOSDivert(BaseDivert):
         # On macOS divert sockets, addr[0] == '0.0.0.0' or '::' often indicates outbound.
         # However, for consistency with BSD and more reliability, we check if the
         # capture address is empty or zeroed.
-        is_outbound = (not addr or (isinstance(addr, (list, tuple)) and addr and addr[0] in ("0.0.0.0", "::")))
+        is_outbound = not addr or (isinstance(addr, (list, tuple)) and addr and addr[0] in ("0.0.0.0", "::"))
         direction = Direction.OUTBOUND if is_outbound else Direction.INBOUND
 
         p = Packet(data, direction=direction)
@@ -245,7 +250,7 @@ class MacOSDivert(BaseDivert):
             logger.info("Closing macOS divert socket on port %d", self._port)
             # Unblock the recv loop
             temp_sock = self._socket
-            self._socket = None # Mark as closed first
+            self._socket = None  # Mark as closed first
             try:
                 temp_sock.close()
             except Exception:  # pragma: no cover
@@ -278,7 +283,7 @@ class MacOSDivert(BaseDivert):
 
     async def recv_async(self) -> Packet:
         if not self.is_open:  # pragma: no cover
-             raise RuntimeError("Socket is not open.")
+            raise RuntimeError("Socket is not open.")
 
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()
@@ -300,7 +305,7 @@ class MacOSDivert(BaseDivert):
         if recalculate_checksum:
             packet.recalculate_checksums()
 
-        addr = getattr(packet, '_bsd_addr', (packet.dst_addr, 0))
+        addr = getattr(packet, "_bsd_addr", (packet.dst_addr, 0))
         try:
             raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
             return sock.sendto(raw_bytes, addr)
@@ -310,5 +315,6 @@ class MacOSDivert(BaseDivert):
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)
+
 
 atexit.register(MacOSDivert.cleanup_all)

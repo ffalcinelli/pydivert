@@ -11,13 +11,15 @@ def setup_module(module):
     if not (sys.platform.startswith("freebsd") or sys.platform == "darwin"):
         pytest.skip("BSD/macOS only tests")
 
+
 def test_bsd_open_close():
     # This might fail if not running as root
     import os
+
     d = Divert("tcp.DstPort == 80")
     try:
         d.open()
-        assert d.is_open or not d.is_open # Placeholder for actual check
+        assert d.is_open or not d.is_open  # Placeholder for actual check
     except Exception as e:
         if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:

@@ -343,7 +343,6 @@ class Packet:
         """The WinDivert flow metadata (for `Layer.FLOW`)."""
         return self._flow  # pragma: no cover
 
-
     @flow.setter
     def flow(self, val: Any | None) -> None:
         self._flow = val
@@ -619,8 +618,10 @@ class Packet:
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
         import sys
-        if sys.platform != 'win32':
+
+        if sys.platform != "win32":
             from pydivert.util import fallback_recalculate_checksums
+
             return fallback_recalculate_checksums(self, flags)
 
         buff, buff_ = self.__to_buffers()

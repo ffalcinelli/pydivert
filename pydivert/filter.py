@@ -43,12 +43,14 @@ WINDIVERT_GRAMMAR = r"""
     %ignore WS
 """
 
+
 class WinDivertTransformer(Transformer):
     """
     Extracts structured rule components from a WinDivert filter.
     Returns a list of dictionaries, where each dictionary represents a set of AND-ed conditions (a rule).
     The list represents an OR of these rules.
     """
+
     def __init__(self):
         super().__init__()
 
@@ -81,9 +83,9 @@ class WinDivertTransformer(Transformer):
         val = str(right)
 
         if field == "tcp.dstport" or field == "udp.dstport":
-            return [{"proto": field.split('.')[0], "dport": val}]
+            return [{"proto": field.split(".")[0], "dport": val}]
         if field == "tcp.srcport" or field == "udp.srcport":
-            return [{"proto": field.split('.')[0], "sport": val}]
+            return [{"proto": field.split(".")[0], "sport": val}]
         if field == "ip.srcaddr":
             return [{"srcaddr": val}]
         if field == "ip.dstaddr":
@@ -124,43 +126,68 @@ class WinDivertTransformer(Transformer):
         # 'NOT' is hard to transpile to simple firewall rules for complex cases
         return {}  # pragma: no cover
 
+
 class LegacyTransformer(Transformer):
     """
     Converts AST back to WinDivert filter string (used for testing/legacy).
     """
-    def true_val(self, _): return "true"
-    def false_val(self, _): return "false"
+
+    def true_val(self, _):
+        return "true"
+
+    def false_val(self, _):
+        return "false"
+
     def field_access(self, children):
         field_name = str(children[0])
         if len(children) > 1:  # pragma: no cover
             index = children[1]  # pragma: no cover
             return f"{field_name}[{index}]"  # pragma: no cover
         return field_name
-    def index(self, children): return "".join(map(str, children))
-    def value(self, children): return str(children[0])
+
+    def index(self, children):
+        return "".join(map(str, children))
+
+    def value(self, children):
+        return str(children[0])
+
     def comparison(self, children):
         return f"{children[0]} {children[1]} {children[2]}"
-    def logic_and(self, children): return " && ".join(map(str, children))
-    def logic_or(self, children): return " || ".join(map(str, children))
-    def not_expr(self, children): return f"!({children[0]})"
-    def ternary(self, children): return f"({children[0]} ? {children[1]} : {children[2]})"
-    def parenthesized(self, children): return f"({children[0]})"
-    def expression(self, children): return str(children[0])
+
+    def logic_and(self, children):
+        return " && ".join(map(str, children))
+
+    def logic_or(self, children):
+        return " || ".join(map(str, children))
+
+    def not_expr(self, children):
+        return f"!({children[0]})"
+
+    def ternary(self, children):
+        return f"({children[0]} ? {children[1]} : {children[2]})"
+
+    def parenthesized(self, children):
+        return f"({children[0]})"
+
+    def expression(self, children):
+        return str(children[0])
+
 
 def transpile(filter_str):
     """
     Legacy transpile function that returns the filter string representation.
     """
-    parser = Lark(WINDIVERT_GRAMMAR, start='start', parser='lalr')
+    parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
     tree = parser.parse(filter_str)
     return LegacyTransformer().transform(tree)
+
 
 def transpile_to_rules(filter_str):
     """
     Parses a WinDivert filter and returns a list of rule components for backends.
     """
     try:
-        parser = Lark(WINDIVERT_GRAMMAR, start='start', parser='lalr')
+        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
         tree = parser.parse(filter_str)
         transformer = WinDivertTransformer()
         rules = transformer.transform(tree)

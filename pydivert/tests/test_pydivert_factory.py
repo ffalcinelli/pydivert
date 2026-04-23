@@ -17,16 +17,19 @@ def test_pydivert_factory():
     else:
         pytest.skip("Test only for Linux")
 
+
 def test_transpiler_basic():
     filter_str = "tcp.DstPort == 80"
     # For now it just returns the same string as we haven't implemented BPF mapping yet
     result = transpile(filter_str)
     assert result == "tcp.DstPort == 80"
 
+
 def test_transpiler_complex():
     filter_str = "tcp.DstPort == 80 && (ip.SrcAddr == 127.0.0.1 || outbound)"
     result = transpile(filter_str)
     assert result == "tcp.DstPort == 80 && (ip.SrcAddr == 127.0.0.1 || outbound)"
+
 
 def test_transpiler_ternary():
     filter_str = "outbound ? tcp.DstPort == 80 : tcp.SrcPort == 80"

@@ -43,11 +43,13 @@ import pydivert
 def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized."""
     import os
+
     try:
         with pydivert.PyDivert("true"):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
         import sys
+
         if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
@@ -64,6 +66,7 @@ def get_free_port():
 
 def _run_http_redirection_diverter(filt, fake_port, real_port, stop_event, use_async):  # noqa: C901
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -74,6 +77,7 @@ def _run_http_redirection_diverter(filt, fake_port, real_port, stop_event, use_a
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -123,9 +127,7 @@ def test_http_port_redirection(use_async):  # noqa: C901
     stop_event = threading.Event()
 
     divert_thread = threading.Thread(
-        target=_run_http_redirection_diverter,
-        args=(filt, fake_port, real_port, stop_event, use_async),
-        daemon=True
+        target=_run_http_redirection_diverter, args=(filt, fake_port, real_port, stop_event, use_async), daemon=True
     )
     divert_thread.start()
 
@@ -148,6 +150,7 @@ def test_http_port_redirection(use_async):  # noqa: C901
 
 def _run_http_modification_diverter(filt, stop_event, use_async):
     if use_async:
+
         async def run_async():
             async with pydivert.PyDivert(filt) as w:
                 async for packet in w:
@@ -156,6 +159,7 @@ def _run_http_modification_diverter(filt, stop_event, use_async):
                     await w.send_async(packet)
                     if stop_event.is_set():
                         break
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
@@ -198,9 +202,7 @@ def test_http_modification(use_async):  # noqa: C901
     stop_event = threading.Event()
 
     divert_thread = threading.Thread(
-        target=_run_http_modification_diverter,
-        args=(filt, stop_event, use_async),
-        daemon=True
+        target=_run_http_modification_diverter, args=(filt, stop_event, use_async), daemon=True
     )
     divert_thread.start()
 

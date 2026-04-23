@@ -94,6 +94,7 @@ if TYPE_CHECKING:
     def WinDivertGetParam(pHandle: HANDLE, param: int, pValue: Any) -> int: ...
     def WinDivertSetParam(pHandle: HANDLE, param: int, value: int) -> int: ...
 
+
 try:
     from ctypes import (
         POINTER,
@@ -112,6 +113,7 @@ try:
     from ctypes import (
         windll as _windll,
     )
+
     windll = _windll
     WinDLL = _WinDLL
 
@@ -176,6 +178,7 @@ except (ImportError, AttributeError):  # pragma: no cover
         c_uint64,
         c_void_p,
     )
+
     windll = None
     WinDLL = ctypes.cdll.LoadLibrary if hasattr(ctypes.cdll, "LoadLibrary") else None
 
@@ -215,6 +218,7 @@ except (ImportError, AttributeError):  # pragma: no cover
         if code is not None:
             err.winerror = code
         return err
+
 
 ERROR_IO_PENDING = 997
 INFINITE = 0xFFFFFFFF

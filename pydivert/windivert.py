@@ -142,9 +142,7 @@ class WinDivert(BaseDivert):
         """
         res, pos, msg = 0, c_uint(), c_char_p()
         try:
-            res = windivert_dll.WinDivertHelperCompileFilter(
-                filter.encode(), layer, None, 0, byref(msg), byref(pos)
-            )
+            res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
         except OSError as e:
             logger.warning("WinDivertHelperCompileFilter failed: %s", e)
         return bool(res), pos.value, msg.value.decode() if msg.value else ""
@@ -264,9 +262,7 @@ class WinDivert(BaseDivert):
                     if error == windivert_dll.ERROR_IO_PENDING:
                         # Wait for the event in a thread pool without blocking the main event loop
                         loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(
-                            None, windivert_dll.WaitForSingleObject, event, INFINITE
-                        )
+                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
 
                         # Get actual result (bytes transferred)
                         res_ok = windivert_dll.GetOverlappedResult(
@@ -286,9 +282,7 @@ class WinDivert(BaseDivert):
                 windivert_dll.CancelIoEx(self._handle, byref(overlapped))
                 # Wait for cancellation to complete to ensure it's safe to close the event and free the buffer
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
-                    None, windivert_dll.WaitForSingleObject, event, INFINITE
-                )
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
                 raise
             except Exception:  # pragma: no cover
                 if overlapped in self._pending_ops:
@@ -419,9 +413,7 @@ class WinDivert(BaseDivert):
         send_len = c_uint(0)
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
-        windivert_dll.WinDivertSend(
-            self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr)
-        )
+        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
         return send_len.value
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
@@ -468,9 +460,7 @@ class WinDivert(BaseDivert):
                     if error == windivert_dll.ERROR_IO_PENDING:
                         # Wait for the event in a thread pool without blocking the main event loop
                         loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(
-                            None, windivert_dll.WaitForSingleObject, event, INFINITE
-                        )
+                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
 
                         # Get actual result (bytes transferred)
                         res_ok = windivert_dll.GetOverlappedResult(
@@ -490,9 +480,7 @@ class WinDivert(BaseDivert):
                 windivert_dll.CancelIoEx(self._handle, byref(overlapped))
                 # Wait for cancellation to complete
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
-                    None, windivert_dll.WaitForSingleObject, event, INFINITE
-                )
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
                 raise
             except Exception:  # pragma: no cover
                 if overlapped in self._pending_ops:

@@ -22,6 +22,7 @@ try:
 except ImportError:  # pragma: no cover
     NFQ = None
 
+
 class NetFilterQueue(BaseDivert):
     """
     Linux implementation of the Divert interface using **NetFilterQueue** (NFQUEUE) and **iptables**.
@@ -49,6 +50,7 @@ class NetFilterQueue(BaseDivert):
        disconnect your session if not handled properly. This implementation automatically
        tries to exclude port 22 traffic for safety.
     """
+
     _instances: set[NetFilterQueue] = set()
 
     def __init__(
@@ -115,10 +117,7 @@ class NetFilterQueue(BaseDivert):
             chains = ["OUTPUT", "FORWARD"]
 
         if rule_dict.get("loopback"):
-            return [
-                (["INPUT"], ["-i", "lo"]),
-                (["OUTPUT"], ["-o", "lo"])
-            ]
+            return [(["INPUT"], ["-i", "lo"]), (["OUTPUT"], ["-o", "lo"])]
         return [(chains, ipt_args)]
 
     def open(self) -> None:
@@ -135,7 +134,8 @@ class NetFilterQueue(BaseDivert):
                 for chain in chains:
                     subprocess.run(
                         ["iptables", "-I", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
-                        check=True, capture_output=True
+                        check=True,
+                        capture_output=True,
                     )
         except Exception as e:  # pragma: no cover
             self.close()
@@ -181,7 +181,8 @@ class NetFilterQueue(BaseDivert):
                         continue  # pragma: no cover
                     subprocess.run(
                         ["iptables", "-D", chain, *r, "-j", "NFQUEUE", "--queue-num", str(self._queue_num)],
-                        check=False, stderr=subprocess.DEVNULL
+                        check=False,
+                        stderr=subprocess.DEVNULL,
                     )
             except Exception:  # pragma: no cover
                 pass
@@ -206,7 +207,7 @@ class NetFilterQueue(BaseDivert):
         outdev = getattr(pkt, "outdev", 0)
 
         # Interface index 1 is almost always 'lo' on Linux.
-        is_loopback = (indev == 1 or outdev == 1)
+        is_loopback = indev == 1 or outdev == 1
 
         # Direction
         if outdev > 0 and indev == 0:
@@ -240,7 +241,7 @@ class NetFilterQueue(BaseDivert):
             logger.info("Closing NetFilterQueue %d", self._queue_num)
             self._stop_event.set()
             temp_nfq = self._nfqueue
-            self._nfqueue = None # Mark as closed first
+            self._nfqueue = None  # Mark as closed first
             try:
                 temp_nfq.unbind()
             except Exception:  # pragma: no cover
@@ -286,7 +287,7 @@ class NetFilterQueue(BaseDivert):
         if recalculate_checksum:
             packet.recalculate_checksums()
 
-        nfq_pkt = getattr(packet, '_nfq_pkt', None)
+        nfq_pkt = getattr(packet, "_nfq_pkt", None)
         if nfq_pkt:
             raw = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
             try:
@@ -310,5 +311,6 @@ class NetFilterQueue(BaseDivert):
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self.send(packet, recalculate_checksum)
+
 
 atexit.register(NetFilterQueue._cleanup_all)

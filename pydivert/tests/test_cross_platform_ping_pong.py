@@ -14,6 +14,7 @@ def setup_module(module):
     Requires Administrator (Windows) or Root (Linux/BSD) privileges.
     """
     import os
+
     try:
         with PyDivert("true"):
             pass
@@ -77,6 +78,7 @@ def _run_diverter(filter_str, stop_event, captured_count):
 
 async def _run_diverter_async(filter_str, stop_event, captured_count):
     import asyncio
+
     try:
         print(f"Async Diverter starting with filter: {filter_str}")
         async with PyDivert(filter_str) as w:
@@ -129,16 +131,15 @@ def test_ping_pong_modification(use_async):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(_run_diverter_async(filter_str, divert_stop_event, captured_count))
+
         divert_thread = threading.Thread(target=run_async_diverter, daemon=True)
     else:
         divert_thread = threading.Thread(
-            target=_run_diverter,
-            args=(filter_str, divert_stop_event, captured_count),
-            daemon=True
+            target=_run_diverter, args=(filter_str, divert_stop_event, captured_count), daemon=True
         )
 
     divert_thread.start()
-    time.sleep(2.0) # Wait for diverter to initialize
+    time.sleep(2.0)  # Wait for diverter to initialize
 
     # Retry mechanism for flakiness in CI
     max_retries = 3
@@ -157,13 +158,14 @@ def test_ping_pong_modification(use_async):
                         print(f"Client received response: {resp}")
                         assert resp == b"Modified: Hello PyDivert"
                         assert captured_count[0] > 0
-                        return # Success!
+                        return  # Success!
                     except TimeoutError as e:
                         if attempt < max_retries - 1:
                             print(f"Attempt {attempt + 1} timed out, retrying...")
                             time.sleep(1.0)
                             continue
                         import os
+
                         if os.environ.get("GITHUB_ACTIONS"):
                             pytest.fail(
                                 f"Integration timeout on {sys.platform} in CI after {max_retries} attempts: {e}. "
@@ -188,4 +190,5 @@ def test_ping_pong_modification(use_async):
 if __name__ == "__main__":
     # For manual testing
     import unittest
+
     unittest.main()

@@ -7,7 +7,7 @@ import pytest
 
 from pydivert import WinDivert
 
-pytestmark = pytest.mark.skipif(sys.platform != 'win32', reason="Windows only")
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
 
 class MockOverlapped:

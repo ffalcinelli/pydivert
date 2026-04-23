@@ -37,8 +37,9 @@ FILTERS = [
 ]
 UNSUPPORTED_FILTERS = [
     "tcp.PayloadLength > 0",
-    "ip.Protocol == 17", # Protocol comparison not supported yet
+    "ip.Protocol == 17",  # Protocol comparison not supported yet
 ]
+
 
 @pytest.mark.parametrize("filter_str", FILTERS)
 def test_filter_compatibility_supported(filter_str):
@@ -62,6 +63,7 @@ def test_filter_compatibility_supported(filter_str):
     except Exception as e:
         pytest.fail(f"Filter '{filter_str}' failed on {sys.platform}: {e}")
 
+
 @pytest.mark.parametrize("filter_str", UNSUPPORTED_FILTERS)
 def test_filter_compatibility_unsupported(filter_str):
     """
@@ -84,6 +86,7 @@ def test_filter_compatibility_unsupported(filter_str):
     else:
         # On Windows, WinDivert might accept some of these
         pass
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
