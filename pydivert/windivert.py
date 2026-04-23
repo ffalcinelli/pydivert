@@ -316,6 +316,11 @@ class WinDivert(BaseDivert):
                 await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
                 raise
             except Exception:  # pragma: no cover
+                # Cancel the pending operation if handle is still open
+                if self._handle:
+                    windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                    # We don't wait for completion here to avoid hanging on unexpected errors,
+                    # but the driver should stop using the buffers soon.
                 if overlapped in self._pending_ops:
                     self._pending_ops.remove(overlapped)
                 raise
@@ -535,6 +540,11 @@ class WinDivert(BaseDivert):
                 await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
                 raise
             except Exception:  # pragma: no cover
+                # Cancel the pending operation if handle is still open
+                if self._handle:
+                    windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                    # We don't wait for completion here to avoid hanging on unexpected errors,
+                    # but the driver should stop using the buffers soon.
                 if overlapped in self._pending_ops:
                     self._pending_ops.remove(overlapped)
                 raise
