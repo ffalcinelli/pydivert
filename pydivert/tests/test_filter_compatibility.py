@@ -79,10 +79,8 @@ def test_filter_compatibility_unsupported(filter_str):
             assert len(rules) == 0 or (len(rules) == 1 and not rules[0][1])
         else:
             rules = w._impl._parse_filter_to_ipfw()
-            # On FreeBSD, unsupported filter produces a generic rule starting with divert prefix
-            prefix = f"divert {w._impl._port} ip from any to any"
-            for rule in rules:
-                assert rule.strip() == prefix
+            # On FreeBSD, unsupported filter produces generic rules that protect SSH
+            assert any("not dst-port 22 not src-port 22" in rule for rule in rules)
     else:
         # On Windows, WinDivert might accept some of these
         pass

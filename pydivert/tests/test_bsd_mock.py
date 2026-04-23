@@ -233,6 +233,12 @@ def test_bsd_parse_filter_extended():
     rules3 = d3._parse_filter_to_ipfw()
     assert any("icmp" in r for r in rules3)
 
+    d4 = Divert('tcp.DstPort == 80 or tcp.DstPort == 8080')
+    rules4 = d4._parse_filter_to_ipfw()
+    assert len(rules4) == 2
+    assert "80" in rules4[0] or "80" in rules4[1]
+    assert "8080" in rules4[0] or "8080" in rules4[1]
+
 
 def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
     with patch("socket.socket", side_effect=OSError(48, "Address already in use")):

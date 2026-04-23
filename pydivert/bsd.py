@@ -61,30 +61,47 @@ class Divert(BaseDivert):
 
     def _parse_filter_to_ipfw(self) -> list[str]:
         rules = []
-        prefix = f"divert {self._port}"
 
         if self._translated_filter.lower() == "true":
-            rules.append(f"{prefix} tcp from any to any not dst-port 22 not src-port 22")
-            rules.append(f"{prefix} udp from any to any")
-            rules.append(f"{prefix} icmp from any to any")
+            rules.append("tcp from any to any not dst-port 22 not src-port 22")
+            rules.append("udp from any to any")
+            rules.append("icmp from any to any")
             return rules
 
         parsed_rules = transpile_to_rules(self._translated_filter)
         for rule_dict in parsed_rules:
             if not rule_dict:
-                rules.append(f"{prefix} ip from any to any")  # pragma: no cover
-                continue  # pragma: no cover
-            rules.append(self._build_ipfw_rule(rule_dict, prefix))
-        return rules
+                # Broad fallback, but protect SSH
+                rules.append("tcp from any to any not dst-port 22 not src-port 22")
+                rules.append("udp from any to any")
+                rules.append("icmp from any to any")
+                continue
+
+            # If the rule is for TCP/IP and doesn't specify ports, protect SSH
+            proto = rule_dict.get("proto", "ip")
+            if (proto in ("tcp", "ip")) and not rule_dict.get("dport") and not rule_dict.get("sport"):
+                 if proto == "ip":
+                     # For broad IP rules, we must explicitly allow SSH to avoid interception
+                     rules.append("tcp from any to any not dst-port 22 not src-port 22")
+                     rules.append("udp from any to any")
+                     rules.append("icmp from any to any")
+                 else:
+                     rules.append(self._build_ipfw_rule(rule_dict, "") + " not dst-port 22 not src-port 22")
+            else:
+                rules.append(self._build_ipfw_rule(rule_dict, ""))
+        return [r.strip() for r in rules]
 
     def _build_ipfw_rule(self, rule_dict: dict[str, Any], prefix: str) -> str:
         proto = rule_dict.get("proto", "ip")
         src = rule_dict.get("srcaddr", "any")
         dst = rule_dict.get("dstaddr", "any")
 
-        parts = [prefix, proto, "from", src]
+        parts = []
+        if prefix:
+            parts.append(prefix)
+        parts.extend([proto, "from", src])
         if sport := rule_dict.get("sport"):
-            parts.append(str(sport))  # pragma: no cover
+            parts.append(str(sport))
 
         parts.extend(["to", dst])
         if dport := rule_dict.get("dport"):
@@ -94,12 +111,13 @@ class Divert(BaseDivert):
         if direction == "inbound":
             parts.append("in")
         elif direction == "outbound":
-            parts.append("out")  # pragma: no cover
+            parts.append("out")
 
         if rule_dict.get("loopback"):
-            parts.append("via lo0")  # pragma: no cover
+            parts.append("via lo0")
 
         return " ".join(parts)
+
     def open(self) -> None:
         if self.is_open:  # pragma: no cover
             raise RuntimeError("Divert handle is already open.")
@@ -122,10 +140,13 @@ class Divert(BaseDivert):
             self._applied_rules_with_numbers = []
             rules = self._parse_filter_to_ipfw()
             base_rule_num = 50 + (self._priority % 100)
+            prefix = f"divert {self._port}"
             for idx, r in enumerate(rules):
                 rule_num = base_rule_num + idx
+                # ipfw add [num] divert [port] [rule...]
+                cmd = ["ipfw", "add", str(rule_num)] + prefix.split() + r.split()
                 try:
-                    subprocess.run(["ipfw", "add", str(rule_num)] + r.split(), check=True, capture_output=True)
+                    subprocess.run(cmd, check=True, capture_output=True)
                     self._applied_rules_with_numbers.append((rule_num, r))
                 except Exception as e:  # pragma: no cover
                     self.close()
@@ -165,6 +186,13 @@ class Divert(BaseDivert):
                         self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
                 else:
                     # Packet didn't match our filter, re-inject immediately using the original addr
+
+                    # On FreeBSD loopback, packets often have invalid checksums due to offloading.
+                    # We must recalculate them before re-injection, otherwise the stack might drop them.
+                    if p.is_loopback and p.ip:
+                        p.recalculate_checksums()
+                        data = p.raw.tobytes()
+
                     if isinstance(addr, (list, tuple)) and len(addr) >= 2:
                         send_addr = (str(addr[0]), int(addr[1]))
                     else:
@@ -193,7 +221,8 @@ class Divert(BaseDivert):
             # Unblock the recv loop by closing the socket
             temp_sock = self._socket
             self._socket = None
-            temp_sock.close()
+            if temp_sock:
+                temp_sock.close()
 
         if self in Divert._instances:
             Divert._instances.remove(self)

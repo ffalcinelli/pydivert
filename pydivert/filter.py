@@ -9,9 +9,9 @@ WINDIVERT_GRAMMAR = r"""
 
     ?ternary: logic_or "?" expression ":" expression
 
-    ?logic_or: logic_and ("||" logic_and)*
-    ?logic_and: logic_not ("&&" logic_not)*
-    ?logic_not: "!" logic_not -> not_expr
+    ?logic_or: logic_and (("||" | "or") logic_and)*
+    ?logic_and: logic_not (("&&" | "and") logic_not)*
+    ?logic_not: ("!" | "not") logic_not -> not_expr
               | comparison
               | primary
 
@@ -56,63 +56,56 @@ class WinDivertTransformer(Transformer):
         return children[0]  # pragma: no cover
 
     def logic_or(self, children):
-        # Flatten OR: list of rules
+        # children is [list_of_dicts, operator, list_of_dicts, ...]
         rules = []
         for child in children:
             if isinstance(child, list):
-                rules.extend(child)  # pragma: no cover
-            else:
-                rules.append(child)
+                rules.extend(child)
         return rules
 
     def logic_and(self, children):
-        # Merge AND: single rule with merged conditions
+        # Cartesian product of rule lists for AND (simplified for kernel rules)
+        # For simplicity, we just merge the first rule from each list
         merged = {}
         for child in children:
-            # If child is a list (from a sub-OR), we can't easily merge it into a single rule
-            # For simplicity in kernel transpilation, we take the first "compatible" part
-            # or treat it as a broad rule.
-            if isinstance(child, list):
-                 if len(child) > 0:  # pragma: no cover
-                     merged.update(child[0])  # pragma: no cover
-            else:
-                merged.update(child)
+            if isinstance(child, list) and child:
+                merged.update(child[0])
         return [merged]
 
     def comparison(self, children):
         left, op, right = children
         if op != "==":
-            return {} # Kernel filters mostly support equality for these fields
+            return [{}]
 
         field = str(left).lower()
         val = str(right)
 
         if field == "tcp.dstport" or field == "udp.dstport":
-            return {"proto": field.split('.')[0], "dport": val}
+            return [{"proto": field.split('.')[0], "dport": val}]
         if field == "tcp.srcport" or field == "udp.srcport":
-            return {"proto": field.split('.')[0], "sport": val}
+            return [{"proto": field.split('.')[0], "sport": val}]
         if field == "ip.srcaddr":
-            return {"srcaddr": val}
+            return [{"srcaddr": val}]
         if field == "ip.dstaddr":
-            return {"dstaddr": val}
-        return {}
+            return [{"dstaddr": val}]
+        return [{}]
 
     def field_access(self, children):
         name = str(children[0]).lower()
         if name == "ip":
-            return {"proto": "ip"}
+            return [{"proto": "ip"}]
         if name == "tcp":
-            return {"proto": "tcp"}
+            return [{"proto": "tcp"}]
         if name == "udp":
-            return {"proto": "udp"}
+            return [{"proto": "udp"}]
         if name == "icmp":
-            return {"proto": "icmp"}
+            return [{"proto": "icmp"}]
         if name == "inbound":
-            return {"direction": "inbound"}
+            return [{"direction": "inbound"}]
         if name == "outbound":
-            return {"direction": "outbound"}
+            return [{"direction": "outbound"}]
         if name == "loopback":
-            return {"loopback": True}
+            return [{"loopback": True}]
         return name
 
     def value(self, children):
