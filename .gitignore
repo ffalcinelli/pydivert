@@ -43,4 +43,4 @@ sbom.json
 
 # Local development
 node_modules/
-test_run.log
+*.log

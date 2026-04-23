@@ -40,7 +40,7 @@ def setup_module(module):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
         import sys
-        if os.environ.get("GITHUB_ACTIONS"):
+        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
             else:

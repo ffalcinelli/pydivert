@@ -6,7 +6,7 @@ import sys
 import time
 
 # Define all targets, including 'local' for the host OS
-TARGETS = ["local", "windows", "linux", "freebsd"]
+TARGETS = ["local", "windows", "linux", "freebsd", "macos"]
 
 
 class Tee:

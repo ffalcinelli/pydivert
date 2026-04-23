@@ -22,7 +22,7 @@ async def test_unified_open_close():
         if "os" in locals() or "os" in globals() or "GITHUB_ACTIONS" in str(e): # simplistic
             pass
         import os
-        if os.environ.get("GITHUB_ACTIONS"):
+        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
              if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                  pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
              else:
@@ -41,7 +41,7 @@ async def test_unified_async_context_manager():
             assert w is not None
     except (RuntimeError, NotImplementedError, OSError, ImportError) as e:
         import os
-        if os.environ.get("GITHUB_ACTIONS"):
+        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
              if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                  pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
              else:

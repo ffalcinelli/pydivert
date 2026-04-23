@@ -32,6 +32,10 @@ if ($uvPath) {
     Write-Warning "uv.exe not found in common locations!"
 }
 
+# Set VAGRANT_VM environment variable for troubleshooting tests
+[System.Environment]::SetEnvironmentVariable("VAGRANT_VM", "1", "Machine")
+$env:VAGRANT_VM = "1"
+
 # Use a local virtual environment on the VM's C: drive to avoid issues with VirtualBox shared folders
 $env:UV_PROJECT_ENVIRONMENT = "C:\pydivert_venv"
 

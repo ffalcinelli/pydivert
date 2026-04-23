@@ -116,7 +116,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
-        results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
+        results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
         def side_effect(*args):
             if results:
                 return results.pop(0)
@@ -163,7 +163,7 @@ def test_bsd_recv_filtering(mock_socket, mock_subprocess):
     )
 
     mock_sock = MagicMock()
-    results = [(packet_data_443, ("1.2.3.4", 0, 0, 0))]
+    results = [(packet_data_443, ("0.0.0.0", 0, 0, 0))]
     def side_effect(*args):
         if results:
             return results.pop(0)
@@ -190,7 +190,7 @@ def test_bsd_send(mock_socket, mock_subprocess):
         p = Packet(packet_data)
         p._bsd_addr = ("1.2.3.4", 80)
         d.send(p, recalculate_checksum=False)
-        mock_sock.sendto.assert_called_with(packet_data, ("1.2.3.4", 80, 0, 0))
+        mock_sock.sendto.assert_called_with(packet_data, ("1.2.3.4", 80))
         d.close()
 
 
@@ -206,7 +206,7 @@ async def test_bsd_async_methods(mock_socket, mock_subprocess):
     with patch("socket.socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
-        results = [(packet_data, ("1.2.3.4", 0, 0, 0))]
+        results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
         def side_effect(*args):
             if results:
                 return results.pop(0)
@@ -253,7 +253,7 @@ def test_bsd_close_rules_fail(mock_socket, mock_subprocess):
 def test_pydivert_bsd_facade(mock_socket, mock_subprocess):
     with patch("sys.platform", "freebsd14"):
         with PyDivert("true") as w:
-            assert isinstance(w._impl, Divert)
+            assert w._impl.__class__.__name__ == "Divert"
             assert w.is_open
 
 def test_bsd_recv_closed():

@@ -14,6 +14,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 mv /root/.local/bin/uv /usr/local/bin/uv
 mv /root/.local/bin/uvx /usr/local/bin/uvx
 
+# Set VAGRANT_VM environment variable for troubleshooting tests
+echo "export VAGRANT_VM=1" >> /home/vagrant/.bashrc
+echo "export VAGRANT_VM=1" >> /root/.bashrc
+
 # Enable routing of local traffic to allow NFQUEUE on loopback more easily
 sysctl -w net.ipv4.conf.all.route_localnet=1
 

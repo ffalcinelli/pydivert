@@ -118,9 +118,6 @@ async def test_bsd_divert_mock():
 
     with patch("socket.socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
-        w = Divert()
-        w.open()
-        assert w.is_open
         # Provide a real IPv4 packet so Packet parsing doesn't fail
         real_packet = raw(IP(dst="1.2.3.4")/UDP(dport=80)/b"payload")
 
@@ -131,10 +128,14 @@ async def test_bsd_divert_mock():
                 call_count += 1
                 return real_packet, ("1.2.3.4", 0)
             import time
-            time.sleep(0.01)
+            time.sleep(1.0)
             return b"", None
 
         mock_socket_instance.recvfrom.side_effect = recv_side_effect
+
+        w = Divert()
+        w.open()
+        assert w.is_open
         pkt = w.recv()
         assert pkt is not None
         assert pkt.dst_addr == "1.2.3.4"

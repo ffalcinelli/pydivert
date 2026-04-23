@@ -19,7 +19,7 @@ def test_bsd_open_close():
         d.open()
         assert d.is_open or not d.is_open # Placeholder for actual check
     except Exception as e:
-        if os.environ.get("GITHUB_ACTIONS"):
+        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
             else:

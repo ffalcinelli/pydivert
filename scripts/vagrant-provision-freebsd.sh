@@ -39,3 +39,4 @@ python3.11 -m venv "$VENV_PATH"
 
 # Add venv to path for convenience
 echo "export PATH=\"$VENV_PATH/bin:\$PATH\"" >> /home/vagrant/.bash_profile
+echo "export VAGRANT_VM=1" >> /home/vagrant/.bash_profile

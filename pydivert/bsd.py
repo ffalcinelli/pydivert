@@ -147,11 +147,12 @@ class Divert(BaseDivert):
                 if not data:
                     continue
                 # addr is (ip_addr, port, flowinfo, scopeid) on FreeBSD for divert sockets.
-                # The port field encodes direction (0 for outbound) and interface index.
+                # The ip_addr field is INADDR_ANY (0.0.0.0) for outbound packets,
+                # and the interface address for inbound packets.
+                # The port field encodes the ipfw rule number.
                 ip_addr = addr[0] if addr else '0.0.0.0'
-                port = addr[1] if addr and len(addr) >= 2 else 0
-
-                direction = Direction.OUTBOUND if port == 0 else Direction.INBOUND
+                
+                direction = Direction.OUTBOUND if ip_addr == '0.0.0.0' else Direction.INBOUND
                 # On loopback, FreeBSD divert socket often gives '0.0.0.0' or '127.0.0.1'
                 is_loopback = (ip_addr == '0.0.0.0' or ip_addr == '127.0.0.1' or ip_addr == '::1' or not ip_addr)
 
@@ -164,12 +165,10 @@ class Divert(BaseDivert):
                         self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
                 else:
                     # Packet didn't match our filter, re-inject immediately using the original addr
-                    send_addr = addr
-                    if isinstance(send_addr, (list, tuple)) and len(send_addr) < 4:  # pragma: no cover
-                        send_addr = list(send_addr)
-                        while len(send_addr) < 4:
-                            send_addr.append(0)
-                        send_addr = tuple(send_addr)
+                    if isinstance(addr, (list, tuple)) and len(addr) >= 2:
+                        send_addr = (str(addr[0]), int(addr[1]))
+                    else:
+                        send_addr = (str(addr), 0)
                     sock.sendto(data, send_addr)
             except Exception as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
@@ -241,19 +240,14 @@ class Divert(BaseDivert):
             raw_bytes = packet.raw.tobytes() if hasattr(packet.raw, "tobytes") else packet.raw
 
             # On FreeBSD, re-inject using the address info from capture.
-            # Divert sockets expect a 4-tuple (ip, port, flowinfo, scopeid)
-            # or at least a tuple that can be cast to sockaddr_in.
-            if not isinstance(addr, (list, tuple)):
-                addr = (str(addr), 0, 0, 0)
+            # While divert sockets return a 4-tuple, Python's AF_INET socket.sendto
+            # expects a 2-tuple (host, port).
+            if isinstance(addr, (list, tuple)) and len(addr) >= 2:
+                send_addr = (str(addr[0]), int(addr[1]))
+            else:
+                send_addr = (str(addr), 0)
 
-            if len(addr) < 4:
-                # Pad with zeros if it's just (ip, port)
-                send_addr = list(addr)
-                while len(send_addr) < 4:
-                    send_addr.append(0)
-                addr = tuple(send_addr)
-
-            return sock.sendto(raw_bytes, addr)
+            return sock.sendto(raw_bytes, send_addr)
         except Exception as e:  # pragma: no cover
             logger.error(f"Failed to send packet on BSD: {e}")
             raise
