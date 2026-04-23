@@ -2,7 +2,7 @@
 import sys
 
 from pydivert.base import BaseDivert
-from pydivert.consts import Flag, Layer
+from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Flag, Layer
 from pydivert.packet import Packet
 
 
@@ -80,11 +80,11 @@ class PyDivert(BaseDivert):
     def is_open(self) -> bool:
         return self._impl.is_open
 
-    def recv(self) -> Packet:
-        return self._impl.recv()
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+        return self._impl.recv(bufsize, timeout)
 
-    async def recv_async(self) -> Packet:
-        return await self._impl.recv_async()
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+        return await self._impl.recv_async(bufsize, timeout)
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         return self._impl.send(packet, recalculate_checksum)

@@ -12,7 +12,7 @@ import threading
 import time
 
 from pydivert.base import BaseDivert
-from pydivert.consts import Direction, Flag, Layer
+from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
 from pydivert.packet import Packet
 
 logger = logging.getLogger(__name__)
@@ -272,19 +272,19 @@ class MacOSDivert(BaseDivert):
     def is_open(self) -> bool:
         return self._socket is not None
 
-    def recv(self) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = 0.1) -> Packet:
         if not self.is_open and self._queue.empty():
             raise RuntimeError("Socket is not open.")
         while not self._stop_event.is_set() or not self._queue.empty():
             try:
-                return self._queue.get(timeout=0.1)
+                return self._queue.get(timeout=timeout)
             except queue.Empty:  # pragma: no cover
                 if self._stop_event.is_set():
                     break
                 continue
         raise RuntimeError("Socket closed during recv or queue is empty.")  # pragma: no cover
 
-    async def recv_async(self) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if not self.is_open:  # pragma: no cover
             raise RuntimeError("Socket is not open.")
 
@@ -298,6 +298,8 @@ class MacOSDivert(BaseDivert):
             except (queue.Empty, asyncio.QueueFull):  # pragma: no cover
                 pass
 
+        if timeout is not None:
+            return await asyncio.wait_for(self._async_queue.get(), timeout=timeout)
         return await self._async_queue.get()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:

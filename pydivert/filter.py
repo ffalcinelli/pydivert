@@ -76,20 +76,22 @@ class WinDivertTransformer(Transformer):
 
     def comparison(self, children):
         left, op, right = children
-        if op != "==":
-            return [{}]
-
         field = str(left).lower()
         val = str(right)
 
-        if field == "tcp.dstport" or field == "udp.dstport":
-            return [{"proto": field.split(".")[0], "dport": val}]
-        if field == "tcp.srcport" or field == "udp.srcport":
-            return [{"proto": field.split(".")[0], "sport": val}]
-        if field == "ip.srcaddr":
-            return [{"srcaddr": val}]
-        if field == "ip.dstaddr":
-            return [{"dstaddr": val}]
+        # Basic equality transpilation for iptables
+        if op == "==":
+            if field == "tcp.dstport" or field == "udp.dstport":
+                return [{"proto": field.split(".")[0], "dport": val}]
+            if field == "tcp.srcport" or field == "udp.srcport":
+                return [{"proto": field.split(".")[0], "sport": val}]
+            if field == "ip.srcaddr":
+                return [{"srcaddr": val}]
+            if field == "ip.dstaddr":
+                return [{"dstaddr": val}]
+
+        # For other operators, we return an empty dict to allow user-space filtering
+        # while still having a basic hook if other AND conditions match.
         return [{}]
 
     def field_access(self, children):

@@ -11,7 +11,7 @@ import threading
 from typing import Any
 
 from pydivert.base import BaseDivert
-from pydivert.consts import Direction, Flag, Layer
+from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
 from pydivert.filter import transpile_to_rules
 from pydivert.packet import Packet
 
@@ -117,7 +117,7 @@ class NetFilterQueue(BaseDivert):
             chains = ["OUTPUT", "FORWARD"]
 
         if rule_dict.get("loopback"):
-            return [(["INPUT"], ["-i", "lo"]), (["OUTPUT"], ["-o", "lo"])]
+            return [(["INPUT"], ["-i", "lo", *ipt_args]), (["OUTPUT"], ["-o", "lo", *ipt_args])]
         return [(chains, ipt_args)]
 
     def open(self) -> None:
@@ -254,17 +254,17 @@ class NetFilterQueue(BaseDivert):
     def is_open(self) -> bool:
         return self._nfqueue is not None
 
-    def recv(self) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = 0.1) -> Packet:
         while self.is_open or not self._queue.empty():
             try:
-                return self._queue.get(timeout=0.1)
+                return self._queue.get(timeout=timeout)
             except queue.Empty:  # pragma: no cover
                 if self._stop_event.is_set():
                     break
                 continue
         raise RuntimeError("Queue is not open.")  # pragma: no cover
 
-    async def recv_async(self) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if not self.is_open:  # pragma: no cover
             raise RuntimeError("Queue is not open.")
 
@@ -278,6 +278,8 @@ class NetFilterQueue(BaseDivert):
             except (queue.Empty, asyncio.QueueFull):  # pragma: no cover
                 pass
 
+        if timeout is not None:
+            return await asyncio.wait_for(self._async_queue.get(), timeout=timeout)
         return await self._async_queue.get()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:

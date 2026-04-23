@@ -31,16 +31,15 @@ from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import service, windivert_dll  # noqa: F401
 from pydivert.base import BaseDivert
-from pydivert.consts import Direction, Flag, Layer, Param
+from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer, Param
 from pydivert.packet import Packet
 from pydivert.windivert_dll import (
-    INFINITE,
     Overlapped,
     WinDivertAddress,
 )
 
-DEFAULT_PACKET_BUFFER_SIZE = 65575
 WINDIVERT_SHUTDOWN_BOTH = 3
+DEFAULT_ASYNC_TIMEOUT = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +201,7 @@ class WinDivert(BaseDivert):
         self._handle = None
         self._pending_ops.clear()
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Receives a diverted packet that matched the filter.
 
@@ -231,16 +230,27 @@ class WinDivert(BaseDivert):
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = c_uint(0)
+
+        # Note: timeout is currently ignored for synchronous WinDivert.recv()
+        # but could be implemented with SetParam(QUEUE_TIME) if needed.
+
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
         return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
 
-    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
+    async def recv_async(  # noqa: C901
+        self,
+        bufsize: int = DEFAULT_PACKET_BUFFER_SIZE,
+        timeout: float | None = None,
+    ) -> Packet:
         """
         Asynchronously receives a diverted packet using Windows Overlapped I/O.
         """
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open")
+
+        # Convert float seconds to integer milliseconds for Win32 API
+        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT
 
         event = windivert_dll.CreateEventW(None, False, False, None)
         try:
@@ -269,8 +279,20 @@ class WinDivert(BaseDivert):
                     error = windivert_dll.GetLastError()
                     if error == windivert_dll.ERROR_IO_PENDING:
                         # Wait for the event in a thread pool without blocking the main event loop
+                        # We use a timeout to avoid hanging the thread pool during shutdown.
                         loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
+                        while self.is_open:
+                            res_wait = await loop.run_in_executor(
+                                None, windivert_dll.WaitForSingleObject, event, timeout_ms
+                            )
+                            if res_wait != windivert_dll.WAIT_TIMEOUT:
+                                break
+                        else:
+                            # Handle closed, cancel the IO if still open
+                            if self._handle:
+                                windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
+                            raise RuntimeError("WinDivert handle closed during async operation")
 
                         # Get actual result (bytes transferred)
                         res_ok = windivert_dll.GetOverlappedResult(
@@ -286,11 +308,12 @@ class WinDivert(BaseDivert):
                     self._pending_ops.remove(overlapped)
                 return self._parse_packet(bytes(packet[: recv_len.value]), recv_len.value, address)
             except asyncio.CancelledError:
-                # Cancel the pending operation
-                windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                # Cancel the pending operation if handle is still open
+                if self._handle:
+                    windivert_dll.CancelIoEx(self._handle, byref(overlapped))
                 # Wait for cancellation to complete to ensure it's safe to close the event and free the buffer
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
                 raise
             except Exception:  # pragma: no cover
                 if overlapped in self._pending_ops:
@@ -424,7 +447,12 @@ class WinDivert(BaseDivert):
         windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
         return send_len.value
 
-    async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
+    async def send_async(  # noqa: C901
+        self,
+        packet: Packet,
+        recalculate_checksum: bool = True,
+        timeout: float | None = None,
+    ) -> int:
         """
         Asynchronously injects a packet into the network stack using Windows Overlapped I/O.
         """
@@ -433,6 +461,9 @@ class WinDivert(BaseDivert):
 
         if recalculate_checksum:
             packet.recalculate_checksums()
+
+        # Convert float seconds to integer milliseconds for Win32 API
+        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT
 
         event = windivert_dll.CreateEventW(None, False, False, None)
         try:
@@ -467,8 +498,20 @@ class WinDivert(BaseDivert):
                     error = windivert_dll.GetLastError()
                     if error == windivert_dll.ERROR_IO_PENDING:
                         # Wait for the event in a thread pool without blocking the main event loop
+                        # We use a timeout to avoid hanging the thread pool during shutdown.
                         loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
+                        while self.is_open:
+                            res_wait = await loop.run_in_executor(
+                                None, windivert_dll.WaitForSingleObject, event, timeout_ms
+                            )
+                            if res_wait != windivert_dll.WAIT_TIMEOUT:
+                                break
+                        else:
+                            # Handle closed, cancel the IO if still open
+                            if self._handle:
+                                windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
+                            raise RuntimeError("WinDivert handle closed during async operation")
 
                         # Get actual result (bytes transferred)
                         res_ok = windivert_dll.GetOverlappedResult(
@@ -484,11 +527,12 @@ class WinDivert(BaseDivert):
                     self._pending_ops.remove(overlapped)
                 return send_len.value
             except asyncio.CancelledError:
-                # Cancel the pending operation
-                windivert_dll.CancelIoEx(self._handle, byref(overlapped))
-                # Wait for cancellation to complete
+                # Cancel the pending operation if handle is still open
+                if self._handle:
+                    windivert_dll.CancelIoEx(self._handle, byref(overlapped))
+                # Wait for cancellation to complete to ensure it's safe to close the event and free the buffer
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, INFINITE)
+                await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, event, timeout_ms)
                 raise
             except Exception:  # pragma: no cover
                 if overlapped in self._pending_ops:

@@ -142,3 +142,5 @@ IPV6_EXT_HEADERS = {
     Protocol.DSTOPTS,
     Protocol.AH,
 }
+
+DEFAULT_PACKET_BUFFER_SIZE = 65575

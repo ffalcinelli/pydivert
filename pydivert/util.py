@@ -137,8 +137,10 @@ def fallback_matches(packet, filter: str) -> bool:
     mapping = {
         "tcp.dstport": str(packet.dst_port) if packet.tcp else "None",
         "tcp.srcport": str(packet.src_port) if packet.tcp else "None",
+        "tcp.payloadlength": str(len(packet.payload)) if packet.tcp and packet.payload else "0",
         "udp.dstport": str(packet.dst_port) if packet.udp else "None",
         "udp.srcport": str(packet.src_port) if packet.udp else "None",
+        "udp.payloadlength": str(len(packet.payload)) if packet.udp and packet.payload else "0",
         "ip.dstaddr": f"'{packet.dst_addr}'",
         "ip.srcaddr": f"'{packet.src_addr}'",
         "tcp": "True" if packet.tcp else "False",
@@ -151,10 +153,15 @@ def fallback_matches(packet, filter: str) -> bool:
         "loopback": "True" if packet.is_loopback else "False",
     }
 
-    for k, v in mapping.items():
-        py_filter = py_filter.replace(k, v)
+    # Sort keys by length descending to match more specific fields first
+    for k_orig in sorted(mapping.keys(), key=len, reverse=True):
+        k = str(k_orig)
+        v = mapping[k]
+        # Use regex to replace only whole words/fields
+        py_filter = re.sub(rf"\b{re.escape(k)}\b", v, py_filter)
 
     try:
         return bool(eval(py_filter, {"__builtins__": {}}))
     except Exception:  # pragma: no cover
-        return True  # pragma: no cover
+        # If eval fails, we return True to be safe (intercept rather than drop)
+        return True

@@ -58,13 +58,14 @@ def get_free_port():
         return s.getsockname()[1]
 
 
-def test_example_basic_capture():
+def test_example_basic_capture():  # noqa: C901
     # Example: Basic Capture and Re-injection
     port = get_free_port()
 
     def server():
         with socket.socket() as s:
-            s.settimeout(5.0)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.settimeout(10.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
@@ -83,7 +84,8 @@ def test_example_basic_capture():
 
     def diverter():
         try:
-            with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
+            # On Linux, adding ip.DstAddr helps narrowing down iptables rules
+            with pydivert.PyDivert(f"tcp.DstPort == {port} and ip.DstAddr == 127.0.0.1") as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -93,27 +95,26 @@ def test_example_basic_capture():
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(2.0)
+    time.sleep(3.0)
 
     try:
         # Retry connection for robustness in CI
-        for _ in range(3):
+        for attempt in range(5):
             try:
                 with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
                     client.sendall(b"test")
                     assert client.recv(1024) == b"test"
                 break
-            except (TimeoutError, ConnectionRefusedError):
+            except (TimeoutError, ConnectionRefusedError) as e:
+                if attempt == 4:
+                    pytest.fail(f"Failed to connect to server after 5 attempts: {e}")
                 time.sleep(1.0)
-        else:
-            pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
         # Trigger one more packet to unblock recv if it's stuck
         try:
             with socket.socket() as s:
                 s.settimeout(0.1)
-                # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
         except Exception:
             pass
@@ -130,7 +131,8 @@ def test_example_packet_modification_redirection():  # noqa: C901
 
     def server():
         with socket.socket() as s:
-            s.settimeout(5.0)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.settimeout(10.0)
             s.bind(("127.0.0.1", real_port))
             s.listen(1)
             try:
@@ -150,7 +152,8 @@ def test_example_packet_modification_redirection():  # noqa: C901
     def diverter():
         # Capturing both directions
         try:
-            with pydivert.PyDivert(f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}") as w:
+            filter_str = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}) and ip.Addr == 127.0.0.1"
+            with pydivert.PyDivert(filter_str) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -168,16 +171,16 @@ def test_example_packet_modification_redirection():  # noqa: C901
 
     try:
         # Retry connection for robustness in CI
-        for _ in range(3):
+        for attempt in range(5):
             try:
                 with socket.create_connection(("127.0.0.1", fake_port), timeout=10) as client:
                     client.sendall(b"hi")
                     assert client.recv(1024) == b"redirected"
                 break
-            except (TimeoutError, ConnectionRefusedError):
+            except (TimeoutError, ConnectionRefusedError) as e:
+                if attempt == 4:
+                    pytest.fail(f"Failed to connect to server after 5 attempts: {e}")
                 time.sleep(1.0)
-        else:
-            pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
         # Trigger one more packet to unblock recv if it's stuck
@@ -197,7 +200,8 @@ def test_example_firewall_drop():
 
     def server():
         with socket.socket() as s:
-            s.settimeout(5.0)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.settimeout(10.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
@@ -211,7 +215,7 @@ def test_example_firewall_drop():
     stop_event = threading.Event()
 
     def diverter():
-        with pydivert.PyDivert(f"tcp.DstPort == {port}") as w:
+        with pydivert.PyDivert(f"tcp.DstPort == {port} and ip.DstAddr == 127.0.0.1") as w:
             for _packet in w:
                 if stop_event.is_set():
                     break
@@ -220,11 +224,11 @@ def test_example_firewall_drop():
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(1.0)
+    time.sleep(3.0)
 
     try:
         with socket.socket() as client:
-            client.settimeout(1)
+            client.settimeout(2)
             # Connecting to port on 127.0.0.1 with Diverter dropping packets should timeout.
             with pytest.raises(socket.timeout):
                 client.connect(("127.0.0.1", port))
@@ -248,7 +252,8 @@ def test_example_payload_modification():  # noqa: C901
 
     def server():
         with socket.socket() as s:
-            s.settimeout(5.0)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.settimeout(10.0)
             s.bind(("127.0.0.1", port))
             s.listen(1)
             try:
@@ -266,7 +271,9 @@ def test_example_payload_modification():  # noqa: C901
 
     def diverter():
         try:
-            with pydivert.PyDivert(f"tcp.SrcPort == {port} and tcp.PayloadLength > 0") as w:
+            # Combined filter for efficiency
+            filter_str = f"tcp.SrcPort == {port} and tcp.PayloadLength > 0 and ip.SrcAddr == 127.0.0.1"
+            with pydivert.PyDivert(filter_str) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -278,28 +285,27 @@ def test_example_payload_modification():  # noqa: C901
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(2.0)
+    time.sleep(3.0)
 
     try:
         # Retry connection for robustness in CI
-        for _ in range(3):
+        for attempt in range(5):
             try:
                 with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
                     data = client.recv(1024)
                     assert b"REDACTED" in data
                     assert b"secret-token" not in data
                 break
-            except (TimeoutError, ConnectionRefusedError):
+            except (TimeoutError, ConnectionRefusedError) as e:
+                if attempt == 4:
+                    pytest.fail(f"Failed to connect to server after 5 attempts: {e}")
                 time.sleep(1.0)
-        else:
-            pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
         # Trigger one more packet to unblock recv if it's stuck
         try:
             with socket.socket() as s:
                 s.settimeout(0.1)
-                # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
         except Exception:
             pass

@@ -3,7 +3,7 @@ import abc
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
-from pydivert.consts import Flag, Layer
+from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Flag, Layer
 from pydivert.packet import Packet
 
 T = TypeVar("T", bound="BaseDivert")
@@ -87,22 +87,26 @@ class BaseDivert(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def recv(self) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Receives an intercepted packet that matched the filter.
-        This method blocks until a packet is available.
+        This method blocks until a packet is available or the timeout is reached.
 
+        :param bufsize: The maximum size of the packet to receive.
+        :param timeout: Maximum time to wait for a packet (in seconds).
         :return: A `pydivert.Packet` instance.
         :raises RuntimeError: If the handle is closed.
         """
         raise NotImplementedError()
 
     @abc.abstractmethod
-    async def recv_async(self) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Asynchronous version of `recv()`.
         Yields control while waiting for a packet.
 
+        :param bufsize: The maximum size of the packet to receive.
+        :param timeout: Maximum time to wait for a packet (in seconds/milliseconds depending on backend).
         :return: A `pydivert.Packet` instance.
         """
         raise NotImplementedError()
