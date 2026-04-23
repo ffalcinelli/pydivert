@@ -186,6 +186,7 @@ def _udp_server(port):
 
 def _run_dns_modification_diverter(filt, stop_event, use_async):  # noqa: C901
     if use_async:
+
         async def run_async():
             try:
                 async with pydivert.PyDivert(filt) as w:
@@ -197,6 +198,7 @@ def _run_dns_modification_diverter(filt, stop_event, use_async):  # noqa: C901
                             break
             except (RuntimeError, OSError):
                 pass
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(run_async())
