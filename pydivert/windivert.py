@@ -40,6 +40,7 @@ from pydivert.windivert_dll import (
 )
 
 DEFAULT_PACKET_BUFFER_SIZE = 65575
+WINDIVERT_SHUTDOWN_BOTH = 3
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +191,13 @@ class WinDivert(BaseDivert):
         """
         if self._handle is None:
             raise RuntimeError("WinDivert handle is not open.")
+
+        # Shutdown the handle first to unblock any pending recv/send calls in other threads.
+        try:
+            windivert_dll.WinDivertShutdown(self._handle, WINDIVERT_SHUTDOWN_BOTH)
+        except Exception:  # pragma: no cover
+            pass
+
         windivert_dll.WinDivertClose(self._handle)
         self._handle = None
         self._pending_ops.clear()

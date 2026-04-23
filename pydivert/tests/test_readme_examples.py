@@ -109,8 +109,12 @@ def test_example_basic_capture():
             pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -176,8 +180,11 @@ def test_example_packet_modification_redirection():  # noqa: C901
             pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", fake_port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                s.connect(("127.0.0.1", fake_port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -223,8 +230,12 @@ def test_example_firewall_drop():
                 client.connect(("127.0.0.1", port))
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -284,8 +295,12 @@ def test_example_payload_modification():  # noqa: C901
             pytest.fail("Failed to connect to server after 3 attempts")
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -333,8 +348,12 @@ def test_example_traffic_logging():
             client.sendall(b"data")
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -400,8 +419,12 @@ def test_example_flow_layer():
             pass
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -456,8 +479,12 @@ def test_example_sniff_mode():
             assert client.recv(1024) == b"sniff-me"
     finally:
         stop_event.set()
+        # Trigger one more packet to unblock recv if it's stuck
         try:
-            socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            with socket.socket() as s:
+                s.settimeout(0.1)
+                # Use the actual port being diverted
+                s.connect(("127.0.0.1", port))
         except Exception:
             pass
         t1.join(timeout=1.0)
@@ -518,10 +545,10 @@ async def test_example_asyncio():
         try:
             _, writer = await asyncio.open_connection("127.0.0.1", port)
             writer.close()
+            await writer.wait_closed()
         except Exception:
             pass
-        await asyncio.sleep(0.5)
-        diverter_task.cancel()
+        await diverter_task
         t1.join(timeout=1.0)
 
     assert captured

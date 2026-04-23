@@ -154,7 +154,7 @@ jobs:
       with:
         usesh: true
         prepare: |
-          pkg install -y python${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }} curl git sudo
+          pkg install -y python${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }} py${{ matrix.python-version == '3.11' && '311' || matrix.python-version == '3.12' && '312' || '313' }}-sqlite3 curl git sudo
           # pip might be named differently or need ensurepip
           python${{ matrix.python-version }} -m ensurepip || true
           python${{ matrix.python-version }} -m pip install --upgrade pip || true
