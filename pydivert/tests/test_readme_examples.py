@@ -152,7 +152,7 @@ def test_example_packet_modification_redirection():  # noqa: C901
     def diverter():
         # Capturing both directions
         try:
-            filter_str = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}) and ip.Addr == 127.0.0.1"
+            filter_str = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}) and ip.Addr == '127.0.0.1'"
             with pydivert.PyDivert(filter_str) as w:
                 for packet in w:
                     if stop_event.is_set():

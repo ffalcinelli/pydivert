@@ -82,6 +82,12 @@ class WinDivertTransformer(Transformer):
 
     def comparison(self, children):
         left, op, right = children
+        # field_access for simple names might return a list of rules
+        if isinstance(left, list):
+            # This is unusual (e.g. "loopback == true") but we should handle it
+            # For simplicity, we just extract the field name if it was a string
+            return [{}]
+
         field = str(left).lower()
         val = str(right)
 
@@ -112,6 +118,7 @@ class WinDivertTransformer(Transformer):
 
     def field_access(self, children):
         name = str(children[0]).lower()
+        # Keywords that are valid rules on their own
         if name == "ip":
             return [{"proto": "ip"}]
         if name == "tcp":
@@ -126,6 +133,7 @@ class WinDivertTransformer(Transformer):
             return [{"direction": "outbound"}]
         if name == "loopback":
             return [{"loopback": True}]
+        # Other names are just strings to be used in comparisons
         return name
 
     def value(self, children):
@@ -205,6 +213,7 @@ class PythonEvalTransformer(Transformer):
     def field_access(self, children):
         field_name = str(children[0]).lower()
         # Map WinDivert fields to packet properties/methods
+        # Note: WinDivert is case-insensitive, but our Packet class uses lowercase attributes.
         mapping = {
             "ip.srcaddr": "packet.src_addr",
             "ip.src": "packet.src_addr",
@@ -224,6 +233,10 @@ class PythonEvalTransformer(Transformer):
             "udp.dstport": "packet.dst_port",
             "udp.port": "AggregateField(packet.src_port, packet.dst_port)",
             "udp.payloadlength": "len(packet.payload) if packet.payload else 0",
+            "icmp.type": "packet.icmp.type if packet.icmp else None",
+            "icmp.code": "packet.icmp.code if packet.icmp else None",
+            "icmpv6.type": "packet.icmp.type if packet.icmp else None",
+            "icmpv6.code": "packet.icmp.code if packet.icmp else None",
             "tcp": "packet.tcp",
             "udp": "packet.udp",
             "icmp": "packet.icmp",
@@ -233,13 +246,28 @@ class PythonEvalTransformer(Transformer):
             "outbound": "packet.is_outbound",
             "loopback": "packet.is_loopback",
         }
-        return mapping.get(field_name, "None")
+        if field_name in mapping:
+            return mapping[field_name]
+
+        # Fallback for other header fields (e.g. tcp.Syn, icmp.Type)
+        if "." in field_name:
+            header, field = field_name.split(".", 1)
+            # Many WinDivert fields are lowercase in pydivert
+            return f"packet.{header}.{field}"
+
+        return f"packet.{field_name}"
 
     def value(self, children):
         val = str(children[0])
-        # If it looks like an IP address, quote it
+        # If it looks like an IP address, quote it.
+        # Numbers should not be quoted.
         if "." in val or ":" in val:
-            return f"'{val}'"
+            # Don't quote if already quoted or if it's a number
+            try:
+                float(val)
+                return val
+            except ValueError:
+                return f"'{val}'"
         return val
 
     def comparison(self, children):

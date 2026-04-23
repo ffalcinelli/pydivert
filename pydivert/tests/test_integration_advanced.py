@@ -51,7 +51,10 @@ def _run_icmp_modifier(stop_event, use_async):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_async())
+        try:
+            loop.run_until_complete(run_async())
+        finally:
+            loop.close()
     else:
         with pydivert.PyDivert(filt) as w:
             for packet in w:
@@ -124,7 +127,10 @@ def _run_tcp_throttler(port, stop_event, use_async):
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_async())
+        try:
+            loop.run_until_complete(run_async())
+        finally:
+            loop.close()
     else:
         with pydivert.PyDivert(filt) as w:
             for packet in w:
