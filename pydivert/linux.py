@@ -190,9 +190,10 @@ class NftablesBackend(LinuxFirewallBackend):
     def _run_cmd(self, cmd: str) -> None:
         rc, out, err = self._nft.cmd(cmd)
         if rc != 0:
-            if "already exists" not in err:
-                logger.error("nftables error (rc=%d): %s", rc, err)
-                raise RuntimeError(f"nftables command failed: {cmd}\nError: {err}")
+            if any(msg in err for msg in ["already exists", "No such file or directory", "does not exist"]):
+                return
+            logger.error("nftables error (rc=%d): %s", rc, err)
+            raise RuntimeError(f"nftables command failed: {cmd}\nError: {err}")
 
     def add_rule(self, queue_num: int, rule_dict: dict[str, Any]) -> None:
         # Build nftables rule string
