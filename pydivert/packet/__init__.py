@@ -688,8 +688,8 @@ class Packet:
         address.TCPChecksum = 1 if self._tcp_checksum else 0
         address.UDPChecksum = 1 if self._udp_checksum else 0
 
-        # Zero-out the union to avoid stale data
-        ctypes.memset(ctypes.byref(address, WinDivertAddress.u.offset), 0, WinDivertAddress.u.size)
+        af = self.address_family
+        address.IPv6 = 1 if af == socket.AF_INET6 else 0
 
         if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
             address.Network.IfIdx, address.Network.SubIfIdx = self._interface
@@ -720,12 +720,15 @@ class Packet:
         return self._matches_fallback(filter)
 
     def _matches_win32(self, filter: str, layer: Layer) -> bool:
+        from pydivert.filter import normalize_filter
+
         _, buff_ = self.__to_buffers()
         addr = self.wd_addr
         addr.Layer = layer
+        normalized_filter = normalize_filter(filter)
         return bool(
             windivert_dll.WinDivertHelperEvalFilter(
-                filter.encode(),
+                normalized_filter.encode(),
                 ctypes.byref(buff_),
                 len(self.raw),
                 ctypes.byref(addr),

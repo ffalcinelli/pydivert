@@ -77,8 +77,10 @@ def test_filter_compatibility_unsupported(filter_str):
     if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
         if sys.platform.startswith("linux"):
             rules = w._impl._parse_filter_to_iptables()
-            # These filters should result in 0 rules currently (or at least no specific matches)
-            assert len(rules) == 0 or (len(rules) == 1 and not rules[0][1])
+            # These filters should result in 1 basic rule with loop prevention mark check
+            assert len(rules) == 1
+            assert "-m" in rules[0][1] and "mark" in rules[0][1] and "0x1" in rules[0][1]
+
         else:
             rules = w._impl._parse_filter_to_ipfw()
             # On FreeBSD, unsupported filter produces generic rules that protect SSH

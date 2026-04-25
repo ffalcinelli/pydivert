@@ -91,8 +91,27 @@ class WinDivertTransformer(Transformer):
         field = str(left).lower()
         val = str(right)
 
+        # Handle aliases and normalized names
+        if field == "ip.srcaddr":
+            field = "ip.src"
+        if field == "ip.dstaddr":
+            field = "ip.dst"
+        if field == "ipv6.srcaddr":
+            field = "ipv6.src"
+        if field == "ipv6.dstaddr":
+            field = "ipv6.dst"
+        if field == "tcp.srcport":
+            field = "tcp.srcport"
+        if field == "tcp.dstport":
+            field = "tcp.dstport"
+        if field == "udp.srcport":
+            field = "udp.srcport"
+        if field == "udp.dstport":
+            field = "udp.dstport"
+
         # Basic equality transpilation for iptables
         if op == "==":
+            import sys
             # Ports
             if field in ("tcp.dstport", "udp.dstport"):
                 return [{"proto": field.split(".")[0], "dport": val}]
@@ -101,15 +120,21 @@ class WinDivertTransformer(Transformer):
             if field in ("tcp.port", "udp.port"):
                 # Matches both source and destination
                 proto = field.split(".")[0]
+                if sys.platform.startswith("linux"):
+                    # On Linux we choose ONLY destination to avoid double interception loops
+                    return [{"proto": proto, "dport": val}]
                 return [{"proto": proto, "dport": val}, {"proto": proto, "sport": val}]
 
             # IP Addresses
-            if field in ("ip.srcaddr", "ip.src", "ipv6.srcaddr", "ipv6.src"):
+            if field in ("ip.src", "ipv6.src", "ip.srcaddr", "ipv6.srcaddr"):
                 return [{"srcaddr": val}]
-            if field in ("ip.dstaddr", "ip.dst", "ipv6.dstaddr", "ipv6.dst"):
+            if field in ("ip.dst", "ipv6.dst", "ip.dstaddr", "ipv6.dstaddr"):
                 return [{"dstaddr": val}]
             if field in ("ip.addr", "ipv6.addr"):
                 # Matches both source and destination
+                if sys.platform.startswith("linux"):
+                    # On Linux we choose ONLY destination
+                    return [{"dstaddr": val}]
                 return [{"srcaddr": val}, {"dstaddr": val}]
 
         # For other operators, we return an empty dict to allow user-space filtering
@@ -165,11 +190,64 @@ class LegacyTransformer(Transformer):
         return "false"
 
     def field_access(self, children):
-        field_name = str(children[0])
+        field_name = str(children[0]).lower()
+        # Case-sensitive mapping for WinDivert 2.2+
+        mapping = {
+            # IP
+            "ip.src": "ip.SrcAddr",
+            "ip.srcaddr": "ip.SrcAddr",
+            "ip.dst": "ip.DstAddr",
+            "ip.dstaddr": "ip.DstAddr",
+            "ip.ttl": "ip.TTL",
+            "ip.protocol": "ip.Protocol",
+            "ip.headerlength": "ip.HeaderLength",
+            "ip.length": "ip.Length",
+            # IPv6
+            "ipv6.src": "ipv6.SrcAddr",
+            "ipv6.srcaddr": "ipv6.SrcAddr",
+            "ipv6.dst": "ipv6.DstAddr",
+            "ipv6.dstaddr": "ipv6.DstAddr",
+            "ipv6.hoplimit": "ipv6.HopLimit",
+            "ipv6.nextheader": "ipv6.NextHeader",
+            "ipv6.length": "ipv6.Length",
+            "ipv6.trafficclass": "ipv6.TrafficClass",
+            "ipv6.flowlabel": "ipv6.FlowLabel",
+            # TCP
+            "tcp.srcport": "tcp.SrcPort",
+            "tcp.dstport": "tcp.DstPort",
+            "tcp.seqnum": "tcp.SeqNum",
+            "tcp.acknum": "tcp.AckNum",
+            "tcp.headerlength": "tcp.HeaderLength",
+            "tcp.payloadlength": "tcp.PayloadLength",
+            "tcp.window": "tcp.Window",
+            "tcp.urg": "tcp.Urg",
+            "tcp.ack": "tcp.Ack",
+            "tcp.psh": "tcp.Psh",
+            "tcp.rst": "tcp.Rst",
+            "tcp.syn": "tcp.Syn",
+            "tcp.fin": "tcp.Fin",
+            # UDP
+            "udp.srcport": "udp.SrcPort",
+            "udp.dstport": "udp.DstPort",
+            "udp.length": "udp.Length",
+            "udp.payloadlength": "udp.PayloadLength",
+            # ICMP
+            "icmp.type": "icmp.Type",
+            "icmp.code": "icmp.Code",
+            "icmp.checksum": "icmp.Checksum",
+            "icmp.body": "icmp.Body",
+            # ICMPv6
+            "icmpv6.type": "icmpv6.Type",
+            "icmpv6.code": "icmpv6.Code",
+            "icmpv6.checksum": "icmpv6.Checksum",
+            "icmpv6.body": "icmpv6.Body",
+        }
+        name = mapping.get(field_name, field_name)
+
         if len(children) > 1:  # pragma: no cover
             index = children[1]  # pragma: no cover
-            return f"{field_name}[{index}]"  # pragma: no cover
-        return field_name
+            return f"{name}[{index}]"  # pragma: no cover
+        return name
 
     def index(self, children):
         return "".join(map(str, children))
@@ -178,7 +256,24 @@ class LegacyTransformer(Transformer):
         return str(children[0])
 
     def comparison(self, children):
-        return f"{children[0]} {children[1]} {children[2]}"
+        left, op, right = children
+        # left is already the result of field_access (a string)
+        field = left.lower()
+
+        # Strip existing quotes to normalize
+        val = str(right).strip("'\"")
+
+        if op == "==":
+            if field in ("ip.addr", "ipv6.addr"):
+                proto = field.split(".")[0]
+                return f"({proto}.SrcAddr == {val} || {proto}.DstAddr == {val})"
+            if field in ("tcp.port", "udp.port"):
+                proto = field.split(".")[0]
+                return f"({proto}.SrcPort == {val} || {proto}.DstPort == {val})"
+
+        if " " in val:
+            val = f'"{val}"'
+        return f"{left} {op} {val}"
 
     def logic_and(self, children):
         return " && ".join(map(str, children))
@@ -296,13 +391,19 @@ class PythonEvalTransformer(Transformer):
         return str(children[0])
 
 
-def transpile(filter_str):
+def normalize_filter(filter_str: str) -> str:
     """
-    Legacy transpile function that returns the filter string representation.
+    Normalizes a WinDivert filter string by expanding aggregate fields.
     """
-    parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
-    tree = parser.parse(filter_str)
-    return LegacyTransformer().transform(tree)
+    try:
+        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
+        tree = parser.parse(filter_str)
+        return LegacyTransformer().transform(tree)
+    except Exception:
+        return filter_str
+
+
+transpile = normalize_filter
 
 
 def transpile_to_python(filter_str: str) -> str:

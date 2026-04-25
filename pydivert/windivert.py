@@ -166,7 +166,11 @@ class WinDivert(BaseDivert):
         """
         if self.is_open:
             raise RuntimeError("WinDivert handle is already open.")
-        filter_bytes = self._filter if isinstance(self._filter, bytes) else self._filter.encode()
+
+        from pydivert.filter import normalize_filter
+
+        normalized_filter = normalize_filter(self.filter)
+        filter_bytes = normalized_filter.encode()
         self._handle = windivert_dll.WinDivertOpen(filter_bytes, self._layer, self._priority, self._flags)
 
     @property

@@ -81,7 +81,9 @@ class WinDivertAddress(ctypes.Structure):
                 ("Timestamp", ctypes.c_int64),
                 ("ProcessId", ctypes.c_uint32),
                 ("Layer", ctypes.c_uint32, 8),
-                ("Reserved2", ctypes.c_uint32, 24),
+                ("Flags", ctypes.c_uint32, 24),
+                ("Priority", ctypes.c_uint16),
+                ("Reserved1", ctypes.c_uint16),
             ]
 
         _fields_ = [
@@ -95,17 +97,19 @@ class WinDivertAddress(ctypes.Structure):
     _anonymous_ = ("u",)
     _fields_ = [
         ("Timestamp", ctypes.c_int64),
+        # Word 1
         ("Layer", ctypes.c_uint32, 8),
         ("Event", ctypes.c_uint32, 8),
         ("Sniffed", ctypes.c_uint32, 1),
         ("Outbound", ctypes.c_uint32, 1),
         ("Loopback", ctypes.c_uint32, 1),
         ("Impostor", ctypes.c_uint32, 1),
-        ("IPv4", ctypes.c_uint32, 1),
         ("IPv6", ctypes.c_uint32, 1),
         ("IPChecksum", ctypes.c_uint32, 1),
         ("TCPChecksum", ctypes.c_uint32, 1),
         ("UDPChecksum", ctypes.c_uint32, 1),
-        ("Reserved1", ctypes.c_uint32, 7),
+        ("Reserved1", ctypes.c_uint32, 8),
+        # Word 2
+        ("Reserved2", ctypes.c_uint32),
         ("u", _Union),
     ]

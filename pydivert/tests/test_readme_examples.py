@@ -95,8 +95,7 @@ def test_example_basic_capture():  # noqa: C901
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(3.0)
-
+    time.sleep(5.0)
     try:
         # Retry connection for robustness in CI
         for attempt in range(5):
@@ -152,8 +151,9 @@ def test_example_packet_modification_redirection():  # noqa: C901
     def diverter():
         # Capturing both directions
         try:
-            filter_str = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}) and ip.Addr == '127.0.0.1'"
+            filter_str = f"(tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}) and ip.Addr == 127.0.0.1"
             with pydivert.PyDivert(filter_str) as w:
+
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -167,8 +167,7 @@ def test_example_packet_modification_redirection():  # noqa: C901
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(3.0)
-
+    time.sleep(5.0)
     try:
         # Retry connection for robustness in CI
         for attempt in range(5):
@@ -224,8 +223,7 @@ def test_example_firewall_drop():
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(3.0)
-
+    time.sleep(5.0)
     try:
         with socket.socket() as client:
             client.settimeout(2)
@@ -285,8 +283,7 @@ def test_example_payload_modification():  # noqa: C901
 
     t2 = threading.Thread(target=diverter, daemon=True)
     t2.start()
-    time.sleep(3.0)
-
+    time.sleep(5.0)
     try:
         # Retry connection for robustness in CI
         for attempt in range(5):

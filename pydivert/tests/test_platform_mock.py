@@ -89,7 +89,9 @@ async def test_linux_nfq_mock():
             w.open()
 
     # Test iptables error path
-    with patch("pydivert.linux.NFQ", mock_nfq_lib), patch("subprocess.run") as mock_run:
+    with patch("pydivert.linux.NFQ", mock_nfq_lib), \
+         patch("pydivert.linux.nftables", None), \
+         patch("subprocess.run") as mock_run:
         mock_nfq_lib.return_value.bind.side_effect = None
 
         def side_effect(cmd, *args, **kwargs):

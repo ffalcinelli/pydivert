@@ -125,7 +125,11 @@ def test_target(target):
         run_cmd(["vagrant", "rsync", "freebsd"], check=False, timeout=60)
 
         # Ensure dependencies are installed
-        pkg_cmd = "sudo -S /home/vagrant/pydivert_venv/bin/pip install pytest pytest-cov scapy hypothesis mock pytest-asyncio pytest-timeout lark"
+        pkg_cmd = (
+            "sudo -S /home/vagrant/pydivert_venv/bin/pip install pytest "
+            "pytest-cov scapy hypothesis mock pytest-asyncio "
+            "pytest-timeout lark"
+        )
         run_cmd(["vagrant", "ssh", "freebsd", "-c", f"echo 'vagrant' | {pkg_cmd}"], check=False, timeout=300)
 
         freebsd_cmd = (
