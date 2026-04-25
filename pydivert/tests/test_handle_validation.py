@@ -4,8 +4,9 @@ from unittest.mock import MagicMock
 import pytest
 
 import pydivert
-from pydivert.consts import Param
 from pydivert import PyDivert
+from pydivert.consts import Param
+
 
 def _get_params():
     params = [

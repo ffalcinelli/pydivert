@@ -24,7 +24,11 @@ class BaseDivert(abc.ABC):
     """
 
     def __init__(
-        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+        self,
+        filter: str = "true",
+        layer: Layer = Layer.NETWORK,
+        priority: int = 0,
+        flags: Flag = Flag.DEFAULT,
     ) -> None:
         if isinstance(filter, str):
             filter = filter.strip()
@@ -32,6 +36,27 @@ class BaseDivert(abc.ABC):
         self._layer = layer
         self._priority = priority
         self._flags = flags
+        self._handle: Any = None
+
+    @staticmethod
+    def register() -> None:
+        """Register the service (if applicable)."""
+        raise NotImplementedError()
+
+    @staticmethod
+    def is_registered() -> bool:
+        """Check if the service is registered."""
+        return True
+
+    @staticmethod
+    def unregister() -> None:
+        """Unregister the service (if applicable)."""
+        raise NotImplementedError()
+
+    @staticmethod
+    def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
+        """Check if the given packet filter string is valid."""
+        return True, 0, ""
 
     def __repr__(self) -> str:
         state = "open" if self.is_open else "closed"

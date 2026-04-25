@@ -26,8 +26,8 @@ import sys
 
 import pytest
 
-from pydivert.consts import Param
 from pydivert import PyDivert
+from pydivert.consts import Param
 
 from .fixtures import scenario
 from .fixtures import windivert_handle as w

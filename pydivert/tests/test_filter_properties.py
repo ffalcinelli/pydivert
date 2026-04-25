@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 
+import sys
+
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
 
-import sys
 import pydivert
 from pydivert.consts import Layer
 

@@ -24,8 +24,7 @@
 
 import time
 
-from pydivert import service
-from pydivert import PyDivert
+from pydivert import PyDivert, service
 
 
 def test_is_registered_direct():
@@ -58,7 +57,7 @@ def test_register():
 def test_unregister():
     # Ensure registered
     if not PyDivert.is_registered():
-        PyDivert.register()
+        PyDivert.register_service()
 
     assert PyDivert.is_registered()
 

@@ -22,8 +22,8 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
-from typing import Any, cast
 import sys
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest

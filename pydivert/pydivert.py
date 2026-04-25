@@ -71,7 +71,7 @@ class PyDivert(BaseDivert):
         raise NotImplementedError(f"Unsupported platform: {sys.platform}")  # pragma: no cover
 
     @classmethod
-    def register(cls) -> None:
+    def register_service(cls) -> None:
         """Utility method to register the service (delegates to implementation)."""
         cls._get_implementation_class().register()
 

@@ -22,12 +22,12 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+import sys
 from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 
-import sys
 import pydivert
 from pydivert.consts import Param
 

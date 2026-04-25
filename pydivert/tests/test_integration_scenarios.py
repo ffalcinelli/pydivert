@@ -259,11 +259,11 @@ def test_integration_driver_management():
     try:
         pydivert.PyDivert.is_registered()
         pydivert.PyDivert.unregister()
-        pydivert.PyDivert.register()
+        pydivert.PyDivert.register_service()
         assert pydivert.PyDivert.is_registered() is True
         pydivert.PyDivert.unregister()
         time.sleep(1.0)
-        pydivert.PyDivert.register()
+        pydivert.PyDivert.register_service()
         assert pydivert.PyDivert.is_registered() is True
     except (PermissionError, OSError) as e:
         pytest.skip(f"Test failed with {type(e).__name__}: {e}")
