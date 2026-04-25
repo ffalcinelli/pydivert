@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pydivert import WinDivert
+from pydivert import PyDivert
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
@@ -17,8 +17,8 @@ class MockOverlapped:
 @patch("pydivert.windivert.byref", lambda x: x)
 @patch("pydivert.windivert.windivert_dll")
 def test_windivert_recv_buffer_reuse(wd_dll):
-    w = WinDivert()
-    w._handle = cast(Any, "fake_handle")
+    w = PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, "fake_handle")
 
     def fake_recv(handle, pPacket, packetLen, pRecvLen, pAddr):
         # Handle both direct c_uint and CArgObject
@@ -61,8 +61,8 @@ def test_windivert_recv_buffer_reuse(wd_dll):
 @patch("pydivert.windivert.byref", lambda x: x)
 @patch("pydivert.windivert.windivert_dll")
 def test_windivert_recv_ex_buffer_reuse(wd_dll):
-    w = WinDivert()
-    w._handle = cast(Any, "fake_handle")
+    w = PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, "fake_handle")
 
     def fake_recv_ex(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):
         if hasattr(pRecvLen, "value"):

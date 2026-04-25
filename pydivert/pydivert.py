@@ -70,6 +70,26 @@ class PyDivert(BaseDivert):
             return Divert
         raise NotImplementedError(f"Unsupported platform: {sys.platform}")  # pragma: no cover
 
+    @classmethod
+    def register(cls) -> None:
+        """Utility method to register the service (delegates to implementation)."""
+        cls._get_implementation_class().register()
+
+    @classmethod
+    def is_registered(cls) -> bool:
+        """Check if the service is registered (delegates to implementation)."""
+        return cls._get_implementation_class().is_registered()
+
+    @classmethod
+    def unregister(cls) -> None:
+        """Unregister the service (delegates to implementation)."""
+        cls._get_implementation_class().unregister()
+
+    @classmethod
+    def check_filter(cls, filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
+        """Check if the given packet filter string is valid (delegates to implementation)."""
+        return cls._get_implementation_class().check_filter(filter, layer)
+
     def open(self) -> None:
         self._impl.open()
 

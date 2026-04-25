@@ -31,15 +31,20 @@ from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import service, windivert_dll  # noqa: F401
 from pydivert.base import BaseDivert
-from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer, Param
+from pydivert.consts import (
+    DEFAULT_ASYNC_TIMEOUT_MS,
+    DEFAULT_PACKET_BUFFER_SIZE,
+    WINDIVERT_SHUTDOWN_BOTH,
+    Direction,
+    Flag,
+    Layer,
+    Param,
+)
 from pydivert.packet import Packet
 from pydivert.windivert_dll import (
     Overlapped,
     WinDivertAddress,
 )
-
-WINDIVERT_SHUTDOWN_BOTH = 3
-DEFAULT_ASYNC_TIMEOUT = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +179,13 @@ class WinDivert(BaseDivert):
         self._handle = windivert_dll.WinDivertOpen(filter_bytes, self._layer, self._priority, self._flags)
 
     @property
+    def handle(self) -> ctypes.c_void_p | None:
+        """
+        Returns the WinDivert handle.
+        """
+        return self._handle
+
+    @property
     def is_open(self) -> bool:
         """
         Indicates if there is currently an open handle.
@@ -254,7 +266,7 @@ class WinDivert(BaseDivert):
             raise RuntimeError("WinDivert handle is not open")
 
         # Convert float seconds to integer milliseconds for Win32 API
-        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT
+        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT_MS
 
         event = windivert_dll.CreateEventW(None, False, False, None)
         try:
@@ -472,7 +484,7 @@ class WinDivert(BaseDivert):
             packet.recalculate_checksums()
 
         # Convert float seconds to integer milliseconds for Win32 API
-        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT
+        timeout_ms = int(timeout * 1000) if timeout is not None else DEFAULT_ASYNC_TIMEOUT_MS
 
         event = windivert_dll.CreateEventW(None, False, False, None)
         try:

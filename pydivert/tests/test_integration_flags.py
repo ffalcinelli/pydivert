@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from pydivert import Flag, WinDivert
+from pydivert import Flag, PyDivert
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
@@ -18,7 +18,7 @@ def test_intflag_combinations():
     # Depending on permissions this might raise PermissionError or OSError.
     # We handle the permissions error gracefully.
     try:
-        w = WinDivert("false", flags=flags)
+        w = PyDivert("false", flags=flags)
         w.open()
         w.close()
     except PermissionError:

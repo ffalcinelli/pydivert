@@ -34,7 +34,7 @@ import pydivert
 
 @pytest.fixture
 def windivert_handle():
-    with pydivert.WinDivert("false") as w:
+    with pydivert.PyDivert("false") as w:
         yield w
 
 
@@ -125,5 +125,5 @@ def scenario(request):
             threading.Thread(target=send, args=args, kwargs=kwargs, daemon=True).start()
             return reply
 
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.PyDivert(filt) as w:
             yield client.getsockname(), server.getsockname(), w, send_thread

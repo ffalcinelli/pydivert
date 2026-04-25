@@ -23,6 +23,7 @@
 # see <https://www.gnu.org/licenses/>.
 
 from typing import Any, cast
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,6 +32,7 @@ import pydivert
 import pydivert.windivert_dll
 from pydivert.windivert_dll import Overlapped, WinDivertAddress
 
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert specific tests")
 
 @pytest.fixture
 def mock_windivert_dll():
@@ -45,8 +47,8 @@ def test_recv_ex_async_pending(mock_windivert_dll):
     # Simulate WinDivertRecvEx raising ERROR_IO_PENDING
     mock_windivert_dll.WinDivertRecvEx.side_effect = pydivert.windivert_dll.WinError(997)
 
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
     overlapped = Overlapped()
 
     result = w.recv_ex(overlapped=overlapped)
@@ -63,8 +65,8 @@ def test_send_ex_async_pending(mock_windivert_dll):
     # Simulate WinDivertSendEx raising ERROR_IO_PENDING
     mock_windivert_dll.WinDivertSendEx.side_effect = pydivert.windivert_dll.WinError(997)
 
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
     overlapped = Overlapped()
 
     packet = MagicMock(spec=pydivert.Packet)
@@ -85,8 +87,8 @@ def test_recv_ex_sync_success(mock_windivert_dll):
     # Simulate synchronous success (no error raised)
     mock_windivert_dll.WinDivertRecvEx.return_value = True
 
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
 
     # We need to mock the Packet creation or let it fail gracefully
     with patch("pydivert.windivert.Packet") as mock_packet:

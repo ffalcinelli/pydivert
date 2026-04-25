@@ -257,13 +257,13 @@ def test_integration_driver_management():
     Scenario: Register and Unregister the WinDivert driver.
     """
     try:
-        pydivert.WinDivert.is_registered()
-        pydivert.WinDivert.unregister()
-        pydivert.WinDivert.register()
-        assert pydivert.WinDivert.is_registered() is True
-        pydivert.WinDivert.unregister()
+        pydivert.PyDivert.is_registered()
+        pydivert.PyDivert.unregister()
+        pydivert.PyDivert.register()
+        assert pydivert.PyDivert.is_registered() is True
+        pydivert.PyDivert.unregister()
         time.sleep(1.0)
-        pydivert.WinDivert.register()
-        assert pydivert.WinDivert.is_registered() is True
+        pydivert.PyDivert.register()
+        assert pydivert.PyDivert.is_registered() is True
     except (PermissionError, OSError) as e:
         pytest.skip(f"Test failed with {type(e).__name__}: {e}")

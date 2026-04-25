@@ -49,9 +49,10 @@ def run_cmd(cmd, shell=False, check=True, env=None, timeout=None):
         )
 
         # Stream output in real-time
-        for line in process.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
+        if process.stdout:
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
 
         return_code = process.wait(timeout=timeout)
 
@@ -220,4 +221,6 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
+"__main__":
     main()

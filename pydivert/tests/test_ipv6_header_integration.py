@@ -56,7 +56,7 @@ def test_ipv6_traffic_class_flow_label_integration():
     stop_event = threading.Event()
 
     def divert_thread_func():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.PyDivert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break

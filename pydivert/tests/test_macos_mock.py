@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
 import queue
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,9 @@ import pytest
 from pydivert.consts import Direction
 from pydivert.macos import MacOSDivert
 from pydivert.packet import Packet
+
+if not sys.platform.startswith("darwin"):
+    pytest.skip("skipping macos-only tests", allow_module_level=True)
 from pydivert.pydivert import PyDivert
 
 

@@ -1,4 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+"""
+FreeBSD implementation of the Divert interface using **Divert Sockets**.
+
+.. warning::
+   FreeBSD support is currently **experimental**.
+"""
+
 from __future__ import annotations
 
 import asyncio

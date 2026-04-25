@@ -27,9 +27,11 @@ from unittest.mock import patch
 
 import pytest
 
+import sys
 import pydivert
 from pydivert.consts import Param
 
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert specific tests")
 
 @pytest.fixture
 def mock_windivert_dll():
@@ -39,8 +41,8 @@ def mock_windivert_dll():
 
 
 def test_get_param_success(mock_windivert_dll):
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
 
     # We simulate WinDivertGetParam returning success and setting the value via byref
     def side_effect(handle, param, pValue):
@@ -68,8 +70,8 @@ def test_get_param_success(mock_windivert_dll):
 
 
 def test_set_param_success(mock_windivert_dll):
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
 
     mock_windivert_dll.WinDivertSetParam.return_value = True
 
@@ -90,8 +92,8 @@ def test_set_param_success(mock_windivert_dll):
 
 
 def test_get_param_error(mock_windivert_dll):
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
 
     mock_windivert_dll.WinDivertGetParam.side_effect = OSError(None, "Invalid Parameter", None, 87)
 
@@ -100,8 +102,8 @@ def test_get_param_error(mock_windivert_dll):
 
 
 def test_set_param_error(mock_windivert_dll):
-    w = pydivert.WinDivert()
-    w._handle = cast(Any, 123)
+    w = pydivert.PyDivert()
+    getattr(w, "_impl", w)._handle = cast(Any, 123)
 
     mock_windivert_dll.WinDivertSetParam.side_effect = OSError(None, "Invalid Parameter", None, 87)
 

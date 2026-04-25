@@ -82,11 +82,11 @@ pip install pydivert
 
 PyDivert aims for a "write once, run anywhere" experience, but some low-level features are platform-specific.
 
-| Feature | Windows | Linux | FreeBSD | macOS |
+| Feature | Windows | Linux | FreeBSD (Exp.) | macOS (Exp.) |
 | :--- | :---: | :---: | :---: | :---: |
 | **Backend** | WinDivert 2.2 | NetFilterQueue | Divert Sockets | Divert Sockets |
 | **Auto-Firewall** | ✅ (Built-in) | ✅ (iptables) | ✅ (ipfw) | ⚠️ (Manual PF) |
-| **Async I/O** | ✅ (Overlapped) | ✅ (Threaded) | ✅ (Threaded) | ✅ (Threaded) |
+| **Async I/O** | ✅ (Overlapped) | ✅ (Native) | ✅ (Threaded) | ✅ (Threaded) |
 | **Layers** | All (Net, Flow, etc.) | Network Only | Network Only | Network Only |
 | **Bundled Driver**| ✅ Included | N/A | N/A | N/A |
 
@@ -240,3 +240,4 @@ PyDivert is dual-licensed under the [LGPL-3.0-or-later](https://github.com/ffalc
 ## 🛡️ Security
 
 PyDivert is committed to security and uses [Snyk](https://snyk.io/) for continuous vulnerability scanning. For more details on our security practices and how to report vulnerabilities, please refer to the [Security Policy](SECURITY.md).
+es, please refer to the [Security Policy](SECURITY.md).

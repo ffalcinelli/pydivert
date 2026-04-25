@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from typing import Any
+
 from lark import Lark, Transformer
 
 WINDIVERT_GRAMMAR = r"""
@@ -88,58 +90,66 @@ class WinDivertTransformer(Transformer):
             # For simplicity, we just extract the field name if it was a string
             return [{}]
 
-        field = str(left).lower()
+        field = self._normalize_field_name(str(left).lower())
         val = str(right)
-
-        # Handle aliases and normalized names
-        if field == "ip.srcaddr":
-            field = "ip.src"
-        if field == "ip.dstaddr":
-            field = "ip.dst"
-        if field == "ipv6.srcaddr":
-            field = "ipv6.src"
-        if field == "ipv6.dstaddr":
-            field = "ipv6.dst"
-        if field == "tcp.srcport":
-            field = "tcp.srcport"
-        if field == "tcp.dstport":
-            field = "tcp.dstport"
-        if field == "udp.srcport":
-            field = "udp.srcport"
-        if field == "udp.dstport":
-            field = "udp.dstport"
 
         # Basic equality transpilation for iptables
         if op == "==":
-            import sys
-            # Ports
-            if field in ("tcp.dstport", "udp.dstport"):
-                return [{"proto": field.split(".")[0], "dport": val}]
-            if field in ("tcp.srcport", "udp.srcport"):
-                return [{"proto": field.split(".")[0], "sport": val}]
-            if field in ("tcp.port", "udp.port"):
-                # Matches both source and destination
-                proto = field.split(".")[0]
-                if sys.platform.startswith("linux"):
-                    # On Linux we choose ONLY destination to avoid double interception loops
-                    return [{"proto": proto, "dport": val}]
-                return [{"proto": proto, "dport": val}, {"proto": proto, "sport": val}]
+            rules = self._handle_port_comparison(field, val)
+            if rules:
+                return rules
 
-            # IP Addresses
-            if field in ("ip.src", "ipv6.src", "ip.srcaddr", "ipv6.srcaddr"):
-                return [{"srcaddr": val}]
-            if field in ("ip.dst", "ipv6.dst", "ip.dstaddr", "ipv6.dstaddr"):
-                return [{"dstaddr": val}]
-            if field in ("ip.addr", "ipv6.addr"):
-                # Matches both source and destination
-                if sys.platform.startswith("linux"):
-                    # On Linux we choose ONLY destination
-                    return [{"dstaddr": val}]
-                return [{"srcaddr": val}, {"dstaddr": val}]
+            rules = self._handle_addr_comparison(field, val)
+            if rules:
+                return rules
 
         # For other operators, we return an empty dict to allow user-space filtering
         # while still having a basic hook if other AND conditions match.
         return [{}]
+
+    def _normalize_field_name(self, field: str) -> str:
+        mapping = {
+            "ip.srcaddr": "ip.src",
+            "ip.dstaddr": "ip.dst",
+            "ipv6.srcaddr": "ipv6.src",
+            "ipv6.dstaddr": "ipv6.dst",
+            "tcp.srcport": "tcp.srcport",
+            "tcp.dstport": "tcp.dstport",
+            "udp.srcport": "udp.srcport",
+            "udp.dstport": "udp.dstport",
+        }
+        return mapping.get(field, field)
+
+    def _handle_port_comparison(self, field: str, val: str) -> list[dict[str, Any]] | None:
+        import sys
+
+        if field in ("tcp.dstport", "udp.dstport"):
+            return [{"proto": field.split(".")[0], "dport": val}]
+        if field in ("tcp.srcport", "udp.srcport"):
+            return [{"proto": field.split(".")[0], "sport": val}]
+        if field in ("tcp.port", "udp.port"):
+            # Matches both source and destination
+            proto = field.split(".")[0]
+            if sys.platform.startswith("linux"):
+                # On Linux we choose ONLY destination to avoid double interception loops
+                return [{"proto": proto, "dport": val}]
+            return [{"proto": proto, "dport": val}, {"proto": proto, "sport": val}]
+        return None
+
+    def _handle_addr_comparison(self, field: str, val: str) -> list[dict[str, Any]] | None:
+        import sys
+
+        if field in ("ip.src", "ipv6.src", "ip.srcaddr", "ipv6.srcaddr"):
+            return [{"srcaddr": val}]
+        if field in ("ip.dst", "ipv6.dst", "ip.dstaddr", "ipv6.dstaddr"):
+            return [{"dstaddr": val}]
+        if field in ("ip.addr", "ipv6.addr"):
+            # Matches both source and destination
+            if sys.platform.startswith("linux"):
+                # On Linux we choose ONLY destination
+                return [{"dstaddr": val}]
+            return [{"srcaddr": val}, {"dstaddr": val}]
+        return None
 
     def field_access(self, children):
         name = str(children[0]).lower()

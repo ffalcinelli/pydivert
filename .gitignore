@@ -44,3 +44,7 @@ sbom.json
 # Local development
 node_modules/
 *.log
+coverage*
+*.log
+linux_ssh_config
+windows_ssh_config

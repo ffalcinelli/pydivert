@@ -27,7 +27,7 @@ import sys
 import pytest
 
 from pydivert.consts import Param
-from pydivert.windivert import WinDivert
+from pydivert import PyDivert
 
 from .fixtures import scenario
 from .fixtures import windivert_handle as w
@@ -38,7 +38,7 @@ assert scenario, w  # keep fixtures
 
 
 def test_open():
-    w = WinDivert("false")
+    w = PyDivert("false")
     w.open()
     assert w.is_open
     w.close()
@@ -46,7 +46,7 @@ def test_open():
 
     with w:
         # open a second one.
-        with WinDivert("false") as w2:
+        with PyDivert("false") as w2:
             assert w2.is_open
 
         assert w.is_open
@@ -175,14 +175,14 @@ def test_packet_cutoff(scenario) -> None:
 
 def test_check_filter():
 
-    res, pos, msg = WinDivert.check_filter("true")
+    res, pos, msg = PyDivert.check_filter("true")
     assert res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter("something wrong here")
+    res, pos, msg = PyDivert.check_filter("something wrong here")
     assert not res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter("outbound and something wrong here")
+    res, pos, msg = PyDivert.check_filter("outbound and something wrong here")
     assert not res
     assert pos == 13

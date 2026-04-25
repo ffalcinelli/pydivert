@@ -12,7 +12,17 @@ import threading
 from typing import Any
 
 from pydivert.base import BaseDivert
-from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
+from pydivert.consts import (
+    DEFAULT_BIND_RETRIES,
+    DEFAULT_NFTTABLE_NAME,
+    DEFAULT_PACKET_BUFFER_SIZE,
+    DEFAULT_QUEUE_SIZE,
+    DEFAULT_RECV_TIMEOUT,
+    LOOP_PREVENTION_MARK,
+    Direction,
+    Flag,
+    Layer,
+)
 from pydivert.filter import transpile_to_rules
 from pydivert.packet import Packet
 
@@ -24,13 +34,14 @@ except ImportError:  # pragma: no cover
     NFQ = None
 
 try:
-    import nftables
+    import nftables  # type: ignore
 except ImportError:  # pragma: no cover
     # Try to find it in system site-packages on Debian-based systems
     import sys
+
     sys.path.append("/usr/lib/python3/dist-packages")
     try:
-        import nftables
+        import nftables  # type: ignore
     except ImportError:
         nftables = None
 
@@ -61,12 +72,26 @@ class IptablesBackend(LinuxFirewallBackend):
         pass
 
     def add_rule(self, queue_num: int, rule_dict: dict[str, Any]) -> None:
-        # We use mark 0x1 to avoid re-interception loops
-        loop_prevent = ["-m", "mark", "!", "--mark", "0x1"]
+        # Use mark to avoid re-interception loops
+        loop_prevent = ["-m", "mark", "!", "--mark", hex(LOOP_PREVENTION_MARK)]
 
-        chains = ["INPUT", "OUTPUT", "FORWARD"]
-        ipt_args = []
+        chains = self._get_chains(rule_dict.get("direction"))
+        ipt_args = self._build_ipt_args(rule_dict)
+        cmds = self._get_commands(rule_dict)
 
+        for cmd in cmds:
+            for chain in chains:
+                rule_args = self._build_final_args(cmd, chain, rule_dict, loop_prevent, ipt_args, queue_num)
+                self._apply_rule(cmd, chain, rule_args)
+
+    def _get_chains(self, direction: str | None) -> list[str]:
+        if direction == "inbound":
+            return ["INPUT", "FORWARD"]
+        if direction == "outbound":
+            return ["OUTPUT", "FORWARD"]
+        return ["INPUT", "OUTPUT", "FORWARD"]
+
+    def _build_ipt_args(self, rule_dict: dict[str, Any]) -> list[str]:
         mapping = {
             "proto": "-p",
             "dport": "--dport",
@@ -74,48 +99,51 @@ class IptablesBackend(LinuxFirewallBackend):
             "srcaddr": "-s",
             "dstaddr": "-d",
         }
-
+        args = []
         for key, flag in mapping.items():
             if val := rule_dict.get(key):
-                ipt_args.extend([flag, val])
+                args.extend([flag, str(val)])
+        return args
 
-        # Determine if we need iptables, ip6tables or both
-        cmds = []
+    def _get_commands(self, rule_dict: dict[str, Any]) -> list[str]:
         src = str(rule_dict.get("srcaddr", ""))
         dst = str(rule_dict.get("dstaddr", ""))
-
         if ":" in src or ":" in dst:
-            cmds = ["ip6tables"]
-        elif src or dst:
-            cmds = ["iptables"]
-        else:
-            # If no address specified, apply to both for safety if possible
-            cmds = ["iptables", "ip6tables"]
+            return ["ip6tables"]
+        if src or dst:
+            return ["iptables"]
+        return ["iptables", "ip6tables"]
 
-        for cmd in cmds:
-            for chain in chains:
-                # Chain-specific args for loopback to avoid "Can't use -o with INPUT"
-                chain_args = []
-                if rule_dict.get("loopback"):
-                    if chain == "INPUT":
-                        chain_args.extend(["-i", "lo"])
-                    elif chain == "OUTPUT":
-                        chain_args.extend(["-o", "lo"])
-                    elif chain == "FORWARD":
-                        chain_args.extend(["-i", "lo", "-o", "lo"])
+    def _build_final_args(
+        self,
+        cmd: str,
+        chain: str,
+        rule_dict: dict[str, Any],
+        loop_prevent: list[str],
+        ipt_args: list[str],
+        queue_num: int,
+    ) -> list[str]:
+        chain_args = []
+        if rule_dict.get("loopback"):
+            if chain == "INPUT":
+                chain_args.extend(["-i", "lo"])
+            elif chain == "OUTPUT":
+                chain_args.extend(["-o", "lo"])
+            elif chain == "FORWARD":
+                chain_args.extend(["-i", "lo", "-o", "lo"])
 
-                rule_args = [*loop_prevent, *ipt_args, *chain_args, "-j", "NFQUEUE", "--queue-num", str(queue_num)]
+        return [*loop_prevent, *ipt_args, *chain_args, "-j", "NFQUEUE", "--queue-num", str(queue_num)]
 
-                try:
-                    subprocess.run([cmd, "-I", chain, *rule_args], check=True, capture_output=True)
-                    self._applied_rules.append((cmd, [chain, *rule_args]))
-                except Exception as e:
-                    logger.debug("Failed to add %s rule to %s: %s", cmd, chain, e)
-                    # Re-raise as RuntimeError for consistency with tests
-                    msg = str(e)
-                    if isinstance(e, subprocess.CalledProcessError):
-                         msg = e.stderr.decode()
-                    raise RuntimeError(f"Failed to add {cmd} rule: {msg}") from e
+    def _apply_rule(self, cmd: str, chain: str, rule_args: list[str]) -> None:
+        try:
+            subprocess.run([cmd, "-I", chain, *rule_args], check=True, capture_output=True)
+            self._applied_rules.append((cmd, [chain, *rule_args]))
+        except Exception as e:
+            logger.debug("Failed to add %s rule to %s: %s", cmd, chain, e)
+            msg = str(e)
+            if isinstance(e, subprocess.CalledProcessError):
+                msg = e.stderr.decode()
+            raise RuntimeError(f"Failed to add {cmd} rule: {msg}") from e
 
     def close(self) -> None:
         for cmd, args in reversed(self._applied_rules):
@@ -142,11 +170,11 @@ class IptablesBackend(LinuxFirewallBackend):
 class NftablesBackend(LinuxFirewallBackend):
     """Modern backend using the nftables Python library."""
 
-    def __init__(self) -> None:
+    def __init__(self, table_name: str = DEFAULT_NFTTABLE_NAME) -> None:
         if nftables is None:
             raise ImportError("nftables library not found.")
         self._nft = nftables.Nftables()
-        self._table_name = "pydivert"
+        self._table_name = table_name
 
     def open(self) -> None:
         # Try to delete existing table first for a clean state
@@ -168,21 +196,10 @@ class NftablesBackend(LinuxFirewallBackend):
 
     def add_rule(self, queue_num: int, rule_dict: dict[str, Any]) -> None:
         # Build nftables rule string
-        # mark != 0x1 queue num <num>
-        parts = ["mark != 0x1"]
+        parts = [f"mark != {hex(LOOP_PREVENTION_MARK)}"]
 
-        if proto := rule_dict.get("proto"):
-            if dport := rule_dict.get("dport"):
-                parts.append(f"{proto} dport {dport}")
-            elif sport := rule_dict.get("sport"):
-                parts.append(f"{proto} sport {sport}")
-            else:
-                parts.append(proto)
-
-        if src := rule_dict.get("srcaddr"):
-            parts.append(f"ip saddr {src}" if "." in str(src) else f"ip6 saddr {src}")
-        if dst := rule_dict.get("dstaddr"):
-            parts.append(f"ip daddr {dst}" if "." in str(dst) else f"ip6 daddr {dst}")
+        parts.extend(self._build_proto_parts(rule_dict))
+        parts.extend(self._build_addr_parts(rule_dict))
 
         if rule_dict.get("loopback"):
             parts.append("iifname lo")
@@ -190,15 +207,35 @@ class NftablesBackend(LinuxFirewallBackend):
         parts.append(f"queue num {queue_num}")
         rule_str = " ".join(parts)
 
-        direction = rule_dict.get("direction")
-        hooks = ["input", "output", "forward"]
-        if direction == "inbound":
-            hooks = ["input", "forward"]
-        elif direction == "outbound":
-            hooks = ["output", "forward"]
-
+        hooks = self._get_hooks(rule_dict.get("direction"))
         for hook in hooks:
             self._run_cmd(f"add rule inet {self._table_name} {hook} {rule_str}")
+
+    def _build_proto_parts(self, rule_dict: dict[str, Any]) -> list[str]:
+        parts = []
+        if proto := rule_dict.get("proto"):
+            if dport := rule_dict.get("dport"):
+                parts.append(f"{proto} dport {dport}")
+            elif sport := rule_dict.get("sport"):
+                parts.append(f"{proto} sport {sport}")
+            else:
+                parts.append(proto)
+        return parts
+
+    def _build_addr_parts(self, rule_dict: dict[str, Any]) -> list[str]:
+        parts = []
+        if src := rule_dict.get("srcaddr"):
+            parts.append(f"ip saddr {src}" if "." in str(src) else f"ip6 saddr {src}")
+        if dst := rule_dict.get("dstaddr"):
+            parts.append(f"ip daddr {dst}" if "." in str(dst) else f"ip6 daddr {dst}")
+        return parts
+
+    def _get_hooks(self, direction: str | None) -> list[str]:
+        if direction == "inbound":
+            return ["input", "forward"]
+        if direction == "outbound":
+            return ["output", "forward"]
+        return ["input", "output", "forward"]
 
     def close(self) -> None:
         try:
@@ -222,7 +259,7 @@ class NetFilterQueue(BaseDivert):
         super().__init__(filter, layer, priority, flags)
         self._nfqueue: Any = None
         self._queue_num = 0 + (priority % 1000)
-        self._queue: queue.Queue[Packet] = queue.Queue(maxsize=10000)
+        self._queue: queue.Queue[Packet] = queue.Queue(maxsize=DEFAULT_QUEUE_SIZE)
         self._async_queue: asyncio.Queue[Packet] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -231,7 +268,7 @@ class NetFilterQueue(BaseDivert):
 
         if nftables is not None:
             try:
-                self._backend = NftablesBackend()
+                self._backend = NftablesBackend(DEFAULT_NFTTABLE_NAME)
             except Exception as e:
                 logger.debug("Failed to initialize nftables backend: %s", e)
                 self._backend = IptablesBackend()
@@ -254,16 +291,15 @@ class NetFilterQueue(BaseDivert):
         rules = transpile_to_rules(self.filter)
         result = []
         for rule in rules:
-            chains = ["INPUT", "OUTPUT", "FORWARD"]
-            direction = rule.get("direction")
-            if direction == "inbound":
-                chains = ["INPUT", "FORWARD"]
-            elif direction == "outbound":
-                chains = ["OUTPUT", "FORWARD"]
+            chains = (
+                self._backend._get_chains(rule.get("direction"))
+                if isinstance(self._backend, IptablesBackend)
+                else ["INPUT", "OUTPUT", "FORWARD"]
+            )
 
-            ipt_args = ["-m", "mark", "!", "--mark", "0x1"]
+            ipt_args = ["-m", "mark", "!", "--mark", hex(LOOP_PREVENTION_MARK)]
             if self.filter.lower() == "true":
-                 ipt_args.extend(["-p", "tcp", "!", "--dport", "22"]) # Mocked behavior
+                ipt_args.extend(["-p", "tcp", "!", "--dport", "22"])  # Mocked behavior
 
             result.append((chains, ipt_args))
         return result
@@ -286,12 +322,12 @@ class NetFilterQueue(BaseDivert):
             except Exception as e:
                 logger.warning("Failed to setup firewall rules: %s", e)
                 if not self.is_open:
-                     raise
+                    raise
                 # If we're already open but rules failed, decide if we should continue
                 # For compatibility with tests that expect RuntimeError on rule failure:
                 if "Failed to add" in str(e) or "iptables" in str(e):
-                     self.close()
-                     raise RuntimeError(f"Failed to add iptables rule: {e}") from e
+                    self.close()
+                    raise RuntimeError(f"Failed to add iptables rule: {e}") from e
 
         # Start processing
         try:
@@ -310,7 +346,7 @@ class NetFilterQueue(BaseDivert):
         if NFQ is None:
             raise ImportError("netfilterqueue library not found.")
         nfq = NFQ()
-        for _i in range(10):
+        for _i in range(DEFAULT_BIND_RETRIES):
             try:
                 nfq.bind(self._queue_num, self._callback)
                 self._nfqueue = nfq
@@ -336,7 +372,7 @@ class NetFilterQueue(BaseDivert):
                     logger.error("NFQueue loop error: %s", e)
 
     def _callback(self, pkt: Any) -> None:
-        if pkt.get_mark() == 0x1:
+        if pkt.get_mark() == LOOP_PREVENTION_MARK:
             pkt.accept()
             return
 
@@ -400,7 +436,9 @@ class NetFilterQueue(BaseDivert):
     def is_open(self) -> bool:
         return self._nfqueue is not None
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = 0.1) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = DEFAULT_RECV_TIMEOUT) -> Packet:
+        if not self.is_open:
+            raise RuntimeError("Queue is not open.")
         try:
             return self._queue.get(timeout=timeout)
         except queue.Empty:
@@ -413,7 +451,7 @@ class NetFilterQueue(BaseDivert):
             raise RuntimeError("Queue is not open.")
 
         if self._async_queue is None:
-            self._async_queue = asyncio.Queue(maxsize=10000)
+            self._async_queue = asyncio.Queue(maxsize=DEFAULT_QUEUE_SIZE)
             # Drain current sync queue
             try:
                 while True:
@@ -437,7 +475,7 @@ class NetFilterQueue(BaseDivert):
             raw = packet.raw.tobytes()
             try:
                 nfq_pkt.set_payload(raw)
-                nfq_pkt.set_mark(0x1)
+                nfq_pkt.set_mark(LOOP_PREVENTION_MARK)
                 nfq_pkt.accept()
             except Exception as e:
                 logger.debug("Failed to accept/modify NFQ packet: %s", e)
