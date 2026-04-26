@@ -9,7 +9,6 @@ from pydivert.packet import Packet
 from pydivert.tests.util import require_scapy
 
 
-@pytest.mark.usefixtures("scapy_components")
 class TestChecksumFuzzing:
     @pytest.fixture(autouse=True)
     def setup_scapy(self):

@@ -1,27 +1,4 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-#   - the GNU Lesser General Public License as published by the Free
-#     Software Foundation, either version 3 of the License, or (at your
-#     option) any later version.
-#
-#   - the GNU General Public License as published by the Free Software
-#     Foundation, either version 2 of the License, or (at your option) any
-#     later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License for
-# more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
 import socket
 import struct
 
@@ -32,16 +9,12 @@ from pydivert import util
 from pydivert.consts import Direction, Protocol
 
 
-def p(raw):
-    return pydivert.Packet(raw, (1, 1), pydivert.Direction.OUTBOUND)
-
-
-def test_ip_modify():
-    raw = util.fromhex(
+def test_ip_modify(packet_factory):
+    raw_hex = (
         "45 00 00 28 00 01 00 00 40 06 00 00 7f 00 00 01 7f 00 00 01"
         "00 50 00 50 00 00 00 00 00 00 00 00 50 02 20 00 00 00 00 00"
     )
-    x = p(raw)
+    x = packet_factory(raw_hex)
     assert x.ipv4 is not None
     assert x.tcp is not None
     assert x.dst_addr == "127.0.0.1"
@@ -74,12 +47,12 @@ def test_ip_modify():
     assert x.raw.tobytes() != a
 
 
-def test_ip_modify_complex():
-    raw = util.fromhex(
+def test_ip_modify_complex(packet_factory):
+    raw_hex = (
         "45 00 00 28 00 01 00 00 40 06 00 00 7f 00 00 01 7f 00 00 01"
         "00 50 00 50 00 00 00 00 00 00 00 00 50 02 20 00 00 00 00 00"
     )
-    x = p(raw)
+    x = packet_factory(raw_hex)
     x.src_addr = "1.2.3.4"
     x.dst_addr = "5.6.7.8"
     x.src_port = 1234
@@ -94,13 +67,13 @@ def test_ip_modify_complex():
     )
 
 
-def test_ipv6_modify():
-    raw = util.fromhex(
+def test_ipv6_modify(packet_factory):
+    raw_hex = (
         "60 00 00 00 00 08 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 "
         "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 50 00 50 00 00 00 "
         "00 00 00 00 00 50 02 20 00 00 00 00 00"
     )
-    x = p(raw)
+    x = packet_factory(raw_hex)
     assert x.ipv6 is not None
     assert x.tcp is not None
     assert x.dst_addr == "::1"
@@ -115,16 +88,16 @@ def test_ipv6_modify():
 
     x.dst_addr = "::1"
     assert x.dst_addr == "::1"
-    assert x.raw.tobytes() == raw
+    assert x.raw.tobytes() == util.fromhex(raw_hex)
 
 
-def test_ipv6_modify_complex():
-    raw = util.fromhex(
+def test_ipv6_modify_complex(packet_factory):
+    raw_hex = (
         "60 00 00 00 00 08 06 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 "
         "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 50 00 50 00 00 00 "
         "00 00 00 00 00 50 02 20 00 00 00 00 00"
     )
-    x = p(raw)
+    x = packet_factory(raw_hex)
     x.src_addr = "2001:4860:4860::8888"
     x.dst_addr = "2001:4860:4860::8844"
     x.src_port = 1234
@@ -140,12 +113,12 @@ def test_ipv6_modify_complex():
     )
 
 
-def test_tcp_modify():
-    raw = util.fromhex(
+def test_tcp_modify(packet_factory):
+    raw_hex = (
         "45 00 00 28 00 01 00 00 40 06 00 00 7f 00 00 01 7f 00 00 01"
         "00 50 00 50 00 00 00 00 00 00 00 00 50 02 20 00 00 00 00 00"
     )
-    x = p(raw)
+    x = packet_factory(raw_hex)
     assert x.tcp is not None
     assert x.tcp.header_len == 20
     assert x.tcp.dst_port == 80
@@ -190,9 +163,9 @@ def test_tcp_modify():
     assert x.payload == b"abcd"
 
 
-def test_udp_modify():
-    raw = util.fromhex("45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 0100 35 00 35 00 08 00 00")
-    x = p(raw)
+def test_udp_modify(packet_factory):
+    raw_hex = "45 00 00 1c 00 01 00 00 40 11 00 00 7f 00 00 01 7f 00 00 0100 35 00 35 00 08 00 00"
+    x = packet_factory(raw_hex)
     assert x.udp is not None
     assert x.udp.header_len == 8
     assert x.udp.dst_port == 53
@@ -229,9 +202,9 @@ def test_udp_modify():
     assert x.raw.tobytes() != a
 
 
-def test_icmp_modify():
-    raw = util.fromhex("45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 0108 00 00 00 00 00 00 00")
-    x = p(raw)
+def test_icmp_modify(packet_factory):
+    raw_hex = "45 00 00 1c 00 01 00 00 40 01 00 00 7f 00 00 01 7f 00 00 0108 00 00 00 00 00 00 00"
+    x = packet_factory(raw_hex)
     assert x.icmp is not None
     assert x.icmp.header_len == 8
     assert x.icmp.type == 8
@@ -272,8 +245,8 @@ def test_meta():
     assert p.is_outbound is True
 
 
-def test_bogus():
-    x = p(b"")
+def test_bogus(packet_factory):
+    x = packet_factory(b"")
     x.src_addr = "127.0.0.1"
     x.dst_addr = "127.0.0.1"
     x.src_port = 80
@@ -291,21 +264,21 @@ def test_bogus():
     assert x.recalculate_checksums() == 0
 
 
-def test_ipv6_truncation():
+def test_ipv6_truncation(packet_factory):
     # Correct IPv6 destination address
-    p6 = p(b"\x60" + b"\x00" * 39)
+    p6 = packet_factory(b"\x60" + b"\x00" * 39)
     assert p6.address_family == socket.AF_INET6
     assert p6.src_addr == "::"
     assert p6.dst_addr == "::"
 
     # Truncated IPv6 destination address
-    p6_trunc = p(b"\x60" + b"\x00" * 38)
+    p6_trunc = packet_factory(b"\x60" + b"\x00" * 38)
     assert p6_trunc.address_family == socket.AF_INET6
     assert p6_trunc.src_addr == "::"
     assert p6_trunc.dst_addr is None
 
     # Fragmented...
-    raw = util.fromhex(
+    raw_hex = (
         "6000000005b02c80fe8000000000000002105afffeaa20a2fe800000000000000250dafffed8c1533a0000010000000"
         "580009e9d0000000d6162636465666768696a6b6c6d6e6f70717273747576776162636465666768696a6b6c6d6e6f70"
         "717273747576776162636465666768696a6b6c6d6e6f70717273747576776162636465666768696a6b6c6d6e6f70717"
@@ -323,22 +296,22 @@ def test_ipv6_truncation():
         "6c6d6e6f70717273747576776162636465666768696a6b6c6d6e6f70717273747576776162636465666768696a6b6c6"
         "d6e6f70717273747576776162636465666768696a6b6c6d6e"
     )
-    assert p(raw).protocol[0] == Protocol.ICMPV6
+    assert packet_factory(raw_hex).protocol[0] == Protocol.ICMPV6
 
     # HOPOPTS
-    raw = util.fromhex(
+    raw_hex = (
         "600000000020000100000000000000000000000000000000ff0200000000000000000000000000013a0005020000000"
         "082007ac103e8000000000000000000000000000000000000"
     )
-    assert p(raw).protocol[0] == Protocol.ICMPV6
+    assert packet_factory(raw_hex).protocol[0] == Protocol.ICMPV6
 
 
-def test_ipv4_fields():
-    raw = util.fromhex(
+def test_ipv4_fields(packet_factory):
+    raw_hex = (
         "4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
         "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637"
     )
-    ip = p(raw).ipv4
+    ip = packet_factory(raw_hex).ipv4
 
     assert not ip.df
     ip.df = True
@@ -393,13 +366,13 @@ def test_ipv4_fields():
         ip.hdr_len = 4
 
 
-def test_ipv6_fields():
-    raw = util.fromhex(
+def test_ipv6_fields(packet_factory):
+    raw_hex = (
         "6e000000003c3301fe800000000000000000000000000001ff020000000000000000000000000005590400000000010"
         "00000001321d3a95c5ffd4d184622b9f8030100240101010100000001fb8600000000000501000013000a0028000000"
         "0000000000"
     )
-    ip = p(raw).ipv6
+    ip = packet_factory(raw_hex).ipv6
 
     ip.traffic_class = 3
     assert ip.traffic_class == 3
@@ -415,23 +388,23 @@ def test_ipv6_fields():
     assert ip.traffic_class == 32
 
 
-def test_icmp_fields():
-    raw = util.fromhex(
+def test_icmp_fields(packet_factory):
+    raw_hex = (
         "4500005426ef0000400157f9c0a82b09080808080800bbb3d73b000051a7d67d000451e408090a0b0c0d0e0f1011121"
         "31415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637"
     )
-    icmp = p(raw).icmp
+    icmp = packet_factory(raw_hex).icmp
 
     icmp.cksum = 11
     assert icmp.cksum == 11
 
 
-def test_tcp_fields():
-    raw = util.fromhex(
+def test_tcp_fields(packet_factory):
+    raw_hex = (
         "45000051476040008006f005c0a856a936f274fdd84201bb0876cfd0c19f9320501800ff8dba0000170303002400000"
         "00000000c2f53831a37ed3c3a632f47440594cab95283b558bf82cb7784344c3314"
     )
-    tcp = p(raw).tcp
+    tcp = packet_factory(raw_hex).tcp
 
     assert tcp.reserved == 0
     tcp.reserved = 7
@@ -463,18 +436,18 @@ def test_tcp_fields():
     assert tcp.control_bits == 0x00F0
 
 
-def test_udp_fields():
-    raw = util.fromhex(
+def test_udp_fields(packet_factory):
+    raw_hex = (
         "4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
         "807696e2d61646472046172706100000c0001"
     )
-    udp = p(raw).udp
+    udp = packet_factory(raw_hex).udp
 
     udp.cksum = 0xAAAA
     assert udp.cksum == 0xAAAA
 
 
-def test_ipv6_traffic_class_flow_label_bit_sharing():
+def test_ipv6_traffic_class_flow_label_bit_sharing(packet_factory):
     # IPv6 header structure (RFC 2460):
     # Bits 0-3: Version (6)
     # Bits 4-11: Traffic Class
@@ -484,7 +457,7 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
     raw = bytes(40)
     raw = b"\x60" + raw[1:]  # Version 6
 
-    packet = pydivert.Packet(raw, (0, 0), Direction.OUTBOUND)
+    packet = packet_factory(raw)
     ipv6 = packet.ipv6
     assert ipv6 is not None
 
@@ -531,14 +504,14 @@ def test_ipv6_traffic_class_flow_label_bit_sharing():
     assert struct.unpack_from("!I", packet.raw, 0)[0] == 0x6FFF1234
 
 
-def test_filter_match():
-    raw = util.fromhex(
+def test_filter_match(packet_factory):
+    raw_hex = (
         "4500004281bf000040112191c0a82b09c0a82b01c9dd0035002ef268528e01000001000000000000013801380138013"
         "807696e2d61646472046172706100000c0001"
     )
     # src: 192.168.43.9, dst: 192.168.43.1
     # src_port: 51677, dst_port: 53
-    p_pkt = pydivert.Packet(raw, (1, 1), Direction.OUTBOUND)
+    p_pkt = packet_factory(raw_hex)
 
     assert p_pkt.matches("true")
     assert p_pkt.matches("udp and outbound")
@@ -563,34 +536,35 @@ def test_filter_match():
     assert p_pkt.matches("ip.Dst == 192.168.43.1")
 
 
-def test_ip_addr_invalid_length():
+def test_ip_addr_invalid_length(packet_factory):
     # IPv4 addresses at 12-16 and 16-20
-    p4 = p(b"\x45" + b"\x00" * 9)
+    p4 = packet_factory(b"\x45" + b"\x00" * 9)
     assert p4.src_addr is None
     assert p4.dst_addr is None
 
     # Partially truncated IPv4 destination address
-    p4_partial = p(b"\x45" + b"\x00" * 18)
+    p4_partial = packet_factory(b"\x45" + b"\x00" * 18)
     # address_family requires length 20, so we have to use IPv4Header directly
     assert p4_partial.address_family is None
-    assert pydivert.packet.ip.IPv4Header(p4_partial).src_addr == "0.0.0.0"
-    assert pydivert.packet.ip.IPv4Header(p4_partial).dst_addr is None
+    from pydivert.packet.ip import IPv4Header
+    assert IPv4Header(p4_partial).src_addr == "0.0.0.0"
+    assert IPv4Header(p4_partial).dst_addr is None
 
     # IPv6 addresses at 8-24 and 24-40
-    p6 = p(b"\x60" + b"\x00" * 19)
+    p6 = packet_factory(b"\x60" + b"\x00" * 19)
     assert p6.src_addr is None
     assert p6.dst_addr is None
 
     # Partially truncated IPv6 destination address
-    p6_partial = p(b"\x60" + b"\x00" * 31)
+    p6_partial = packet_factory(b"\x60" + b"\x00" * 31)
     assert p6_partial.address_family == socket.AF_INET6
     assert p6_partial.src_addr == "::"
     assert p6_partial.dst_addr is None
 
 
-def test_ipv6_property_non_ipv6():
+def test_ipv6_property_non_ipv6(packet_factory):
     """Test that the ipv6 property returns None when address_family is not AF_INET6."""
     ipv4_hdr = util.fromhex("45 00 00 28 00 01 00 00 40 06 00 00 7f 00 00 01 7f 00 00 01")
-    packet = p(ipv4_hdr)
+    packet = packet_factory(ipv4_hdr)
     assert packet.address_family == socket.AF_INET
     assert packet.ipv6 is None

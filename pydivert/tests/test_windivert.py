@@ -29,12 +29,12 @@ import pytest
 from pydivert import PyDivert
 from pydivert.consts import Param
 
-from .fixtures import scenario
-from .fixtures import windivert_handle as w
-
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
-assert scenario, w  # keep fixtures
+
+@pytest.fixture
+def w(windivert_handle):
+    return windivert_handle
 
 
 def test_open():

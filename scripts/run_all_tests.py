@@ -162,6 +162,10 @@ def main():
         sys.stdout = original_stdout
         tee.close()
 
+    # Exit with non-zero if any platform failed
+    if any(rc != 0 for rc in results.values()):
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

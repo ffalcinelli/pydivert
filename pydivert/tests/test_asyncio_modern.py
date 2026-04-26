@@ -1,12 +1,6 @@
 import pytest
 
 import pydivert
-from pydivert.tests.util import check_availability
-
-
-@pytest.fixture(autouse=True)
-def require_pydivert():
-    check_availability()
 
 
 @pytest.mark.asyncio
