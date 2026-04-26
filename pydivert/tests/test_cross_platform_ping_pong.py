@@ -7,30 +7,14 @@ import time
 import pytest
 
 from pydivert import PyDivert
+from pydivert.tests.util import check_availability, get_free_port
 
 
 def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized.
     Requires Administrator (Windows) or Root (Linux/BSD) privileges.
     """
-    import os
-
-    try:
-        with PyDivert("true"):
-            pass
-    except (ImportError, PermissionError, OSError, RuntimeError) as e:
-        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
-            if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
-                pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
-            else:
-                pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
-        pytest.skip(f"PyDivert not available: {e}. Are you running as Administrator/Root?")
-
-
-def get_free_port(proto=socket.SOCK_DGRAM):
-    with socket.socket(socket.AF_INET, proto) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    check_availability()
 
 
 def udp_echo_server(port, stop_event):
@@ -112,7 +96,7 @@ def test_ping_pong_modification(use_async):
     3. Modify the payload (change 'Echo: ' to 'Modified: ').
     4. Verify the client receives the modified payload.
     """
-    server_port = get_free_port()
+    server_port = get_free_port(socket.SOCK_DGRAM)
     stop_event = threading.Event()
 
     # Start Echo Server

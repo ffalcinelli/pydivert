@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
-import logging
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -8,9 +7,7 @@ import pytest
 
 from pydivert import PyDivert
 from pydivert.consts import Flag, Layer
-
-# Suppress Scapy warning before it gets imported
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+from pydivert.tests.util import require_scapy
 
 
 def test_pydivert_platform_selection():
@@ -122,7 +119,8 @@ async def test_linux_nfq_mock():
 async def test_bsd_divert_mock():
     import socket as real_socket
 
-    from scapy.all import IP, UDP, raw  # type: ignore
+    scapy = require_scapy()
+    IP, UDP, raw = scapy["IP"], scapy["UDP"], scapy["all"].raw
 
     from pydivert.bsd import Divert
 

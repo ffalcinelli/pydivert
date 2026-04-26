@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import logging
 import socket
 
 import pytest
@@ -7,20 +6,15 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from pydivert.packet import Packet
-
-# Suppress Scapy warning before it gets imported
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
-
-try:
-    from scapy.all import ICMP, IP, TCP, UDP, ICMPv6EchoRequest, IPv6, Raw  # type: ignore
-
-    SCAPY_AVAILABLE = True
-except ImportError:
-    SCAPY_AVAILABLE = False
+from pydivert.tests.util import require_scapy
 
 
-@pytest.mark.skipif(not SCAPY_AVAILABLE, reason="Scapy is not installed")
+@pytest.mark.usefixtures("scapy_components")
 class TestChecksumFuzzing:
+    @pytest.fixture(autouse=True)
+    def setup_scapy(self):
+        self.scapy = require_scapy()
+
     @settings(max_examples=100)
     @given(
         src=st.integers(min_value=0, max_value=0xFFFFFFFF),
@@ -28,6 +22,7 @@ class TestChecksumFuzzing:
         payload=st.binary(min_size=0, max_size=100),
     )
     def test_ipv4_checksum(self, src, dst, payload):
+        IP, Raw = self.scapy["IP"], self.scapy["Raw"]
         src_ip = socket.inet_ntoa(src.to_bytes(4, "big"))
         dst_ip = socket.inet_ntoa(dst.to_bytes(4, "big"))
 
@@ -56,6 +51,7 @@ class TestChecksumFuzzing:
         payload=st.binary(min_size=0, max_size=100),
     )
     def test_tcp_ipv4_checksum(self, src, dst, src_port, dst_port, payload):
+        IP, TCP, Raw = self.scapy["IP"], self.scapy["TCP"], self.scapy["Raw"]
         src_ip = socket.inet_ntoa(src.to_bytes(4, "big"))
         dst_ip = socket.inet_ntoa(dst.to_bytes(4, "big"))
 
@@ -79,6 +75,7 @@ class TestChecksumFuzzing:
         payload=st.binary(min_size=0, max_size=100),
     )
     def test_udp_ipv4_checksum(self, src, dst, src_port, dst_port, payload):
+        IP, UDP, Raw = self.scapy["IP"], self.scapy["UDP"], self.scapy["Raw"]
         src_ip = socket.inet_ntoa(src.to_bytes(4, "big"))
         dst_ip = socket.inet_ntoa(dst.to_bytes(4, "big"))
 
@@ -100,6 +97,7 @@ class TestChecksumFuzzing:
         payload=st.binary(min_size=0, max_size=100),
     )
     def test_icmp_ipv4_checksum(self, src, dst, payload):
+        IP, ICMP, Raw = self.scapy["IP"], self.scapy["ICMP"], self.scapy["Raw"]
         src_ip = socket.inet_ntoa(src.to_bytes(4, "big"))
         dst_ip = socket.inet_ntoa(dst.to_bytes(4, "big"))
 
@@ -121,6 +119,7 @@ class TestChecksumFuzzing:
         payload=st.binary(min_size=0, max_size=100),
     )
     def test_tcp_ipv6_checksum(self, src_port, dst_port, payload):
+        IPv6, TCP, Raw = self.scapy["IPv6"], self.scapy["TCP"], self.scapy["Raw"]
         scapy_pkt = IPv6(src="::1", dst="::1") / TCP(sport=src_port, dport=dst_port) / Raw(load=payload)
         expected_raw = bytes(scapy_pkt)
 
@@ -133,6 +132,7 @@ class TestChecksumFuzzing:
     @settings(max_examples=50)
     @given(payload=st.binary(min_size=0, max_size=100))
     def test_icmpv6_checksum(self, payload):
+        IPv6, ICMPv6EchoRequest, Raw = self.scapy["IPv6"], self.scapy["ICMPv6EchoRequest"], self.scapy["Raw"]
         scapy_pkt = IPv6(src="::1", dst="::1") / ICMPv6EchoRequest() / Raw(load=payload)
         expected_raw = bytes(scapy_pkt)
 

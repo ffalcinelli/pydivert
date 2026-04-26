@@ -1,39 +1,19 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 import asyncio
-import logging
-import os
 import socket
-import sys
 import threading
 import time
 
 import pytest
 
 import pydivert
-
-# Suppress Scapy warning before it gets imported
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+from pydivert.tests.util import check_availability, get_free_port, require_scapy
 
 
 def setup_module(module):
     """Skip all tests in this module if PyDivert cannot be initialized."""
-    try:
-        with pydivert.PyDivert("true"):
-            pass
-    except (ImportError, PermissionError, OSError, RuntimeError) as e:
-        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
-            if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
-                pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
-            else:
-                pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
-        pytest.skip(f"PyDivert not available: {e}")
-
-
-def get_free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    check_availability()
 
 
 def _run_icmp_modifier(stop_event, use_async):
@@ -74,13 +54,9 @@ def test_icmp_echo_reply_modification(use_async):
     """
     Scenario: Intercept ICMP Echo Replies and modify the payload data.
     """
-    try:
-        from scapy.all import conf, sr1
-        from scapy.layers.inet import ICMP, IP
-
-        _ = conf.L3socket  # Force scapy init
-    except ImportError:
-        pytest.skip("Scapy not installed")
+    scapy = require_scapy()
+    IP, ICMP, sr1 = scapy["IP"], scapy["ICMP"], scapy["sr1"]
+    _ = scapy["conf"].L3socket  # Force scapy init
 
     # Note: Sending ICMP packets often requires root/admin itself
     stop_event = threading.Event()
@@ -108,8 +84,6 @@ def test_icmp_echo_reply_modification(use_async):
                 pytest.skip(f"Received unexpected ICMP type: {reply[ICMP].type}")
         else:
             pytest.skip("No ICMP reply received (blocked by firewall or OS?)")
-    except ImportError:
-        pytest.skip("Scapy not installed, skipping ICMP test")
     except PermissionError:
         pytest.skip("Insufficient permissions to send raw ICMP packets")
     finally:
