@@ -19,34 +19,38 @@ def setup_module(module):
 def _run_icmp_modifier(stop_event, use_async):
     # Intercept ICMP Echo Replies (Type 0)
     filt = "icmp.Type == 0"
-    if use_async:
+    try:
+        if use_async:
 
-        async def run_async():
-            async with pydivert.PyDivert(filt) as w:
-                async for packet in w:
-                    if packet.icmp:
-                        # Append some data to the ICMP payload if possible
-                        # Or just modify existing payload
-                        if packet.payload:
-                            packet.payload = packet.payload.replace(b"abc", b"xyz")
-                    await w.send_async(packet)
+            async def run_async():
+                async with pydivert.PyDivert(filt) as w:
+                    async for packet in w:
+                        if packet.icmp:
+                            # Append some data to the ICMP payload if possible
+                            # Or just modify existing payload
+                            if packet.payload:
+                                packet.payload = packet.payload.replace(b"abc", b"xyz")
+                        await w.send_async(packet)
+                        if stop_event.is_set():
+                            break
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(run_async())
+            finally:
+                loop.close()
+        else:
+            with pydivert.PyDivert(filt) as w:
+                for packet in w:
+                    if packet.icmp and packet.payload:
+                        packet.payload = packet.payload.replace(b"abc", b"xyz")
+                    w.send(packet)
                     if stop_event.is_set():
                         break
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(run_async())
-        finally:
-            loop.close()
-    else:
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                if packet.icmp and packet.payload:
-                    packet.payload = packet.payload.replace(b"abc", b"xyz")
-                w.send(packet)
-                if stop_event.is_set():
-                    break
+    except Exception as e:
+        if not stop_event.is_set():
+            print(f"ICMP modifier thread failed: {e}")
 
 
 @pytest.mark.parametrize("use_async", [False, True])
@@ -95,30 +99,34 @@ def test_icmp_echo_reply_modification(use_async):
 def _run_tcp_throttler(port, stop_event, use_async):
     # Intercept TCP traffic to a specific port
     filt = f"tcp.DstPort == {port}"
-    if use_async:
+    try:
+        if use_async:
 
-        async def run_async():
-            async with pydivert.PyDivert(filt) as w:
-                async for packet in w:
-                    # Delay sending the packet to simulate high latency/throttling
-                    await asyncio.sleep(0.5)
-                    await w.send_async(packet)
+            async def run_async():
+                async with pydivert.PyDivert(filt) as w:
+                    async for packet in w:
+                        # Delay sending the packet to simulate high latency/throttling
+                        await asyncio.sleep(0.5)
+                        await w.send_async(packet)
+                        if stop_event.is_set():
+                            break
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(run_async())
+            finally:
+                loop.close()
+        else:
+            with pydivert.PyDivert(filt) as w:
+                for packet in w:
+                    time.sleep(0.5)
+                    w.send(packet)
                     if stop_event.is_set():
                         break
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(run_async())
-        finally:
-            loop.close()
-    else:
-        with pydivert.PyDivert(filt) as w:
-            for packet in w:
-                time.sleep(0.5)
-                w.send(packet)
-                if stop_event.is_set():
-                    break
+    except Exception as e:
+        if not stop_event.is_set():
+            print(f"TCP throttler thread failed: {e}")
 
 
 @pytest.mark.parametrize("use_async", [False, True])

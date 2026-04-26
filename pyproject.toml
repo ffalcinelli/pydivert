@@ -123,10 +123,18 @@ asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["pydivert"]
+relative_files = true
 omit = [
     "pydivert/tests/*",
     "pydivert/tests/**",
     "pydivert/tests/",
+]
+
+[tool.coverage.paths]
+source = [
+    "pydivert",
+    "C:/pydivert/pydivert",
+    "/home/vagrant/pydivert/pydivert",
 ]
 
 [tool.coverage.report]

@@ -221,7 +221,7 @@ class Divert(BaseDivert):
 
     def close(self) -> None:
         self._stop_event.set()
-        if self._socket:
+        if self._socket is not None:
             if sys.platform.startswith("freebsd"):
                 for num, _ in self._applied_rules_with_numbers:
                     try:

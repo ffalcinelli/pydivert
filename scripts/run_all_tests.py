@@ -1,27 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-# 1) The GNU Lesser General Public License as published by the Free
-#    Software Foundation, either version 3 of the License, or (at your
-#    option) any later version.
-#
-# 2) The GNU General Public License as published by the Free Software
-#    Foundation, either version 2 of the License, or (at your option)
-#    any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
+import os
 import subprocess
 import sys
 import time
@@ -80,8 +59,9 @@ def run_tests_on_windows():
     print("=== Running tests on Windows VM ===")
     cmd = (
         '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; '
+        '$env:COVERAGE_FILE=".coverage.windows"; '
         "cd C:/pydivert; "
-        "uv run --quiet pytest --cov=pydivert --cov-report=xml"
+        "uv run --quiet pytest --cov=pydivert 2>$null"
     )
     return run_cmd(["vagrant", "powershell", "windows", "-c", cmd])
 
@@ -98,28 +78,41 @@ def run_tests_on_linux():
             "cd /home/vagrant/pydivert && sudo uv sync --quiet --extra test --extra linux",
         ]
     )
-    cmd = "cd /home/vagrant/pydivert && sudo uv run --quiet pytest --cov=pydivert --cov-append --cov-report=xml"
+    cmd = (
+        "cd /home/vagrant/pydivert && "
+        'export COVERAGE_FILE=".coverage.linux" && '
+        "sudo -E uv run --quiet pytest --cov=pydivert"
+    )
     return run_cmd(["vagrant", "ssh", "linux", "-c", cmd])
 
 
 def run_tests_on_macos():
-    print("=== Running tests on macOS ===")
-    # This assumes we are on a macos host or using a macos runner
+    print("=== Running tests on macOS (Local Mock) ===")
+    env = os.environ.copy()
+    env["COVERAGE_FILE"] = ".coverage.macos"
     cmd = [
         "uv",
         "run",
         "pytest",
         "--cov=pydivert",
-        "--cov-append",
-        "--cov-report=xml",
         "pydivert/tests/test_macos_mock.py",
     ]
-    return run_cmd(cmd)
+    return run_cmd(cmd, env=env)
 
 
-def cleanup_vagrant():
-    print("=== Cleaning up Vagrant VMs ===")
-    run_cmd(["vagrant", "halt"])
+def cleanup_coverage():
+    print("=== Cleaning up old coverage data ===")
+    for f in os.listdir("."):
+        if f.startswith(".coverage"):
+            os.remove(f)
+
+
+def combine_coverage():
+    print("=== Combining coverage data ===")
+    run_cmd(["uv", "run", "coverage", "combine"])
+    run_cmd(["uv", "run", "coverage", "xml"])
+    run_cmd(["uv", "run", "coverage", "html"])
+    print("=== Coverage report generated in htmlcov/index.html ===")
 
 
 def main():
@@ -133,6 +126,8 @@ def main():
     results = {}
 
     try:
+        cleanup_coverage()
+
         # Start VMs
         print("=== Starting Vagrant VMs ===")
         run_cmd(["vagrant", "up", "windows", "linux"])
@@ -140,9 +135,9 @@ def main():
         # Run tests
         results["windows"] = run_tests_on_windows()
         results["linux"] = run_tests_on_linux()
-
-        # macOS tests (usually mocked if not on macOS)
         results["macos"] = run_tests_on_macos()
+
+        combine_coverage()
 
     except KeyboardInterrupt:
         print("\nTest run interrupted by user.")

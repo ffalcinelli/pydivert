@@ -1,7 +1,0 @@
-[run]
-source = pydivert
-
-[paths]
-source =
-    pydivert/
-    */pydivert/

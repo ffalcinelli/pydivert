@@ -209,14 +209,14 @@ To ensure cross-platform compatibility, PyDivert includes a `Vagrantfile` that d
 #### Full Automated Suite (Recommended)
 We provide a helper script that automates the entire process: spinning up VMs, running tests, and generating a **consolidated coverage report** across all operating systems.
 ```bash
-uv run python scripts/run-all-tests.py
+uv run python scripts/run_all_tests.py
 ```
 This script will:
-1. Run tests locally.
-2. Bring up each Vagrant VM (`windows`, `linux`, `freebsd`, `macos`).
-3. Execute the test suite inside each environment.
-4. Collect and combine `.coverage` files from all platforms.
-5. Generate a unified HTML report in `htmlcov/index.html`.
+1. Clean up old coverage data.
+2. Bring up Vagrant VMs (`windows`, `linux`).
+3. Execute the test suite inside each environment with unique coverage files.
+4. Run local macOS mock tests.
+5. Combine all coverage data and generate a unified report in `htmlcov/index.html`.
 
 #### Manual VM Testing
 You can also target a specific platform manually:

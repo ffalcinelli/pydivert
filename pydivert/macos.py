@@ -256,7 +256,7 @@ class MacOSDivert(BaseDivert):
 
     def close(self) -> None:
         self._stop_event.set()
-        if self._socket:
+        if self._socket is not None:
             logger.info("Closing macOS divert socket on port %d", self._port)
             # Unblock the recv loop
             temp_sock = self._socket

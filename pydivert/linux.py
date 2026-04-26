@@ -357,7 +357,7 @@ class NetFilterQueue(BaseDivert):
         raise OSError("Failed to bind to any NFQueue. Are you root?")  # pragma: no cover
 
     def _on_fd_ready(self) -> None:
-        if self._nfqueue:
+        if self._nfqueue is not None:
             try:
                 self._nfqueue.run(block=False)
             except Exception as e:
@@ -365,7 +365,7 @@ class NetFilterQueue(BaseDivert):
                     logger.debug("NFQueue process error: %s", e)
 
     def _run_loop(self) -> None:
-        if self._nfqueue:
+        if self._nfqueue is not None:
             try:
                 self._nfqueue.run()
             except Exception as e:
@@ -408,7 +408,7 @@ class NetFilterQueue(BaseDivert):
             pkt.accept()
 
     def close(self) -> None:
-        if self._nfqueue:
+        if self._nfqueue is not None:
             self._stop_event.set()
             if self._loop:
                 try:
