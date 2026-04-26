@@ -14,13 +14,16 @@ def _get_params():
         ("send", [MagicMock(spec=pydivert.Packet)]),
     ]
     if sys.platform == "win32":
-        params.extend([
-            ("recv_ex", []),
-            ("send_ex", [MagicMock(spec=pydivert.Packet)]),
-            ("get_param", [Param.QUEUE_LEN]),
-            ("set_param", [Param.QUEUE_LEN, 1024]),
-        ])
+        params.extend(
+            [
+                ("recv_ex", []),
+                ("send_ex", [MagicMock(spec=pydivert.Packet)]),
+                ("get_param", [Param.QUEUE_LEN]),
+                ("set_param", [Param.QUEUE_LEN, 1024]),
+            ]
+        )
     return params
+
 
 @pytest.mark.parametrize("method_name, args", _get_params())
 def test_sync_methods_raise_without_open(method_name, args):

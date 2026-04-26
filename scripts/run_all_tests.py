@@ -79,9 +79,7 @@ class Tee:
 def run_tests_on_windows():
     print("=== Running tests on Windows VM ===")
     cmd = (
-        '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; '
-        "cd C:/pydivert; "
-        "uv run pytest --cov=pydivert --cov-report=xml"
+        '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest --cov=pydivert --cov-report=xml'
     )
     return run_cmd(["vagrant", "powershell", "windows", "-c", cmd])
 

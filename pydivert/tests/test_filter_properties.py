@@ -12,6 +12,7 @@ from pydivert.consts import Layer
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="check_filter is Windows-only for now")
 
+
 @given(filter_str=st.text(min_size=1, max_size=100), layer=st.sampled_from(list(Layer)))
 def test_check_filter_robustness(filter_str, layer):
     # check_filter should never crash regardless of input

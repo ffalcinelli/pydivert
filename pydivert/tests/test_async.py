@@ -34,6 +34,7 @@ from pydivert.windivert_dll import Overlapped, WinDivertAddress
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert specific tests")
 
+
 @pytest.fixture
 def mock_windivert_dll():
     with patch("pydivert.windivert.windivert_dll") as mock:
