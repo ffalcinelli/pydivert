@@ -105,7 +105,8 @@ def test_freebsd_rules_apply(mock_socket, mock_subprocess):
 
 def test_freebsd_rules_fail(mock_socket, mock_subprocess):
     with patch("sys.platform", "freebsd14"):
-        mock_subprocess.side_effect = Exception("ipfw error")
+        mock_subprocess.side_effect = OSError("ipfw error")
+
         d = Divert("true")
         with pytest.raises(RuntimeError, match="Failed to apply ipfw rule"):
             d.open()
@@ -287,7 +288,7 @@ def test_bsd_recv_closed():
 def test_bsd_cleanup_all(mock_socket, mock_subprocess):
     d = Divert("true")
     d.open()
-    with patch.object(d, "close", side_effect=Exception("cleanup fail")):
+    with patch.object(d, "close", side_effect=OSError("cleanup fail")):
         Divert.cleanup_all()
     assert d in Divert._instances
     Divert._instances.remove(d)

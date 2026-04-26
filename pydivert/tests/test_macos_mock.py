@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
 import queue
-import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -111,7 +110,8 @@ def test_macos_open_socket_retry_fail(mock_pfctl, mock_socket):
 
 def test_macos_open_pf_fail(mock_pfctl, mock_socket):
     with patch("sys.platform", "darwin"):
-        mock_pfctl["run"].side_effect = Exception("PF error")
+        mock_pfctl["run"].side_effect = OSError("PF error")
+
         d = MacOSDivert("true")
         with pytest.raises(RuntimeError, match="Failed to configure PF"):
             d.open()
@@ -202,7 +202,7 @@ def test_macos_cleanup_all(mock_pfctl, mock_socket):
     with patch("sys.platform", "darwin"):
         d = MacOSDivert("true")
         d.open()
-        with patch.object(d, "close", side_effect=Exception("cleanup fail")):
+        with patch.object(d, "close", side_effect=OSError("cleanup fail")):
             MacOSDivert.cleanup_all()
         assert d in MacOSDivert._instances
         MacOSDivert._instances.remove(d)

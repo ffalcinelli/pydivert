@@ -36,14 +36,7 @@ except ImportError:  # pragma: no cover
 try:
     import nftables  # type: ignore
 except ImportError:  # pragma: no cover
-    # Try to find it in system site-packages on Debian-based systems
-    import sys
-
-    sys.path.append("/usr/lib/python3/dist-packages")
-    try:
-        import nftables  # type: ignore
-    except ImportError:
-        nftables = None
+    nftables = None
 
 
 class LinuxFirewallBackend(abc.ABC):
@@ -163,8 +156,8 @@ class IptablesBackend(LinuxFirewallBackend):
                         for line in to_delete:
                             delete_cmd = line.replace("-A ", "-D ").split()
                             subprocess.run([cmd, *delete_cmd], check=False, capture_output=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to cleanup stale iptables rules: %s", e)
 
 
 class NftablesBackend(LinuxFirewallBackend):
@@ -180,8 +173,8 @@ class NftablesBackend(LinuxFirewallBackend):
         # Try to delete existing table first for a clean state
         try:
             self._nft.cmd(f"delete table inet {self._table_name}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to delete existing nftables table %s: %s", self._table_name, e)
 
         self._run_cmd(f"add table inet {self._table_name}")
         for hook in ["input", "output", "forward"]:
@@ -241,8 +234,8 @@ class NftablesBackend(LinuxFirewallBackend):
     def close(self) -> None:
         try:
             self._run_cmd(f"delete table inet {self._table_name}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to delete nftables table %s: %s", self._table_name, e)
 
 
 class NetFilterQueue(BaseDivert):
@@ -283,8 +276,8 @@ class NetFilterQueue(BaseDivert):
         for instance in list(cls._instances):
             try:
                 instance.close()
-            except Exception:  # pragma: no cover
-                pass
+            except Exception as e:  # pragma: no cover
+                logger.debug("Failed to close NetFilterQueue instance: %s", e)
 
     def _parse_filter_to_iptables(self) -> list[tuple[list[str], list[str]]]:
         """Legacy compatibility for tests."""
@@ -414,21 +407,21 @@ class NetFilterQueue(BaseDivert):
                 try:
                     fd = self._nfqueue.get_fd()
                     self._loop.remove_reader(fd)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Failed to remove reader from loop: %s", e)
 
             temp_nfq = self._nfqueue
             self._nfqueue = None
             try:
                 temp_nfq.unbind()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to unbind NFQueue: %s", e)
 
         if self._backend:
             try:
                 self._backend.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to close backend: %s", e)
 
         if self in NetFilterQueue._instances:
             NetFilterQueue._instances.remove(self)

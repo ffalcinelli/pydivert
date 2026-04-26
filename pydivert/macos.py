@@ -17,6 +17,7 @@ import socket
 import subprocess
 import threading
 import time
+from typing import Any
 
 from pydivert.base import BaseDivert
 from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
@@ -73,14 +74,14 @@ class MacOSDivert(BaseDivert):
         MacOSDivert._instances.add(self)
 
     @classmethod
-    def cleanup_all(cls):
+    def cleanup_all(cls) -> None:
         for instance in list(cls._instances):
             try:
                 instance.close()
-            except Exception:  # pragma: no cover
-                pass
+            except OSError as e:  # pragma: no cover
+                logger.debug("Failed to close MacOSDivert instance: %s", e)
 
-    def _parse_filter_to_pf(self):
+    def _parse_filter_to_pf(self) -> list[str]:
         """
         Translates a WinDivert filter string into macOS PF (packet filter) rules.
         """
@@ -100,7 +101,7 @@ class MacOSDivert(BaseDivert):
             rules.append(rule)
         return rules
 
-    def _get_pf_directions(self, filter_str):
+    def _get_pf_directions(self, filter_str: str) -> list[str]:
         inbound = _RE_INBOUND.search(filter_str)
         outbound = _RE_OUTBOUND.search(filter_str)
         if inbound and not outbound:
@@ -109,7 +110,7 @@ class MacOSDivert(BaseDivert):
             return ["out"]  # pragma: no cover
         return ["in", "out"]
 
-    def _get_pf_components(self, filter_str):
+    def _get_pf_components(self, filter_str: str) -> tuple[str, str, str]:
         clean_filter = _RE_PF_KEYWORDS.sub(" ", filter_str).strip()
         clean_filter = _RE_WHITESPACE.sub(" ", clean_filter)
 
@@ -194,7 +195,7 @@ class MacOSDivert(BaseDivert):
             if process.returncode != 0:  # pragma: no cover
                 raise RuntimeError(f"Failed to load PF rules: {stderr}")
 
-        except Exception as e:  # pragma: no cover
+        except (subprocess.SubprocessError, OSError) as e:  # pragma: no cover
             self.close()
             raise RuntimeError(f"Failed to configure PF: {e}") from e
 
@@ -202,7 +203,7 @@ class MacOSDivert(BaseDivert):
         self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-macos-{self._port}", daemon=True)
         self._thread.start()
 
-    def _run_loop(self):
+    def _run_loop(self) -> None:
         sock = self._socket
         if not sock:  # pragma: no cover
             return
@@ -216,18 +217,16 @@ class MacOSDivert(BaseDivert):
                     continue
                 data, addr = res
                 self._handle_packet(data, addr, sock)
-            except Exception as e:  # pragma: no cover
+            except (OSError, ValueError, TypeError) as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
                 # Suppress errors if we are shutting down or if it's a mock error
-                if isinstance(e, (ValueError, TypeError)):
-                    break
                 logger.error("Error in macOS divert loop: %s", e)
                 if isinstance(e, OSError):
                     break
                 time.sleep(0.01)
 
-    def _handle_packet(self, data, addr, sock):
+    def _handle_packet(self, data: bytes, addr: Any, sock: socket.socket) -> None:
         if not data:
             return
 
@@ -246,8 +245,8 @@ class MacOSDivert(BaseDivert):
                 if self._loop and self._async_queue:  # pragma: no cover
                     try:
                         self._loop.call_soon_threadsafe(self._async_queue.put_nowait, p)
-                    except Exception:  # pragma: no cover
-                        pass
+                    except (asyncio.QueueFull, RuntimeError) as e:  # pragma: no cover
+                        logger.debug("Failed to put packet in async queue: %s", e)
             except (queue.Full, asyncio.QueueFull):  # pragma: no cover
                 logger.warning("MacOSDivert queue full, dropping intercepted packet")
                 sock.sendto(data, addr)
@@ -263,14 +262,14 @@ class MacOSDivert(BaseDivert):
             self._socket = None  # Mark as closed first
             try:
                 temp_sock.close()
-            except Exception:  # pragma: no cover
-                pass
+            except Exception as e:  # pragma: no cover
+                logger.debug("Failed to close macOS divert socket: %s", e)
 
         # Clean up PF anchor
         try:
             subprocess.run(["pfctl", "-a", self._anchor_name, "-F", "all"], check=False, capture_output=True)
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as e:  # pragma: no cover
+            logger.debug("Failed to clean up PF anchor %s: %s", self._anchor_name, e)
 
         if self in MacOSDivert._instances:
             MacOSDivert._instances.remove(self)

@@ -129,18 +129,18 @@ class IPv4Header(IPHeader):
             raise ValueError("IP header length must be greater or equal than 5.")
         struct.pack_into("!B", self.raw, 0, 0x40 | val)
 
-    packet_len: int = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)
-    tos: int = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")
-    ident: int = raw_property("!H", 4, docs="The Identification field.")
+    packet_len = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)
+    tos = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")
+    ident = raw_property("!H", 4, docs="The Identification field.")
 
-    reserved: bool = flag_property("reserved", 6, 0b10000000)
-    evil: bool = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")
-    df: bool = flag_property("df", 6, 0b01000000)
-    mf: bool = flag_property("mf", 6, 0b00100000)
+    reserved = flag_property("reserved", 6, 0b10000000)
+    evil = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")
+    df = flag_property("df", 6, 0b01000000)
+    mf = flag_property("mf", 6, 0b00100000)
 
-    ttl: int = raw_property("!B", 8, docs="The Time To Live field.")  # type: ignore[assignment]
-    protocol: int = raw_property("!B", 9, docs="The Protocol field.")  # type: ignore[assignment]
-    cksum: int = raw_property("!H", 10, docs="The IP header Checksum field.")
+    ttl = raw_property("!B", 8, docs="The Time To Live field.")
+    protocol = raw_property("!B", 9, docs="The Protocol field.")
+    cksum = raw_property("!H", 10, docs="The IP header Checksum field.")
 
     @property
     def flags(self) -> int:
@@ -211,9 +211,9 @@ class IPv6Header(IPHeader):
     _af = socket.AF_INET6
     header_len: int = 40
 
-    payload_len: int = raw_property("!H", 4, docs="The Payload Length field.")
-    next_hdr: int = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")
-    hop_limit: int = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")
+    payload_len = raw_property("!H", 4, docs="The Payload Length field.")
+    next_hdr = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")
+    hop_limit = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")
 
     @property
     def packet_len(self) -> int:

@@ -116,5 +116,5 @@ class PyDivert(BaseDivert):
         # Delegate any other attributes to the implementation (e.g. WinDivert specific static methods)
         return getattr(self._impl, name)
 
-    def __dir__(self):
-        return sorted(set(super().__dir__() + dir(self._impl)))
+    def __dir__(self) -> list[str]:
+        return sorted(set(super().__dir__()) | set(dir(self._impl)))

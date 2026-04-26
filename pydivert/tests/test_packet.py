@@ -6,7 +6,7 @@ import pytest
 
 import pydivert
 from pydivert import util
-from pydivert.consts import Direction, Protocol
+from pydivert.consts import Protocol
 
 
 def test_ip_modify(packet_factory):
@@ -547,6 +547,7 @@ def test_ip_addr_invalid_length(packet_factory):
     # address_family requires length 20, so we have to use IPv4Header directly
     assert p4_partial.address_family is None
     from pydivert.packet.ip import IPv4Header
+
     assert IPv4Header(p4_partial).src_addr == "0.0.0.0"
     assert IPv4Header(p4_partial).dst_addr is None
 

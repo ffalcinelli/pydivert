@@ -4,6 +4,7 @@ import ctypes
 import logging
 from ctypes import byref
 from ctypes.wintypes import BOOL, DWORD, HANDLE, LPCWSTR
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class SERVICE_STATUS(ctypes.Structure):
     ]
 
 
-def _get_advapi32():
+def _get_advapi32() -> Any:
     try:  # pragma: no cover
         advapi32 = ctypes.windll.advapi32
 

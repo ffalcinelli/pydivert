@@ -1,4 +1,4 @@
-# PyDivert v4.0.0
+# PyDivert
 
 [![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/main.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
@@ -33,7 +33,7 @@ The `pydivert.PyDivert` class automatically selects the best backend for your OS
 import pydivert
 
 # Capture TCP packets to port 80 (HTTP)
-# Works on Windows (WinDivert), Linux (iptables/NFQ), and FreeBSD (ipfw/Divert)
+# Works on Windows (WinDivert), Linux (nftables/iptables/NFQ), and BSD/macOS (ipfw/pf/Divert)
 with pydivert.PyDivert("tcp.DstPort == 80") as w:
     for packet in w:
         print(f"Captured {packet.protocol} packet from {packet.src_addr}")
@@ -76,6 +76,30 @@ uv add pydivert
 pip install pydivert
 ```
 
+### Linux Prerequisites
+
+To use PyDivert on Linux, you must install the `libnetfilter-queue-dev` system library. Additionally, the modern **nftables** backend requires the `python3-nftables` package.
+
+#### Installation (Debian/Ubuntu)
+```bash
+sudo apt update
+sudo apt install libnetfilter-queue-dev python3-nftables
+```
+
+#### Using nftables in a Virtual Environment
+Because `python3-nftables` is typically distributed as a system-level package (due to its native `libnftables` dependency), it may not be immediately available within an isolated virtual environment. You have two recommended options:
+
+1. **System Site Packages:** Create your virtual environment with access to system libraries:
+   ```bash
+   python3 -m venv --system-site-packages venv
+   ```
+2. **Manual Symlinking:** Alternatively, symlink the system `nftables` module into your virtual environment:
+   ```bash
+   ln -s /usr/lib/python3/dist-packages/nftables venv/lib/python3.x/site-packages/
+   ```
+
+If `nftables` is not available in your Python environment, PyDivert will automatically fall back to the legacy **iptables** backend.
+
 ---
 
 ## Platform Compatibility
@@ -85,7 +109,7 @@ PyDivert aims for a "write once, run anywhere" experience, but some low-level fe
 | Feature | Windows | Linux | FreeBSD (Exp.) | macOS (Exp.) |
 | :--- | :---: | :---: | :---: | :---: |
 | **Backend** | WinDivert 2.2 | NetFilterQueue | Divert Sockets | Divert Sockets |
-| **Auto-Firewall** | ✅ (Built-in) | ✅ (iptables) | ✅ (ipfw) | ⚠️ (Manual PF) |
+| **Auto-Firewall** | ✅ (Built-in) | ✅ (nftables/iptables) | ✅ (ipfw) | ✅ (pf) |
 | **Async I/O** | ✅ (Overlapped) | ✅ (Native) | ✅ (Threaded) | ✅ (Threaded) |
 | **Layers** | All (Net, Flow, etc.) | Network Only | Network Only | Network Only |
 | **Bundled Driver**| ✅ Included | N/A | N/A | N/A |
@@ -119,9 +143,9 @@ Access rich information about the packet's origin and state:
 
 ## Filter Compatibility Matrix
 
-PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firewall rules (e.g., `iptables`, `ipfw`). While Windows supports the full expression language, Linux and BSD support a common subset at the kernel level.
+PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firewall rules (e.g., `nftables`, `iptables`, `ipfw`, `pf`). While Windows supports the full expression language, Linux, BSD, and macOS support a common subset at the kernel level.
 
-| Filter Expression | Windows | Linux | BSD (FreeBSD) |
+| Filter Expression | Windows | Linux | BSD/macOS (Exp.) |
 | :--- | :---: | :---: | :---: |
 | `true` | ✅ | ✅ | ✅ |
 | `tcp` / `udp` | ✅ | ✅ | ✅ |
@@ -134,7 +158,7 @@ PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firew
 | `or` / `\|\|` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
 
-*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux/BSD. Fields like `tcp.PayloadLength` are difficult to support natively because they require dynamic calculations based on variable-length IP and TCP headers. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
+*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules on Linux, BSD, or macOS. Fields like `tcp.PayloadLength` are difficult to support natively because they require dynamic calculations based on variable-length IP and TCP headers, which are not easily supported by `nftables`, `iptables`, `ipfw`, or `pf`. These packets may still be filtered in user-space by the `Packet.matches()` method, but for performance reasons, it is recommended to use the supported subset for initial interception.*
 
 ### Checksums
 - **`packet.is_checksum_valid`**: Returns `True` if all checksums (IP, TCP, UDP, ICMP) in the packet are correct.

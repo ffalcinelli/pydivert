@@ -57,17 +57,17 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         "urg_ptr",
         "window_size",
     )
-    ns: bool = flag_property("ns", 12, 0b00000001)
+    ns = flag_property("ns", 12, 0b00000001)
 
-    cwr: bool = flag_property("cwr", 13, 0b10000000)
-    ece: bool = flag_property("ece", 13, 0b01000000)
+    cwr = flag_property("cwr", 13, 0b10000000)
+    ece = flag_property("ece", 13, 0b01000000)
 
-    urg: bool = flag_property("urg", 13, 0b00100000)  # type: ignore[assignment]
-    ack: bool = flag_property("ack", 13, 0b00010000)  # type: ignore[assignment]
-    psh: bool = flag_property("psh", 13, 0b00001000)  # type: ignore[assignment]
-    rst: bool = flag_property("rst", 13, 0b00000100)  # type: ignore[assignment]
-    syn: bool = flag_property("syn", 13, 0b00000010)  # type: ignore[assignment]
-    fin: bool = flag_property("fin", 13, 0b00000001)  # type: ignore[assignment]
+    urg = flag_property("urg", 13, 0b00100000)
+    ack = flag_property("ack", 13, 0b00010000)
+    psh = flag_property("psh", 13, 0b00001000)
+    rst = flag_property("rst", 13, 0b00000100)
+    syn = flag_property("syn", 13, 0b00000010)
+    fin = flag_property("fin", 13, 0b00000001)
 
     @property
     def header_len(self) -> int:
@@ -76,12 +76,12 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         """
         return self.data_offset * 4
 
-    seq_num: int = raw_property("!I", 4, docs="The sequence number field.")
-    ack_num: int = raw_property("!I", 8, docs="The acknowledgement number field.")
+    seq_num = raw_property("!I", 4, docs="The sequence number field.")
+    ack_num = raw_property("!I", 8, docs="The acknowledgement number field.")
 
-    window_size: int = raw_property("!H", 14, docs="The size of the receive window in bytes.")  # type: ignore[assignment]
-    cksum: int = raw_property("!H", 16, docs="The TCP header checksum field.")
-    urg_ptr: int = raw_property("!H", 18, docs="The Urgent Pointer field.")  # type: ignore[assignment]
+    window_size = raw_property("!H", 14, docs="The size of the receive window in bytes.")
+    cksum = raw_property("!H", 16, docs="The TCP header checksum field.")
+    urg_ptr = raw_property("!H", 18, docs="The Urgent Pointer field.")
 
     @property
     def data_offset(self) -> int:

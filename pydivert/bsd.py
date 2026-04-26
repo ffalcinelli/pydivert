@@ -61,12 +61,12 @@ class Divert(BaseDivert):
         Divert._instances.add(self)
 
     @classmethod
-    def cleanup_all(cls):
+    def cleanup_all(cls) -> None:
         for instance in list(cls._instances):
             try:
                 instance.close()
-            except Exception:  # pragma: no cover
-                pass
+            except OSError as e:  # pragma: no cover
+                logger.debug("Failed to close Divert instance: %s", e)
 
     def _parse_filter_to_ipfw(self) -> list[str]:
         rules = []
@@ -160,14 +160,14 @@ class Divert(BaseDivert):
                 try:
                     subprocess.run(cmd, check=True, capture_output=True)
                     self._applied_rules_with_numbers.append((rule_num, r))
-                except Exception as e:  # pragma: no cover
+                except (subprocess.CalledProcessError, OSError) as e:  # pragma: no cover
                     self.close()
                     raise RuntimeError(f"Failed to apply ipfw rule: {e}") from e
 
         self._thread = threading.Thread(target=self._run_loop, name=f"pydivert-bsd-{self._port}", daemon=True)
         self._thread.start()
 
-    def _run_loop(self):  # noqa: C901
+    def _run_loop(self) -> None:  # noqa: C901
         sock = self._socket
         if not sock:  # pragma: no cover
             return
@@ -210,12 +210,10 @@ class Divert(BaseDivert):
                     else:
                         send_addr = (str(addr), 0)
                     sock.sendto(data, send_addr)
-            except Exception as e:  # pragma: no cover
+            except (OSError, ValueError, TypeError) as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
                 # Suppress unpacking/value errors during shutdown or mock tests
-                if isinstance(e, (ValueError, TypeError)):
-                    break
                 logger.error("Error in BSD divert loop: %s", e)
                 time.sleep(0.001)
 
@@ -226,8 +224,8 @@ class Divert(BaseDivert):
                 for num, _ in self._applied_rules_with_numbers:
                     try:
                         subprocess.run(["ipfw", "delete", str(num)], check=False, capture_output=True)
-                    except Exception:  # pragma: no cover
-                        pass
+                    except Exception as e:  # pragma: no cover
+                        logger.debug("Failed to delete ipfw rule %d: %s", num, e)
             self._applied_rules_with_numbers = []
 
             # Unblock the recv loop by closing the socket

@@ -59,7 +59,7 @@ class ICMPHeader(Header, PayloadMixin):
             raise AttributeError("code must be an integer")
         self.raw[1] = val
 
-    cksum: int = raw_property("!H", 2, docs="The ICMP header checksum field.")
+    cksum = raw_property("!H", 2, docs="The ICMP header checksum field.")
 
 
 class ICMPv4Header(ICMPHeader):

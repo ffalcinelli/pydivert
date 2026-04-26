@@ -16,28 +16,25 @@ def setup_module(module):
     check_availability()
 
 
+async def _icmp_modifier_loop(filt, stop_event):
+    async with pydivert.PyDivert(filt) as w:
+        async for packet in w:
+            if packet.icmp and packet.payload:
+                packet.payload = packet.payload.replace(b"abc", b"xyz")
+            await w.send_async(packet)
+            if stop_event.is_set():
+                break
+
+
 def _run_icmp_modifier(stop_event, use_async):
     # Intercept ICMP Echo Replies (Type 0)
     filt = "icmp.Type == 0"
     try:
         if use_async:
-
-            async def run_async():
-                async with pydivert.PyDivert(filt) as w:
-                    async for packet in w:
-                        if packet.icmp:
-                            # Append some data to the ICMP payload if possible
-                            # Or just modify existing payload
-                            if packet.payload:
-                                packet.payload = packet.payload.replace(b"abc", b"xyz")
-                        await w.send_async(packet)
-                        if stop_event.is_set():
-                            break
-
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(run_async())
+                loop.run_until_complete(_icmp_modifier_loop(filt, stop_event))
             finally:
                 loop.close()
         else:
@@ -145,7 +142,7 @@ def test_tcp_latency_simulation(use_async):
                 data = conn.recv(1024)
                 conn.sendall(data)
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     server_thread = threading.Thread(target=server, daemon=True)
@@ -173,6 +170,6 @@ def test_tcp_latency_simulation(use_async):
         stop_event.set()
         try:
             socket.create_connection(("127.0.0.1", port), timeout=0.1)
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         divert_thread.join(timeout=1)

@@ -74,7 +74,7 @@ def test_example_basic_capture():  # noqa: C901
                 data = conn.recv(1024)
                 conn.sendall(data)
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -115,7 +115,7 @@ def test_example_basic_capture():  # noqa: C901
             with socket.socket() as s:
                 s.settimeout(0.1)
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -140,7 +140,7 @@ def test_example_packet_modification_redirection():  # noqa: C901
                 conn.recv(1024)
                 conn.sendall(b"redirected")
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -186,7 +186,7 @@ def test_example_packet_modification_redirection():  # noqa: C901
             with socket.socket() as s:
                 s.settimeout(0.1)
                 s.connect(("127.0.0.1", fake_port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -204,7 +204,7 @@ def test_example_firewall_drop():
             s.listen(1)
             try:
                 s.accept()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -237,7 +237,7 @@ def test_example_firewall_drop():
                 s.settimeout(0.1)
                 # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -258,7 +258,7 @@ def test_example_payload_modification():  # noqa: C901
                 conn.settimeout(5.0)
                 conn.sendall(b"Your secret-token is 123")
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -303,7 +303,7 @@ def test_example_payload_modification():  # noqa: C901
             with socket.socket() as s:
                 s.settimeout(0.1)
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -323,7 +323,7 @@ def test_example_traffic_logging():
                 conn.settimeout(5.0)
                 conn.recv(1024)
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -356,7 +356,7 @@ def test_example_traffic_logging():
                 s.settimeout(0.1)
                 # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -394,7 +394,7 @@ def flow_layer_server(port):
         try:
             conn, _ = s.accept()
             conn.close()
-        except Exception:
+        except (TimeoutError, OSError):
             pass
 
 
@@ -427,7 +427,7 @@ def test_example_flow_layer():
                 s.settimeout(0.1)
                 # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -455,7 +455,7 @@ def test_example_sniff_mode():
                 data = conn.recv(1024)
                 conn.sendall(data)
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -487,7 +487,7 @@ def test_example_sniff_mode():
                 s.settimeout(0.1)
                 # Use the actual port being diverted
                 s.connect(("127.0.0.1", port))
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
@@ -510,7 +510,7 @@ async def test_example_asyncio():
                 conn.settimeout(5.0)
                 conn.recv(1024)
                 conn.close()
-            except Exception:
+            except (TimeoutError, OSError):
                 pass
 
     t1 = threading.Thread(target=server, daemon=True)
@@ -548,7 +548,7 @@ async def test_example_asyncio():
             _, writer = await asyncio.open_connection("127.0.0.1", port)
             writer.close()
             await writer.wait_closed()
-        except Exception:
+        except (TimeoutError, OSError):
             pass
         await diverter_task
         t1.join(timeout=1.0)

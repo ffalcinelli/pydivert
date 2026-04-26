@@ -1,8 +1,17 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+from __future__ import annotations
+
+import logging
 import socket
 import struct
+from typing import TYPE_CHECKING, Any
 
 from pydivert.consts import CalcChecksumsOption
+
+if TYPE_CHECKING:
+    from pydivert.packet import Packet
+
+logger = logging.getLogger(__name__)
 
 
 def fromhex(x: str) -> bytes:
@@ -10,25 +19,25 @@ def fromhex(x: str) -> bytes:
     return bytes.fromhex(x.replace(" ", "").replace(":", ""))
 
 
-def raw_property(fmt: str, offset: int, docs: str | None = None):
+def raw_property(fmt: str, offset: int, docs: str | None = None) -> property:
     """Create a property that unpacks/packs a value from the raw packet at the given offset."""
 
-    def getter(self):
+    def getter(self: Any) -> Any:
         return struct.unpack_from(fmt, self.raw, offset)[0]
 
-    def setter(self, val):
+    def setter(self, val: Any) -> None:
         struct.pack_into(fmt, self.raw, offset, val)
 
     return property(getter, setter, doc=docs)
 
 
-def flag_property(name: str, offset: int, bit: int, docs: str | None = None):
+def flag_property(name: str, offset: int, bit: int, docs: str | None = None) -> property:
     """Create a property that gets/sets a bit flag in the raw packet at the given offset."""
 
-    def getter(self):
+    def getter(self: Any) -> bool:
         return bool(self.raw[offset] & bit)
 
-    def setter(self, val):
+    def setter(self, val: Any) -> None:
         if val:
             self.raw[offset] |= bit
         else:
@@ -47,7 +56,7 @@ def calc_csum(data: bytes | bytearray) -> int:
     return (~s) & 0xFFFF
 
 
-def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
+def fallback_recalculate_checksums(packet: Packet, flags: int = 0) -> int:
     """Non-Windows fallback for checksum recalculation."""
     count = 0
     ipproto, proto_start = packet.protocol
@@ -60,19 +69,29 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
             struct.pack_into("!H", packet.raw, packet.ipv4._start + 10, csum)
             count += 1
 
+        src_addr = packet.ipv4.src_addr
+        dst_addr = packet.ipv4.dst_addr
+        if src_addr is None or dst_addr is None:
+            return 0  # Should not happen with valid IPv4
+
         pseudo_hdr = struct.pack(
             "!4s4sBBH",
-            socket.inet_aton(packet.ipv4.src_addr),
-            socket.inet_aton(packet.ipv4.dst_addr),
+            socket.inet_aton(src_addr),
+            socket.inet_aton(dst_addr),
             0,
             ipproto or 0,
             len(packet.raw) - (proto_start or 0),
         )
     elif packet.ipv6:
+        src_addr = packet.ipv6.src_addr
+        dst_addr = packet.ipv6.dst_addr
+        if src_addr is None or dst_addr is None:
+            return 0  # Should not happen with valid IPv6
+
         pseudo_hdr = struct.pack(
             "!16s16sI3xB",
-            socket.inet_pton(socket.AF_INET6, packet.ipv6.src_addr),
-            socket.inet_pton(socket.AF_INET6, packet.ipv6.dst_addr),
+            socket.inet_pton(socket.AF_INET6, src_addr),
+            socket.inet_pton(socket.AF_INET6, dst_addr),
             len(packet.raw) - (proto_start or 0),
             ipproto or 0,
         )
@@ -85,7 +104,7 @@ def fallback_recalculate_checksums(packet, flags: int = 0) -> int:
     return count
 
 
-def _recalc_proto_checksums(packet, pseudo_hdr, proto_start, flags):
+def _recalc_proto_checksums(packet: Packet, pseudo_hdr: bytes, proto_start: int, flags: int) -> int:
     count = 0
     if packet.tcp:
         if not (flags & CalcChecksumsOption.NO_TCP_CHECKSUM):
@@ -123,32 +142,32 @@ def _recalc_proto_checksums(packet, pseudo_hdr, proto_start, flags):
 class AggregateField:
     """Helper for matching aggregate fields like ip.addr or tcp.port."""
 
-    def __init__(self, *values):
+    def __init__(self, *values: Any) -> None:
         self.values = values
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return any(v == other for v in self.values)
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return all(v != other for v in self.values)
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         return any(v > other for v in self.values)
 
-    def __ge__(self, other):
+    def __ge__(self, other: Any) -> bool:
         return any(v >= other for v in self.values)
 
-    def __lt__(self, other):
+    def __lt__(self, other: Any) -> bool:
         return any(v < other for v in self.values)
 
-    def __le__(self, other):
+    def __le__(self, other: Any) -> bool:
         return any(v <= other for v in self.values)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return any(bool(v) for v in self.values)
 
 
-def fallback_matches(packet, filter: str) -> bool:
+def fallback_matches(packet: Packet, filter: str) -> bool:
     """Non-Windows fallback for filter evaluation."""
     from pydivert.filter import transpile_to_python
 
@@ -158,6 +177,7 @@ def fallback_matches(packet, filter: str) -> bool:
         return bool(
             eval(py_filter, {"__builtins__": {}, "AggregateField": AggregateField, "packet": packet, "len": len})
         )
-    except Exception:  # pragma: no cover
+    except Exception as e:  # pragma: no cover
         # If eval fails, we return True to be safe (intercept rather than drop)
+        logger.debug("Filter evaluation failed for %r: %s", py_filter, e)
         return True

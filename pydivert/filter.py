@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import logging
 from typing import Any
 
 from lark import Lark, Transformer
+
+logger = logging.getLogger(__name__)
+
 
 WINDIVERT_GRAMMAR = r"""
     ?start: expression
@@ -409,7 +413,8 @@ def normalize_filter(filter_str: str) -> str:
         parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
         tree = parser.parse(filter_str)
         return LegacyTransformer().transform(tree)
-    except Exception:
+    except Exception as e:
+        logger.debug("Filter normalization failed: %s", e)
         return filter_str
 
 
@@ -424,7 +429,8 @@ def transpile_to_python(filter_str: str) -> str:
         parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
         tree = parser.parse(filter_str)
         return PythonEvalTransformer().transform(tree)
-    except Exception:  # pragma: no cover
+    except Exception as e:  # pragma: no cover
+        logger.debug("Transpilation to Python failed: %s", e)
         return "True"
 
 
@@ -440,6 +446,7 @@ def transpile_to_rules(filter_str):
         if not isinstance(rules, list):
             rules = [rules]
         return rules
-    except Exception:  # pragma: no cover
+    except Exception as e:  # pragma: no cover
         # Fallback to broad interception if parsing fails or filter is too complex
+        logger.debug("Transpilation to rules failed: %s", e)
         return [{}]

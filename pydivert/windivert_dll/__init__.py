@@ -247,7 +247,7 @@ def raise_on_error(f):
                 err = WinError(code=retcode)
                 try:
                     SetLastError(0)
-                except Exception:
+                except Exception:  # pragma: no cover
                     pass
                 raise err
         return res

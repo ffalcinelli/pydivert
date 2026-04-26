@@ -55,4 +55,4 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
     def payload_len(self, val: int) -> None:
         self.raw[4:6] = struct.pack("!H", val + 8)
 
-    cksum: int = raw_property("!H", 6, docs="The UDP header checksum field.")
+    cksum = raw_property("!H", 6, docs="The UDP header checksum field.")

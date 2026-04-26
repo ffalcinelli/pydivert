@@ -526,7 +526,7 @@ def test_netfilterqueue_send_closed_v2(mock_nfq):
         nfq.send(Packet(b"data"))
 
 
-def test_netfilterqueue_recv_empty_coverage(mock_nfq):
+def test_netfilterqueue_recv_empty_coverage(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue()
     nfq.open()
     nfq._queue.get = MagicMock(side_effect=queue.Empty)  # type: ignore
@@ -666,7 +666,7 @@ def test_netfilterqueue_close_reader_removal_error(mock_nfq, mock_subprocess):
         nfq.close()  # Should not raise
 
 
-def test_netfilterqueue_on_fd_ready_closed(mock_nfq):
+def test_netfilterqueue_on_fd_ready_closed(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue()
     nfq.open()
     nfq._nfqueue.run.side_effect = Exception("err")
@@ -675,7 +675,7 @@ def test_netfilterqueue_on_fd_ready_closed(mock_nfq):
 
 
 @pytest.mark.asyncio
-async def test_netfilterqueue_recv_async_closed_v2(mock_nfq):
+async def test_netfilterqueue_recv_async_closed_v2(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue()
     nfq.open()
     nfq.close()
@@ -709,7 +709,7 @@ def test_netfilterqueue_recv_empty_not_open_v5(mock_nfq):
         nfq.recv()
 
 
-def test_netfilterqueue_recv_async_drain_error_v2(mock_nfq):
+def test_netfilterqueue_recv_async_drain_error_v2(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue()
     nfq.open()
     nfq._queue.get_nowait = MagicMock(side_effect=Exception("drain err"))  # type: ignore
@@ -723,7 +723,7 @@ def test_netfilterqueue_recv_async_drain_error_v2(mock_nfq):
     nfq.close()
 
 
-def test_netfilterqueue_close_reader_error_v2(mock_nfq):
+def test_netfilterqueue_close_reader_error_v2(mock_nfq, mock_subprocess):
     with patch("asyncio.get_running_loop") as mock_get_loop:
         mock_loop = MagicMock()
         mock_get_loop.return_value = mock_loop
@@ -733,7 +733,7 @@ def test_netfilterqueue_close_reader_error_v2(mock_nfq):
         nfq.close()
 
 
-def test_netfilterqueue_recv_async_drain_empty(mock_nfq):
+def test_netfilterqueue_recv_async_drain_empty(mock_nfq, mock_subprocess):
     nfq = NetFilterQueue()
     nfq.open()
     nfq._queue.get_nowait = MagicMock(side_effect=queue.Empty)  # type: ignore

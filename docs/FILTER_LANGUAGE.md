@@ -47,14 +47,14 @@ PyDivert 4.0.0 provides a unified filtering experience across Windows, Linux, an
 
 ### Kernel-Level Transpilation
 
-On **Linux** and **BSD/macOS**, PyDivert uses a **transpiler** to convert the WinDivert filter string into native firewall rules:
-- **Linux**: Transpiled to `iptables` rules that direct traffic to `NetFilterQueue`.
-- **BSD (FreeBSD)**: Transpiled to `ipfw` rules that direct traffic to a `divert` socket.
-- **macOS**: Requires manual configuration of `pf` rules to divert traffic to a port, though the transpiler can generate the appropriate configuration.
+On **Linux**, **BSD**, and **macOS**, PyDivert uses a **transpiler** to convert the WinDivert filter string into native firewall rules:
+- **Linux**: Transpiled to **nftables** (modern default) or **iptables** (legacy) rules that direct traffic to `NetFilterQueue`.
+- **BSD (FreeBSD, Experimental)**: Transpiled to `ipfw` rules that direct traffic to a `divert` socket.
+- **macOS (Experimental)**: Transpiled to `pf` rules that direct traffic to a `divert` socket using dynamic anchors.
 
 ### User-Space Fallback Filtering
 
-Not all WinDivert filter expressions can be directly mapped to kernel-level firewall rules on Linux or BSD. When a complex filter is used, PyDivert handles it in two stages:
+Not all WinDivert filter expressions can be directly mapped to kernel-level firewall rules on Linux, BSD, or macOS. When a complex filter is used, PyDivert handles it in two stages:
 
 1.  **Initial Interception (Kernel-level)**: A broad native firewall rule (e.g., `tcp` or `udp`) is applied to divert a subset of traffic to user-space.
 2.  **Refined Filtering (User-space)**: The `Packet.matches()` method is used to evaluate the full WinDivert filter expression against each captured packet. If the packet doesn't match the refined filter, it is automatically re-injected or dropped based on the handle's configuration.
@@ -63,7 +63,7 @@ Not all WinDivert filter expressions can be directly mapped to kernel-level fire
 
 To optimize performance, it is recommended to use the subset of filters that can be transpiled directly to the kernel level.
 
-| Filter Expression | Windows | Linux (Transpiled) | BSD (Transpiled) |
+| Filter Expression | Windows | Linux (Transpiled) | BSD/macOS (Exp.) |
 | :--- | :---: | :---: | :---: |
 | `true` | ✅ | ✅ | ✅ |
 | `tcp` / `udp` / `icmp` | ✅ | ✅ | ✅ |
@@ -75,11 +75,11 @@ To optimize performance, it is recommended to use the subset of filters that can
 | `or` / `\|\|` (Simple rules) | ✅ | ✅ | ✅ |
 | `tcp.PayloadLength > 0` | ✅ | ❌* | ❌* |
 
-*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules. Fields like `tcp.PayloadLength` are difficult to support on Linux/BSD firewalls because they require calculating the difference between the total packet length and variable-length headers (IP and TCP options), which is not natively supported by `iptables` or `ipfw` in a simple way. These packets will be filtered in user-space, which may impact performance for high-traffic environments.*
+*\* Note: Expressions marked with ❌ are not currently transpiled to kernel-level rules. Fields like `tcp.PayloadLength` are difficult to support on Linux/BSD/macOS firewalls because they require calculating the difference between the total packet length and variable-length headers (IP and TCP options), which is not natively supported by `nftables`, `iptables`, `ipfw`, or `pf` in a simple way. These packets will be filtered in user-space, which may impact performance for high-traffic environments.*
 
 ### Performance Considerations
 
-For maximum performance on Linux and BSD, structure your filters to rely on transpiled fields as much as possible. This reduces the number of packets that must be context-switched from kernel-space to user-space only to be discarded by the fallback filter.
+For maximum performance on Linux, BSD, and macOS, structure your filters to rely on transpiled fields as much as possible. This reduces the number of packets that must be context-switched from kernel-space to user-space only to be discarded by the fallback filter.
 
 Example of an optimized filter for Linux:
 `tcp.DstPort == 80 && tcp.PayloadLength > 0`
