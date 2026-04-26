@@ -1,4 +1,4 @@
-# PyDivert v4.0.0 🚀
+# PyDivert v4.0.0
 
 [![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/main.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
@@ -12,7 +12,7 @@
 
 ---
 
-## 🌟 Key Features in v4.0.0
+## Key Features in v4.0.0
 
 - **Unified Cross-Platform API**: Use the `PyDivert` class to transparently switch between WinDivert (Windows), NetFilterQueue (Linux), and Divert Sockets (BSD/macOS).
 - **Asynchronous by Design**: Full `asyncio` support with `recv_async()` and `send_async()`, utilizing high-performance Windows Overlapped I/O when available.
@@ -23,7 +23,7 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Capture and Re-injection (Cross-Platform)
 
@@ -64,7 +64,7 @@ if __name__ == "__main__":
 
 ---
 
-## 🛠️ Installation
+## Installation
 
 PyDivert requires **Administrator/Root** privileges to interact with the network stack.
 
@@ -78,7 +78,7 @@ pip install pydivert
 
 ---
 
-## 🌍 Platform Compatibility
+## Platform Compatibility
 
 PyDivert aims for a "write once, run anywhere" experience, but some low-level features are platform-specific.
 
@@ -92,7 +92,7 @@ PyDivert aims for a "write once, run anywhere" experience, but some low-level fe
 
 ---
 
-## 🧩 Advanced Usage
+## Advanced Usage
 
 ### Structural Pattern Matching
 Filter packets with the elegance of Python's `match/case`.
@@ -117,7 +117,7 @@ Access rich information about the packet's origin and state:
 
 ---
 
-## 🔍 Filter Compatibility Matrix
+## Filter Compatibility Matrix
 
 PyDivert 4.0.0 uses a transpiler to map WinDivert filter strings to native firewall rules (e.g., `iptables`, `ipfw`). While Windows supports the full expression language, Linux and BSD support a common subset at the kernel level.
 
@@ -189,7 +189,7 @@ For the original technical reference, please visit the [official WinDivert docum
 
 ---
 
-## 🧪 Development & Testing
+## Development & Testing
 
 PyDivert uses `uv` for dependency management and `pytest` for testing. Most tests require **Administrator** (Windows) or **Root** (Linux/BSD) privileges to interact with the network stack.
 
@@ -233,11 +233,10 @@ The full test suite is automatically executed on every push to `main` and for al
 
 ---
 
-## 📄 License
+## License
 
 PyDivert is dual-licensed under the [LGPL-3.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-LGPL-3.0-or-later) and [GPL-2.0-or-later](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE-GPL-2.0-or-later) licenses, matching the licensing strategy of the WinDivert driver.
 
-## 🛡️ Security
+## Security
 
 PyDivert is committed to security and uses [Snyk](https://snyk.io/) for continuous vulnerability scanning. For more details on our security practices and how to report vulnerabilities, please refer to the [Security Policy](SECURITY.md).
-es, please refer to the [Security Policy](SECURITY.md).

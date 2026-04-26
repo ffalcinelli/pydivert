@@ -5,24 +5,29 @@ build-backend = "hatchling.build"
 [project]
 name = "pydivert"
 dynamic = ["version"]
-description = "Python binding to windivert driver"
+description = "Cross-platform network packet capture and injection library for Python"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "LGPL-3.0-or-later OR GPL-2.0-or-later"
 license-files = ["LICENSE*", "AUTHORS"]
-keywords = ["windivert", "network", "tcp/ip"]
+keywords = ["windivert", "network", "tcp/ip", "linux", "bsd", "macos", "firewall"]
 authors = [
     { name = "Fabio Falcinelli", email = "fabio.falcinelli@gmail.com" },
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Intended Audience :: Telecommunications Industry",
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+    "Operating System :: Microsoft :: Windows",
     "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX :: BSD :: FreeBSD",
+    "Operating System :: MacOS :: MacOS X",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
