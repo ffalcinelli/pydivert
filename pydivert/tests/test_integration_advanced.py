@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 import asyncio
+import logging
 import os
 import socket
 import sys
@@ -10,6 +11,9 @@ import time
 import pytest
 
 import pydivert
+
+# Suppress Scapy warning before it gets imported
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 
 def setup_module(module):
@@ -70,6 +74,14 @@ def test_icmp_echo_reply_modification(use_async):
     """
     Scenario: Intercept ICMP Echo Replies and modify the payload data.
     """
+    try:
+        from scapy.all import conf, sr1
+        from scapy.layers.inet import ICMP, IP
+
+        _ = conf.L3socket  # Force scapy init
+    except ImportError:
+        pytest.skip("Scapy not installed")
+
     # Note: Sending ICMP packets often requires root/admin itself
     stop_event = threading.Event()
     divert_thread = threading.Thread(target=_run_icmp_modifier, args=(stop_event, use_async), daemon=True)
@@ -77,11 +89,6 @@ def test_icmp_echo_reply_modification(use_async):
     time.sleep(2.0)
 
     try:
-        from scapy.all import conf, sr1
-        from scapy.layers.inet import ICMP, IP
-
-        _ = conf.L3socket  # Force scapy init
-
         # We send an ICMP Echo Request with "abc" in payload
         # The OS will respond with Echo Reply containing "abc"
         # PyDivert should change it to "xyz"

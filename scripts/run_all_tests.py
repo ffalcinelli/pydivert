@@ -79,7 +79,9 @@ class Tee:
 def run_tests_on_windows():
     print("=== Running tests on Windows VM ===")
     cmd = (
-        '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest --cov=pydivert --cov-report=xml'
+        '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; '
+        "cd C:/pydivert; "
+        "uv run --quiet pytest --cov=pydivert --cov-report=xml"
     )
     return run_cmd(["vagrant", "powershell", "windows", "-c", cmd])
 
@@ -87,8 +89,16 @@ def run_tests_on_windows():
 def run_tests_on_linux():
     print("=== Running tests on Linux VM ===")
     # Sync first to ensure dependencies
-    run_cmd(["vagrant", "ssh", "linux", "-c", "cd /home/vagrant/pydivert && sudo uv sync --extra test --extra linux"])
-    cmd = "cd /home/vagrant/pydivert && sudo uv run pytest --cov=pydivert --cov-append --cov-report=xml"
+    run_cmd(
+        [
+            "vagrant",
+            "ssh",
+            "linux",
+            "-c",
+            "cd /home/vagrant/pydivert && sudo uv sync --quiet --extra test --extra linux",
+        ]
+    )
+    cmd = "cd /home/vagrant/pydivert && sudo uv run --quiet pytest --cov=pydivert --cov-append --cov-report=xml"
     return run_cmd(["vagrant", "ssh", "linux", "-c", cmd])
 
 

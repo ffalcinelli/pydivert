@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
+import logging
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -7,6 +8,9 @@ import pytest
 
 from pydivert import PyDivert
 from pydivert.consts import Flag, Layer
+
+# Suppress Scapy warning before it gets imported
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 
 def test_pydivert_platform_selection():
