@@ -94,7 +94,7 @@ jobs:
       run: |
         # We run with sudo to allow NetFilterQueue and iptables operations.
         # Most integration tests will gracefully skip if they still can't bind.
-        sudo -E .venv/bin/pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+        sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0

@@ -41,7 +41,6 @@ classifiers = [
 ]
 dependencies = [
     "lark",
-    "pdoc[docs]>=16.0.0",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +55,8 @@ test = [
     "wheel>=0.29",
     "setuptools",
     "scapy>=2.5.0",
+    "cryptography",
+    "cffi",
 ]
 docs = [
     "pdoc>=14.0.0",
