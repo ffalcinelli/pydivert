@@ -1,3 +1,15 @@
+Version 4.0.0
+    - Unified Cross-Platform Support: Introduced a major architectural update providing a seamless API across Windows (WinDivert), Linux (NetFilterQueue), and BSD/macOS (Divert Sockets).
+    - Platform Backends:
+        - Windows: Full support for WinDivert 2.2+ with advanced layers.
+        - Linux: New backend using NetFilterQueue with nftables/iptables transpilation.
+        - BSD/macOS: Experimental support using native Divert Sockets.
+    - Performance & Modernization:
+        - Optimized for Python 3.10+ using modern features.
+        - Unified asyncio interface across all platforms.
+        - Automatic checksum recalculation and integrity verification for common protocols.
+    - Improved CI/CD: Multi-platform testing suite covering Windows, Linux, and macOS.
+
 Version 3.1.1
     - Performance Optimization: Added caching for WinDivertAddress in the Packet class to reduce overhead during metadata access.
     - Security & Reliability: Improved driver service management by ensuring WinDivert service stop failures are properly handled.
