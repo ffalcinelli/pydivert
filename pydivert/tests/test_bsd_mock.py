@@ -31,7 +31,7 @@ def mock_socket():
             return mock_sock
         return original_socket(family, type, proto, fileno)
 
-    with patch("socket.socket", side_effect=socket_side_effect):
+    with patch("pydivert.bsd._Socket", side_effect=socket_side_effect):
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
             yield
@@ -69,7 +69,7 @@ def test_bsd_open_retry_port(mock_socket, mock_subprocess):
             return MagicMock()
         return original_socket(family, type, proto, fileno)
 
-    with patch("socket.socket", side_effect=side_effect):
+    with patch("pydivert.bsd._Socket", side_effect=side_effect):
         d = Divert("true")
         d.open()
         assert d._port == 8889
@@ -84,7 +84,7 @@ def test_bsd_open_fail_final(mock_socket, mock_subprocess):
             raise OSError("Permission denied")
         return real_socket.socket(*args, **kwargs)
 
-    with patch("socket.socket", side_effect=side_effect):
+    with patch("pydivert.bsd._Socket", side_effect=side_effect):
         d = Divert("true")
         with pytest.raises(OSError, match="Failed to open divert socket"):
             d.open()
@@ -121,7 +121,7 @@ def test_bsd_recv_logic(mock_socket, mock_subprocess):
         b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
 
-    with patch("socket.socket") as mock_sock_cls:
+    with patch("pydivert.bsd._Socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
@@ -147,7 +147,7 @@ def test_bsd_recv_inbound(mock_socket, mock_subprocess):
         b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
         b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
-    with patch("socket.socket") as mock_sock_cls:
+    with patch("pydivert.bsd._Socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("1.2.3.4", 1234, 0, 0))]
@@ -197,7 +197,7 @@ def test_bsd_send(mock_socket, mock_subprocess):
         b"\x7f\x00\x00\x01\x00\x50\x00\x50\x00\x00\x00\x00\x00\x00\x00\x00"
         b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
-    with patch("socket.socket") as mock_sock_cls:
+    with patch("pydivert.bsd._Socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         d.open()
@@ -217,7 +217,7 @@ async def test_bsd_async_methods(mock_socket, mock_subprocess):
         b"\x50\x02\x20\x00\x00\x00\x00\x00"
     )
 
-    with patch("socket.socket") as mock_sock_cls:
+    with patch("pydivert.bsd._Socket") as mock_sock_cls:
         mock_sock = MagicMock()
         mock_sock_cls.return_value = mock_sock
         results = [(packet_data, ("0.0.0.0", 0, 0, 0))]
@@ -257,7 +257,7 @@ def test_bsd_parse_filter_extended():
 
 
 def test_bsd_open_retry_exhausted(mock_socket, mock_subprocess):
-    with patch("socket.socket", side_effect=OSError(48, "Address already in use")):
+    with patch("pydivert.bsd._Socket", side_effect=OSError(48, "Address already in use")):
         d = Divert("true")
         with pytest.raises(OSError, match="Failed to find a free port"):
             d.open()

@@ -23,6 +23,9 @@ from pydivert.base import BaseDivert
 from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
 from pydivert.packet import Packet
 
+# Local alias for socket.socket to allow safe patching in tests
+_Socket = socket.socket
+
 logger = logging.getLogger(__name__)
 
 # Pre-compiled regular expressions for efficiency
@@ -62,7 +65,7 @@ class MacOSDivert(BaseDivert):
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
         super().__init__(filter, layer, priority, flags)
-        self._socket: socket.socket | None = None
+        self._socket: _Socket | None = None
         self._port = 8888 + (priority % 1000)
         self._anchor_name = f"{self._anchor_base}.{self._port}"
         self._queue: queue.Queue[Packet] = queue.Queue(maxsize=10000)
@@ -154,7 +157,7 @@ class MacOSDivert(BaseDivert):
         IPPROTO_DIVERT = getattr(socket, "IPPROTO_DIVERT", 258)
         for _i in range(10):
             try:
-                self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
+                self._socket = _Socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
                 self._socket.bind(("0.0.0.0", self._port))
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
@@ -226,7 +229,7 @@ class MacOSDivert(BaseDivert):
                     break
                 time.sleep(0.01)
 
-    def _handle_packet(self, data: bytes, addr: Any, sock: socket.socket) -> None:
+    def _handle_packet(self, data: bytes, addr: Any, sock: _Socket) -> None:
         if not data:
             return
 

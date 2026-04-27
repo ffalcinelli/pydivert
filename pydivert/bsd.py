@@ -24,6 +24,9 @@ from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer
 from pydivert.filter import transpile_to_rules
 from pydivert.packet import Packet
 
+# Local alias for socket.socket to allow safe patching in tests
+_Socket = socket.socket
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +52,7 @@ class Divert(BaseDivert):
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:
         super().__init__(filter, layer, priority, flags)
-        self._socket: socket.socket | None = None
+        self._socket: _Socket | None = None
         self._port = 8888 + (priority % 1000)
         self._queue: queue.Queue[Packet] = queue.Queue(maxsize=10000)
         self._async_queue: asyncio.Queue[Packet] | None = None
@@ -134,7 +137,7 @@ class Divert(BaseDivert):
         IPPROTO_DIVERT = getattr(socket, "IPPROTO_DIVERT", 258)
         for _i in range(100):
             try:
-                self._socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
+                self._socket = _Socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
                 self._socket.bind(("0.0.0.0", self._port))
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
