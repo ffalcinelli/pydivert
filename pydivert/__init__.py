@@ -46,8 +46,8 @@ if sys.platform == "win32":
 elif sys.platform.startswith("linux"):
     from .linux import NetFilterQueue
 elif sys.platform == "darwin":
-    from .macos import MacOSDivert
     from .bsd import Divert  # macOS also uses BSD-style divert sockets
+    from .macos import MacOSDivert
 elif sys.platform.startswith("freebsd"):
     from .bsd import Divert
 
