@@ -43,3 +43,8 @@ sbom.json
 
 # Local development
 node_modules/
+coverage*
+*.log
+linux_ssh_config
+windows_ssh_config
+gha-creds-*.json
