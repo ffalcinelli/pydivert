@@ -23,7 +23,14 @@
 # see <https://www.gnu.org/licenses/>.
 
 import ctypes
-from ctypes.wintypes import DWORD, HANDLE
+import sys
+
+if sys.platform == "win32":
+    from ctypes.wintypes import DWORD, HANDLE
+else:
+    # Fallbacks for non-Windows platforms
+    DWORD = ctypes.c_uint32
+    HANDLE = ctypes.c_void_p
 
 
 class Overlapped(ctypes.Structure):

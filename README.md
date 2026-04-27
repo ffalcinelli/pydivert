@@ -106,6 +106,8 @@ If `nftables` is not available in your Python environment, PyDivert will automat
 
 PyDivert aims for a "write once, run anywhere" experience, but some low-level features are platform-specific.
 
+### Feature Support
+
 | Feature | Windows | Linux | FreeBSD (Exp.) | macOS (Exp.) |
 | :--- | :---: | :---: | :---: | :---: |
 | **Backend** | WinDivert 2.2 | NetFilterQueue | Divert Sockets | Divert Sockets |
@@ -113,6 +115,19 @@ PyDivert aims for a "write once, run anywhere" experience, but some low-level fe
 | **Async I/O** | ✅ (Overlapped) | ✅ (Native) | ✅ (Threaded) | ✅ (Threaded) |
 | **Layers** | All (Net, Flow, etc.) | Network Only | Network Only | Network Only |
 | **Bundled Driver**| ✅ Included | N/A | N/A | N/A |
+
+### Python Compatibility
+
+PyDivert supports 64-bit Python 3.10 and later.
+
+| OS | 3.10 | 3.11 | 3.12 | 3.13 | 3.14 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Windows** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Linux** | ✅ | ✅ | ✅ | ✅ | 🚧* |
+| **FreeBSD** | - | ✅ | ✅ | ✅ | - |
+| **macOS** | ✅ | ✅ | ✅ | ✅ | 🚧* |
+
+*\* Note: Python 3.14 support is currently experimental and may be limited by the availability of binary dependencies like `netfilterqueue`.*
 
 ---
 

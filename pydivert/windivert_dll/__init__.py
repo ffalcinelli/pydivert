@@ -31,8 +31,13 @@ import ctypes
 import functools
 import os
 import sys
-from ctypes.wintypes import HANDLE
 from typing import TYPE_CHECKING, Any
+
+if sys.platform == "win32":
+    from ctypes.wintypes import HANDLE
+else:
+    # Fallback for non-Windows platforms
+    HANDLE = ctypes.c_void_p
 
 from .structs import Overlapped as Overlapped
 from .structs import WinDivertAddress as WinDivertAddress

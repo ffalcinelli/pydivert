@@ -30,13 +30,26 @@
 ---
 """
 
-from .bsd import Divert
+import sys
+
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
-from .linux import NetFilterQueue
-from .macos import MacOSDivert
 from .packet import Packet
 from .pydivert import PyDivert
-from .windivert import WinDivert
+
+WinDivert = None
+NetFilterQueue = None
+MacOSDivert = None
+Divert = None
+
+if sys.platform == "win32":
+    from .windivert import WinDivert
+elif sys.platform.startswith("linux"):
+    from .linux import NetFilterQueue
+elif sys.platform == "darwin":
+    from .macos import MacOSDivert
+    from .bsd import Divert  # macOS also uses BSD-style divert sockets
+elif sys.platform.startswith("freebsd"):
+    from .bsd import Divert
 
 __author__ = "fabio"
 __version__ = "4.0.0"

@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import sys
 from ctypes import byref
-from ctypes.wintypes import BOOL, DWORD, HANDLE, LPCWSTR
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+if sys.platform == "win32":
+    from ctypes.wintypes import BOOL, DWORD, HANDLE, LPCWSTR
+else:
+    # Fallbacks for non-Windows platforms
+    BOOL = ctypes.c_int
+    DWORD = ctypes.c_uint32
+    HANDLE = ctypes.c_void_p
+    LPCWSTR = ctypes.c_wchar_p
 
 # Service Access Rights
 SC_MANAGER_CONNECT = 0x0001
