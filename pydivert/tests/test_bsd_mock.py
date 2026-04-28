@@ -21,6 +21,7 @@ def mock_socket():
         IPPROTO_DIVERT = getattr(real_socket, "IPPROTO_DIVERT", 258)
         if family == real_socket.AF_INET and type == real_socket.SOCK_RAW and proto == IPPROTO_DIVERT:
             mock_sock = MagicMock()
+            mock_sock.fileno.return_value = 1
 
             # Default side effect: return empty data and sleep to prevent busy loop
             def default_recv(*args):
@@ -31,10 +32,14 @@ def mock_socket():
             return mock_sock
         return original_socket(family, type, proto, fileno)
 
+    def mock_select(rlist, wlist, xlist, timeout=None):
+        return rlist, [], []
+
     with patch("pydivert.bsd._Socket", side_effect=socket_side_effect):
         # Mock IPPROTO_DIVERT
         with patch("socket.IPPROTO_DIVERT", 258, create=True):
-            yield
+            with patch("pydivert.bsd.select.select", side_effect=mock_select):
+                yield
 
 
 @pytest.fixture

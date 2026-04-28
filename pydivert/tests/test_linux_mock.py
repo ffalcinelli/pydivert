@@ -239,7 +239,10 @@ def test_linux_run_loop_error(mock_nfq, mock_subprocess):
     mock_nfq.run.side_effect = Exception("NFQueue loop crash")
     nfq = NetFilterQueue("true")
     nfq.open()
-    with patch("pydivert.linux.logger") as mock_logger:
+    with (
+        patch("pydivert.linux.logger") as mock_logger,
+        patch("pydivert.linux.select.select", return_value=([1], [], [])),
+    ):
         nfq._run_loop()
         mock_logger.error.assert_called()
     nfq.close()

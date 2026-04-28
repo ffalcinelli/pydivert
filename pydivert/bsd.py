@@ -12,6 +12,7 @@ import asyncio
 import atexit
 import logging
 import queue
+import select
 import socket
 import subprocess
 import sys
@@ -139,7 +140,6 @@ class Divert(BaseDivert):
             try:
                 self._socket = _Socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
                 self._socket.bind(("0.0.0.0", self._port))
-                self._socket.settimeout(0.1)
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
                 if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
@@ -177,6 +177,9 @@ class Divert(BaseDivert):
             return
         while self.is_open and not self._stop_event.is_set():
             try:
+                r, _, _ = select.select([sock], [], [], 0.1)
+                if not r:
+                    continue
                 res = sock.recvfrom(65535)
                 if not res:
                     continue
@@ -214,8 +217,6 @@ class Divert(BaseDivert):
                     else:
                         send_addr = (str(addr), 0)
                     sock.sendto(data, send_addr)
-            except TimeoutError:
-                continue
             except (OSError, ValueError, TypeError) as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
