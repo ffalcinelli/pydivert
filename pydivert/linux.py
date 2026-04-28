@@ -6,6 +6,7 @@ import asyncio
 import atexit
 import logging
 import queue
+import select
 import socket
 import subprocess
 import threading
@@ -359,11 +360,18 @@ class NetFilterQueue(BaseDivert):
 
     def _run_loop(self) -> None:
         if self._nfqueue is not None:
-            try:
-                self._nfqueue.run()
-            except Exception as e:
-                if not self._stop_event.is_set():
-                    logger.error("NFQueue loop error: %s", e)
+            fd = self._nfqueue.get_fd()
+            while not self._stop_event.is_set() and self.is_open:
+                try:
+                    # Use select to wait for data with a timeout
+                    # This allows the thread to check _stop_event periodically
+                    r, _, _ = select.select([fd], [], [], 0.1)
+                    if r:
+                        self._nfqueue.run(block=False)
+                except Exception as e:
+                    if not self._stop_event.is_set() and self.is_open:
+                        logger.error("NFQueue loop error: %s", e)
+                    break
 
     def _callback(self, pkt: Any) -> None:
         if pkt.get_mark() == LOOP_PREVENTION_MARK:

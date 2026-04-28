@@ -139,6 +139,7 @@ class Divert(BaseDivert):
             try:
                 self._socket = _Socket(socket.AF_INET, socket.SOCK_RAW, IPPROTO_DIVERT)
                 self._socket.bind(("0.0.0.0", self._port))
+                self._socket.settimeout(0.1)
                 break
             except (OSError, PermissionError) as e:  # pragma: no cover
                 if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
@@ -213,6 +214,8 @@ class Divert(BaseDivert):
                     else:
                         send_addr = (str(addr), 0)
                     sock.sendto(data, send_addr)
+            except TimeoutError:
+                continue
             except (OSError, ValueError, TypeError) as e:  # pragma: no cover
                 if self._stop_event.is_set() or not self.is_open:
                     break
