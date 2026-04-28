@@ -88,7 +88,10 @@ def test_macos_open_socket_retry(mock_pfctl, mock_socket):
             call_count += 1
             if call_count == 1:
                 raise OSError(48, "Address already in use")
-            return MagicMock()
+            mock_sock = MagicMock()
+            # Prevent background thread from crashing
+            mock_sock.recvfrom.side_effect = lambda *args: time.sleep(0.01) or (b"", ("0.0.0.0", 0))
+            return mock_sock
         return original_socket(family, type, proto, fileno)
 
     with patch("sys.platform", "darwin"):
@@ -274,6 +277,8 @@ def test_macos_send_fail(mock_pfctl, mock_socket):
         d = MacOSDivert("true")
         with patch("pydivert.macos._Socket") as mock_sock_cls:
             mock_sock = MagicMock()
+            # Prevent background thread from crashing
+            mock_sock.recvfrom.side_effect = lambda *args: time.sleep(0.01) or (b"", ("0.0.0.0", 0))
             mock_sock_cls.return_value = mock_sock
             mock_sock.sendto.side_effect = OSError("Send failed")
             d.open()
@@ -284,6 +289,7 @@ def test_macos_send_fail(mock_pfctl, mock_socket):
             )
             with pytest.raises(OSError, match="Send failed"):
                 d.send(p)
+            d.close()
 
 
 def test_pydivert_macos_facade(mock_pfctl, mock_socket):
@@ -301,6 +307,7 @@ def test_pydivert_macos_facade(mock_pfctl, mock_socket):
         def side_effect(*args):
             if results:
                 return results.pop(0)
+            time.sleep(0.01)
             return (b"", ("0.0.0.0", 0))
 
         mock_sock.recvfrom.side_effect = side_effect

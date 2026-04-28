@@ -61,7 +61,8 @@ def run_tests_on_windows():
         '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; '
         '$env:COVERAGE_FILE=".coverage.windows"; '
         "cd C:/pydivert; "
-        "uv run --quiet pytest --cov=pydivert 2>$null"
+        "uv run --quiet pytest --cov=pydivert; "
+        "exit $LASTEXITCODE"
     )
     return run_cmd(["vagrant", "powershell", "windows", "-c", cmd])
 

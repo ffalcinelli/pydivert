@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import asyncio
 import sys
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -43,10 +44,12 @@ def test_pydivert_platform_selection():
 
             def side_effect(family, type=real_socket.SOCK_STREAM, proto=0, fileno=None):
                 if family == real_socket.AF_INET and type == real_socket.SOCK_RAW:
-                    return MagicMock()
+                    mock_sock = MagicMock()
+                    mock_sock.recvfrom.side_effect = lambda *args: time.sleep(0.01) or (b"", ("0.0.0.0", 0))
+                    return mock_sock
                 return original_socket(family, type, proto, fileno)
 
-            with patch("socket.socket", side_effect=side_effect):
+            with patch("pydivert.macos._Socket", side_effect=side_effect):
                 w = PyDivert()
                 assert isinstance(w._impl, MacOSDivert)
 
@@ -132,7 +135,7 @@ async def test_bsd_divert_mock():
             return mock_socket_instance
         return original_socket(family, type, proto, fileno)
 
-    with patch("socket.socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
+    with patch("pydivert.bsd._Socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
         # Provide a real IPv4 packet so Packet parsing doesn't fail
         real_packet = raw(IP(dst="1.2.3.4") / UDP(dport=80) / b"payload")
@@ -168,14 +171,14 @@ async def test_bsd_divert_mock():
             raise OSError("Permission denied")
         return original_socket(family, type, proto, fileno)
 
-    with patch("socket.socket", side_effect=error_side_effect):
+    with patch("pydivert.bsd._Socket", side_effect=error_side_effect):
         w = Divert()
         with pytest.raises(OSError):
             w.open()
 
     # Test ipfw error path
     if sys.platform.startswith("freebsd"):
-        with patch("socket.socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
+        with patch("pydivert.bsd._Socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
             mock_run.side_effect = Exception("ipfw fail")
             w = Divert()
             with pytest.raises(RuntimeError, match="Failed to apply ipfw rule"):
