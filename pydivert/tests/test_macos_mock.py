@@ -239,7 +239,7 @@ def test_macos_recv_error(mock_pfctl, mock_socket):
         d._run_loop()
 
         d._socket = None
-        with pytest.raises(RuntimeError, match="Socket is not open"):
+        with pytest.raises(RuntimeError, match="handle is not open"):
             d.recv()
 
 

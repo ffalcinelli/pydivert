@@ -432,17 +432,24 @@ class NetFilterQueue(BaseDivert):
 
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = DEFAULT_RECV_TIMEOUT) -> Packet:
         if not self.is_open:
-            raise RuntimeError("Queue is not open.")
-        try:
-            return self._queue.get(timeout=timeout)
-        except queue.Empty:
-            if not self.is_open:
-                raise RuntimeError("Queue is not open.") from None
-            raise
+            raise RuntimeError("handle is not open.")
+
+        while self.is_open:
+            try:
+                return self._queue.get(timeout=timeout)
+            except queue.Empty:
+                if not self.is_open:
+                    break
+                if timeout is not None and timeout > 0 and timeout != DEFAULT_RECV_TIMEOUT:
+                    # If the user provided a custom timeout, we should probably respect it
+                    # and raise Empty, but for the default internal timeout we continue.
+                    raise
+                continue
+        raise RuntimeError("handle is not open.")
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if not self.is_open:
-            raise RuntimeError("Queue is not open.")
+            raise RuntimeError("handle is not open.")
 
         if self._async_queue is None:
             self._async_queue = asyncio.Queue(maxsize=DEFAULT_QUEUE_SIZE)
@@ -459,7 +466,7 @@ class NetFilterQueue(BaseDivert):
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if not self.is_open:
-            raise RuntimeError("Queue is not open.")
+            raise RuntimeError("handle is not open.")
 
         if recalculate_checksum:
             packet.recalculate_checksums()

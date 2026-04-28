@@ -522,7 +522,7 @@ def test_netfilterqueue_send_closed_v2(mock_nfq):
     nfq = NetFilterQueue()
     # Ensure it's closed
     nfq._nfqueue = None
-    with pytest.raises(RuntimeError, match="Queue is not open"):
+    with pytest.raises(RuntimeError, match="handle is not open"):
         nfq.send(Packet(b"data"))
 
 
@@ -638,7 +638,7 @@ def test_netfilterqueue_recv_empty_not_open(mock_nfq):
     nfq = NetFilterQueue()
     # Mocking is_open to False but queue not empty
     nfq._nfqueue = None
-    with pytest.raises(RuntimeError, match="Queue is not open"):
+    with pytest.raises(RuntimeError, match="handle is not open"):
         nfq.recv()
 
 

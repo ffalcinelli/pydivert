@@ -283,7 +283,7 @@ class MacOSDivert(BaseDivert):
 
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = 0.1) -> Packet:
         if not self.is_open and self._queue.empty():
-            raise RuntimeError("Socket is not open.")
+            raise RuntimeError("handle is not open.")
         while not self._stop_event.is_set() or not self._queue.empty():
             try:
                 return self._queue.get(timeout=timeout)
@@ -291,11 +291,11 @@ class MacOSDivert(BaseDivert):
                 if self._stop_event.is_set():
                     break
                 continue
-        raise RuntimeError("Socket closed during recv or queue is empty.")  # pragma: no cover
+        raise RuntimeError("handle is not open.")  # pragma: no cover
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if not self.is_open:  # pragma: no cover
-            raise RuntimeError("Socket is not open.")
+            raise RuntimeError("handle is not open.")
 
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()

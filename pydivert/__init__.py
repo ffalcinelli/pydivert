@@ -30,26 +30,17 @@
 ---
 """
 
-import sys
-
+from .bsd import Divert
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
+from .linux import NetFilterQueue
+from .macos import MacOSDivert
 from .packet import Packet
 from .pydivert import PyDivert
 
-WinDivert = None
-NetFilterQueue = None
-MacOSDivert = None
-Divert = None
-
-if sys.platform == "win32":
-    from .windivert import WinDivert
-elif sys.platform.startswith("linux"):
-    from .linux import NetFilterQueue
-elif sys.platform == "darwin":
-    from .bsd import Divert  # macOS also uses BSD-style divert sockets
-    from .macos import MacOSDivert
-elif sys.platform.startswith("freebsd"):
-    from .bsd import Divert
+# Import all implementation classes to ensure they are available in the pydivert namespace.
+# These modules are safe to import on any platform as they only define classes
+# and don't perform OS-specific actions until instantiated or opened.
+from .windivert import WinDivert
 
 __author__ = "fabio"
 __version__ = "4.0.0"

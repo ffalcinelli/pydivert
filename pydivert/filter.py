@@ -143,17 +143,23 @@ class WinDivertTransformer(Transformer):
     def _handle_addr_comparison(self, field: str, val: str) -> list[dict[str, Any]] | None:
         import sys
 
+        res: list[dict[str, Any]] | None = None
         if field in ("ip.src", "ipv6.src", "ip.srcaddr", "ipv6.srcaddr"):
-            return [{"srcaddr": val}]
-        if field in ("ip.dst", "ipv6.dst", "ip.dstaddr", "ipv6.dstaddr"):
-            return [{"dstaddr": val}]
-        if field in ("ip.addr", "ipv6.addr"):
+            res = [{"srcaddr": val}]
+        elif field in ("ip.dst", "ipv6.dst", "ip.dstaddr", "ipv6.dstaddr"):
+            res = [{"dstaddr": val}]
+        elif field in ("ip.addr", "ipv6.addr"):
             # Matches both source and destination
             if sys.platform.startswith("linux"):
                 # On Linux we choose ONLY destination
-                return [{"dstaddr": val}]
-            return [{"srcaddr": val}, {"dstaddr": val}]
-        return None
+                res = [{"dstaddr": val}]
+            else:
+                res = [{"srcaddr": val}, {"dstaddr": val}]
+
+        if res and (val == "127.0.0.1" or val == "::1"):
+            for r in res:
+                r["loopback"] = True
+        return res
 
     def field_access(self, children):
         name = str(children[0]).lower()

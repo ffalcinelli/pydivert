@@ -179,7 +179,7 @@ async def test_bsd_divert_mock():
     # Test ipfw error path
     if sys.platform.startswith("freebsd"):
         with patch("pydivert.bsd._Socket", side_effect=side_effect), patch("subprocess.run") as mock_run:
-            mock_run.side_effect = Exception("ipfw fail")
+            mock_run.side_effect = OSError("ipfw fail")
             w = Divert()
             with pytest.raises(RuntimeError, match="Failed to apply ipfw rule"):
                 w.open()

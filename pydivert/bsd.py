@@ -252,11 +252,11 @@ class Divert(BaseDivert):
                 if self._stop_event.is_set():
                     break
                 continue
-        raise RuntimeError("Handle is closed.")  # pragma: no cover
+        raise RuntimeError("handle is not open.")  # pragma: no cover
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if not self.is_open:  # pragma: no cover
-            raise RuntimeError("Handle is closed.")
+            raise RuntimeError("handle is not open.")
 
         if self._async_queue is None:
             self._loop = asyncio.get_running_loop()
@@ -274,7 +274,7 @@ class Divert(BaseDivert):
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         sock = self._socket
         if not sock:
-            raise RuntimeError("Handle is closed.")
+            raise RuntimeError("handle is not open.")
 
         if recalculate_checksum:
             packet.recalculate_checksums()

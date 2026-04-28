@@ -160,6 +160,8 @@ jobs:
           # pip might be named differently or need ensurepip
           python${{ matrix.python-version }} -m ensurepip || true
           python${{ matrix.python-version }} -m pip install --upgrade pip || true
+          kldload ipfw || true
+          service ipfw start || true
           kldload ipdivert || true
           sysctl net.inet.ip.divert_on_loopback=1 || true
         run: |
