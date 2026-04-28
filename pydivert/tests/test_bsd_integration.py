@@ -7,9 +7,9 @@ from pydivert.bsd import Divert
 
 
 def setup_module(module):
-    """Skip all tests in this module if not running on BSD or macOS."""
-    if not (sys.platform.startswith("freebsd") or sys.platform == "darwin"):
-        pytest.skip("BSD/macOS only tests")
+    """Skip all tests in this module if not running on FreeBSD."""
+    if not sys.platform.startswith("freebsd"):
+        pytest.skip("FreeBSD only tests")
 
 
 def test_bsd_open_close():
