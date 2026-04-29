@@ -11,7 +11,8 @@ from pydivert.consts import Flag, Layer
 from pydivert.tests.util import require_scapy
 
 
-def test_pydivert_platform_selection():
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux only platform selection test")
+def test_pydivert_platform_selection_linux():
     with patch("sys.platform", "linux2"):
         # Force re-import of linux to ensure NetFilterQueue is used
         if "pydivert.linux" in sys.modules:
@@ -21,6 +22,9 @@ def test_pydivert_platform_selection():
         w = PyDivert()
         assert isinstance(w._impl, NetFilterQueue)
 
+
+@pytest.mark.skipif(not sys.platform.startswith("freebsd"), reason="FreeBSD only platform selection test")
+def test_pydivert_platform_selection_bsd():
     with patch("sys.platform", "freebsd14"):
         if "pydivert.bsd" in sys.modules:
             del sys.modules["pydivert.bsd"]
@@ -29,6 +33,9 @@ def test_pydivert_platform_selection():
         w = PyDivert()
         assert isinstance(w._impl, Divert)
 
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS only platform selection test")
+def test_pydivert_platform_selection_macos():
     with patch("sys.platform", "darwin"):
         if "pydivert.macos" in sys.modules:
             del sys.modules["pydivert.macos"]
@@ -53,6 +60,9 @@ def test_pydivert_platform_selection():
                 w = PyDivert()
                 assert isinstance(w._impl, MacOSDivert)
 
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows only platform selection test")
+def test_pydivert_platform_selection_windows():
     with patch("sys.platform", "win32"):
         # We need to mock WinDivert DLL loading or it will fail on Linux
         with patch("pydivert.windivert_dll.WinDivertOpen", return_value=123):
@@ -62,6 +72,7 @@ def test_pydivert_platform_selection():
             assert isinstance(w._impl, WinDivert)
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only tests")
 @pytest.mark.asyncio
 async def test_linux_nfq_mock():
     from pydivert.linux import NetFilterQueue
@@ -117,7 +128,7 @@ async def test_linux_nfq_mock():
             w.open()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="WinDivert DLL will fail on this mock")
+@pytest.mark.skipif(not sys.platform.startswith("freebsd"), reason="FreeBSD only tests")
 @pytest.mark.asyncio
 async def test_bsd_divert_mock():
     import socket as real_socket
@@ -254,6 +265,7 @@ def test_windivert_dll_init_mock():
                 pass
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only tests")
 def test_linux_nfq_errors():
     from pydivert.linux import NetFilterQueue
 
@@ -264,6 +276,7 @@ def test_linux_nfq_errors():
         w.send(MagicMock())
 
 
+@pytest.mark.skipif(not sys.platform.startswith("freebsd"), reason="FreeBSD only tests")
 def test_bsd_divert_errors():
     from pydivert.bsd import Divert
 

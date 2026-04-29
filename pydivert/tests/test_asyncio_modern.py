@@ -1,6 +1,15 @@
+import os
+import sys
+
 import pytest
 
 import pydivert
+
+# Integration tests need root on non-Windows
+if sys.platform != "win32":
+    uid = getattr(os, "getuid", lambda: -1)()
+    if uid != 0:
+        pytest.skip("skipping asyncio_modern integration tests (not root)", allow_module_level=True)
 
 
 @pytest.mark.asyncio

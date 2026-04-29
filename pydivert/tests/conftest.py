@@ -17,7 +17,17 @@ def check_pydivert_availability(request):
     if "mock" in request.node.name or "mock" in request.node.nodeid:
         return
 
-    integration_keywords = ("integration", "ping_pong", "asyncio_modern", "windivert", "driver")
+    integration_keywords = (
+        "integration",
+        "ping_pong",
+        "asyncio_modern",
+        "windivert",
+        "driver",
+        "scenario",
+        "example",
+        "multiprocessing",
+        "header_integration",
+    )
     is_integration = any(kw in request.module.__name__ for kw in integration_keywords)
 
     if is_integration or request.node.get_closest_marker("integration"):

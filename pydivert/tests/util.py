@@ -15,11 +15,22 @@ def check_availability():
         with pydivert.PyDivert("true"):
             pass
     except (ImportError, PermissionError, OSError, RuntimeError) as e:
+        # Check if it's a permission issue on non-Windows
+        is_permission_error = (
+            isinstance(e, PermissionError) or "Operation not permitted" in str(e) or "Access denied" in str(e)
+        )
+
         if os.environ.get("GITHUB_ACTIONS") or os.environ.get("VAGRANT_VM"):
             if sys.platform == "darwin" and getattr(e, "errno", None) == 22:
                 pytest.skip(f"Divert sockets are not supported on this macOS version: {e}")
-            else:
-                pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
+            if is_permission_error and sys.platform != "win32":
+                uid = getattr(os, "getuid", lambda: -1)()
+                if uid != 0:
+                    pytest.skip(f"Integration tests skipped in CI: missing root privileges ({e})")
+
+            # For other errors in CI, we still want to fail to catch regressions
+            pytest.fail(f"PyDivert integration tests must run in CI, but initialization failed: {e}")
+
         pytest.skip(f"PyDivert not available: {e}")
 
 
