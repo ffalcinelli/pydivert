@@ -23,6 +23,7 @@ def test_raise_on_error_set_last_error_failure():
 
             mock_windll.kernel32.SetLastError.assert_called_once_with(0)
 
+
 def test_raise_on_error_no_error_pending():
     # Just to be sure we cover the basic failure path
     mock_func = MagicMock()
@@ -32,6 +33,7 @@ def test_raise_on_error_no_error_pending():
     decorated = windivert_dll.raise_on_error(mock_func)
     with patch("pydivert.windivert_dll.GetLastError", return_value=0):
         assert not decorated()
+
 
 def test_windivert_dll_getattr():
     # Test line 271-272: __getattr__ success

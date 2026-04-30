@@ -24,6 +24,9 @@
 
 from enum import IntEnum, IntFlag
 
+LOOP_PREVENTION_MARK = 0x4D49544D  # "MITM" in hex
+DEFAULT_PACKET_BUFFER_SIZE = 65575
+
 
 # Divert layers.
 class Layer(IntEnum):

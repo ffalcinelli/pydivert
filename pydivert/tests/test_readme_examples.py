@@ -438,7 +438,7 @@ def test_example_pattern_matching():
     raw = bytearray(40)
     raw[0] = 0x45
     raw[9] = 6
-    raw[22:24] = b"\x00\x50" # port 80
+    raw[22:24] = b"\x00\x50"  # port 80
     packet = Packet(raw)
 
     matched_http = False

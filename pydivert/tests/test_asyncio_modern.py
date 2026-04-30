@@ -13,6 +13,7 @@ async def test_async_context_manager():
     except (PermissionError, OSError):
         pytest.skip("Test requires administrator privileges.")
 
+
 @pytest.mark.asyncio
 async def test_async_iteration():
     try:
@@ -22,6 +23,7 @@ async def test_async_iteration():
             assert hasattr(w, "__anext__")
     except (PermissionError, OSError):
         pytest.skip("Test requires administrator privileges.")
+
 
 @pytest.mark.asyncio
 async def test_recv_send_async():

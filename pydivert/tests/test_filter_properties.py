@@ -21,6 +21,7 @@ def test_check_filter_robustness(filter_str, layer):
         # Driver issues
         pass
 
+
 @given(port=st.integers(min_value=0, max_value=65535))
 def test_valid_filter_generation(port):
     filt = f"tcp.DstPort == {port}"
@@ -29,7 +30,7 @@ def test_valid_filter_generation(port):
         # On a system with WinDivert, this should be True
         # If it's False, we should at least not crash
         if res is False:
-             # If it fails, maybe WinDivert is not available or something else is wrong
-             pass
+            # If it fails, maybe WinDivert is not available or something else is wrong
+            pass
     except (OSError, FileNotFoundError):
         pass

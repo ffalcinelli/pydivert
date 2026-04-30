@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, linux-ebpf ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, linux-ebpf ]
   workflow_dispatch: {}
 
 jobs:
@@ -14,47 +14,87 @@ jobs:
       contents: read
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
       with:
         enable-cache: true
     - name: Set up Python
       run: uv python install 3.12
     - name: Run linting
       run: uv run --extra lint ruff check pydivert
+    - name: Run formatting check
+      run: uv run --extra lint ruff format --check pydivert
     - name: Run type checking
       run: uv run --extra typecheck --extra test ty check pydivert
 
-  test:
+  test-windows:
     needs: lint
     runs-on: windows-latest
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
+      with:
+        enable-cache: true
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: uv sync --extra test
+    - name: Run tests
+      run: uv run pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+    - name: Upload coverage
+      uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+      with:
+        files: ./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+
+  test-linux:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool gcc-multilib
+
+    - name: Generate vmlinux.h
+      run: sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
+
+    - name: Compile eBPF object
+      run: clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
+
+    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
       with:
         enable-cache: true
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
     
     - name: Install dependencies
-      run: |
-        uv sync --extra test
+      run: uv sync --extra test --extra linux
     
+    - name: Configure loopback
+      run: sudo ethtool -K lo rx off tx off || true
+
     - name: Run tests
-      run: |
-        uv run pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+      run: sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
     
     - name: Upload coverage
-      # uses: codecov/codecov-action@3f20e214133d0983f9a10f3d63b0faf9241a3daa # v6.0.0
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
       with:
-        file: ./coverage.xml
+        files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false

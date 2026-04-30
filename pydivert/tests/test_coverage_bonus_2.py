@@ -15,6 +15,7 @@ def test_windivert_unregister_fallback():
             args = mock_run.call_args[0][0]
             # On Linux/Mock, the fallback C:\Windows\System32 should be used
             import os
+
             expected_sc_path = os.path.join("C:\\Windows\\System32", "sc.exe")
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
             assert args[1:] == ["stop", "WinDivert"]
@@ -40,6 +41,7 @@ def test_windivert_unregister_success_path():
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
+
             expected_sc_path = os.path.join("C:\\MockedSystem32", "sc.exe")
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
@@ -59,6 +61,7 @@ def test_windivert_unregister_api_zero_path():
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
+
             expected_sc_path = os.path.join("C:\\Windows\\System32", "sc.exe")
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
@@ -79,6 +82,7 @@ def test_windivert_unregister_api_overflow_path():
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
+
             expected_sc_path = os.path.join("C:\\Windows\\System32", "sc.exe")
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
@@ -87,7 +91,7 @@ def test_windivert_unregister_attribute_error():
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             # Simulate AttributeError when accessing ctypes.windll.kernel32 (e.g. on Linux)
-            mock_windll = MagicMock(spec=[]) # No attributes allowed
+            mock_windll = MagicMock(spec=[])  # No attributes allowed
 
             with patch("ctypes.windll", mock_windll, create=True):
                 pydivert.WinDivert.unregister()
@@ -95,9 +99,9 @@ def test_windivert_unregister_attribute_error():
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             import os
+
             expected_sc_path = os.path.join("C:\\Windows\\System32", "sc.exe")
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
-
 
 
 def test_check_filter_os_error():
@@ -326,8 +330,10 @@ def test_windivert_is_registered_coverage():
     with patch("pydivert.service.is_registered", return_value=True):
         assert pydivert.WinDivert.is_registered() is True
 
+
 def test_windivert_unregister_raises_on_failure():
     import subprocess
+
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
             # Configure mock to behave like check=True failed

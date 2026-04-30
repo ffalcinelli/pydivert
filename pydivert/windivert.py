@@ -28,9 +28,17 @@ import logging
 import os
 import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
+from typing import Any
 
 from pydivert import service, windivert_dll  # noqa: F401
-from pydivert.consts import Direction, Flag, Layer, Param
+from pydivert.base import BaseDivert
+from pydivert.consts import (
+    DEFAULT_PACKET_BUFFER_SIZE,
+    Direction,
+    Flag,
+    Layer,
+    Param,
+)
 from pydivert.packet import Packet
 from pydivert.windivert_dll import (
     INFINITE,
@@ -38,12 +46,10 @@ from pydivert.windivert_dll import (
     WinDivertAddress,
 )
 
-DEFAULT_PACKET_BUFFER_SIZE = 65575
-
 logger = logging.getLogger(__name__)
 
 
-class WinDivert:
+class WinDivert(BaseDivert):
     """
     A WinDivert handle that can be used to capture packets.
     The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
@@ -79,9 +85,9 @@ class WinDivert:
         self._recv_buf_c = None
         self._pending_ops: list[Overlapped] = []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         state = "open" if self._handle is not None else "closed"
-        filter_str = self._filter.decode()
+        filter_str = self.filter
         return (
             f'<WinDivert state="{state}" filter="{filter_str}" layer="{self._layer}" '
             f'priority="{self._priority}" flags="{self._flags}" />'
@@ -91,7 +97,7 @@ class WinDivert:
         self.open()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
     def __iter__(self):
@@ -104,7 +110,7 @@ class WinDivert:
         self.open()
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
     def __aiter__(self):
@@ -174,9 +180,7 @@ class WinDivert:
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:
-            res = windivert_dll.WinDivertHelperCompileFilter(
-                filter.encode(), layer, None, 0, byref(msg), byref(pos)
-            )
+            res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
         except OSError as e:
             logger.warning("WinDivertHelperCompileFilter failed: %s", e)
         return res, pos.value, msg.value.decode() if msg.value else ""
@@ -231,7 +235,7 @@ class WinDivert:
             windivert_dll.CloseHandle(self._event)
             self._event = None
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Receives a diverted packet that matched the filter.
 
@@ -264,7 +268,7 @@ class WinDivert:
 
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
-    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Asynchronously receives a diverted packet using Windows Overlapped I/O.
         """
@@ -299,9 +303,7 @@ class WinDivert:
                 if error == windivert_dll.ERROR_IO_PENDING:
                     # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(
-                        None, windivert_dll.WaitForSingleObject, self._event, INFINITE
-                    )
+                    await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
                 else:
                     raise windivert_dll.WinError(error)
             # Operation completed successfully (either synchronously or after waiting)
@@ -435,9 +437,7 @@ class WinDivert:
         send_len = c_uint(0)
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
-        windivert_dll.WinDivertSend(
-            self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr)
-        )
+        windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
         return send_len.value
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
@@ -482,9 +482,7 @@ class WinDivert:
                 if error == windivert_dll.ERROR_IO_PENDING:
                     # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(
-                        None, windivert_dll.WaitForSingleObject, self._event, INFINITE
-                    )
+                    await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
                 else:
                     raise windivert_dll.WinError(error)
 

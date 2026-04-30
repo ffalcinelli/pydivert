@@ -19,14 +19,15 @@ async def test_recv_async_execution():
     except (PermissionError, OSError):
         pytest.skip("Test requires administrator privileges.")
 
+
 @pytest.mark.asyncio
 async def test_send_async_execution():
     try:
         async with pydivert.WinDivert("false") as w:
             # Create a dummy packet
             raw = bytearray(44)
-            raw[0] = 0x45 # IPv4
-            raw[9] = 6 # TCP
+            raw[0] = 0x45  # IPv4
+            raw[9] = 6  # TCP
             p = Packet(raw)
             assert p.ipv4 is not None
             p.ipv4.packet_len = 44
@@ -39,6 +40,7 @@ async def test_send_async_execution():
                 pass
     except (PermissionError, OSError):
         pytest.skip("Test requires administrator privileges.")
+
 
 @pytest.mark.asyncio
 async def test_async_iterator_execution():

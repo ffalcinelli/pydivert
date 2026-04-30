@@ -34,9 +34,14 @@ classifiers = [
     "Topic :: System :: Networking :: Monitoring",
     "Topic :: Utilities",
 ]
-dependencies = []
+dependencies = [
+    "lark>=1.1.0",
+]
 
 [project.optional-dependencies]
+linux = [
+    "cffi>=1.15.0",
+]
 test = [
     "mock>=1.0.1",
     "hypothesis>=3.5.3",

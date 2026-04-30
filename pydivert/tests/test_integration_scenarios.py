@@ -36,6 +36,7 @@ def get_free_port(proto=socket.SOCK_STREAM):
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
+
 def _backend_server(port):
     with socket.socket() as s:
         s.bind(("127.0.0.1", port))
@@ -48,6 +49,7 @@ def _backend_server(port):
             conn.close()
         except Exception:
             pass
+
 
 def _proxy_server(proxy_port, backend_port):
     with socket.socket() as s:
@@ -66,6 +68,7 @@ def _proxy_server(proxy_port, backend_port):
             client_conn.close()
         except Exception:
             pass
+
 
 def test_integration_tcp_proxy_transform():
     """
@@ -129,6 +132,7 @@ def test_integration_tcp_proxy_transform():
             pass
         divert_thread.join(timeout=1)
 
+
 def _udp_server(port):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(("127.0.0.1", port))
@@ -140,6 +144,7 @@ def _udp_server(port):
                 s.sendto(b"Original: " + data, addr)
         except Exception:
             pass
+
 
 def test_integration_dns_modification():
     """
@@ -187,6 +192,8 @@ def test_integration_dns_modification():
         stop_event.set()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(b"stop", ("127.0.0.1", server_port))
+
+
 @pytest.mark.skip(reason="Unregistering driver is too disruptive for VM state and subsequent tests")
 def test_integration_driver_management():
     """
