@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import abc
+import socket
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
@@ -13,13 +14,8 @@ class BaseDivert(abc.ABC):
     """
     Abstract base class for packet diversion implementations.
 
-    This interface defines the core functionality for capturing, filtering,
-    and re-injecting network packets. It is implemented by OS-specific backends:
-    - `WinDivert` (Windows)
-    - `eBPF` (Linux)
-
-    For standard cross-platform usage, use the `pydivert.Divert` facade instead
-    of instantiating these backends directly.
+    This class manages shared state and provides the public API for packet
+    interception, delegating low-level operations to backend-specific methods.
     """
 
     def __init__(
@@ -31,16 +27,16 @@ class BaseDivert(abc.ABC):
     ) -> None:
         if isinstance(filter, str):
             filter = filter.strip()
-        self._filter: bytes | str = filter.encode() if isinstance(filter, str) else filter
+        self._filter: str = str(filter)
         self._layer = layer
         self._priority = priority
         self._flags = flags
-        self._handle: Any = None
+        self._is_open = False
 
     @staticmethod
     def register() -> None:
         """Register the service (if applicable)."""
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def is_registered() -> bool:
@@ -50,7 +46,7 @@ class BaseDivert(abc.ABC):
     @staticmethod
     def unregister() -> None:
         """Unregister the service (if applicable)."""
-        raise NotImplementedError()
+        pass
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
@@ -59,126 +55,138 @@ class BaseDivert(abc.ABC):
 
     def __repr__(self) -> str:
         state = "open" if self.is_open else "closed"
-        filter_str = self.filter
         return (
-            f'<{self.__class__.__name__} state="{state}" filter="{filter_str}" layer="{self._layer}" '
+            f'<{self.__class__.__name__} state="{state}" filter="{self.filter}" layer="{self._layer}" '
             f'priority="{self._priority}" flags="{self._flags}" />'
         )
 
     @property
     def filter(self) -> str:
         """Returns the packet filter string."""
-        return self._filter.decode() if isinstance(self._filter, bytes) else str(self._filter)
+        return self._filter
 
     @property
     def layer(self) -> Layer:
         """Returns the WinDivert layer."""
-        return self._layer  # pragma: no cover
+        return self._layer
 
     @property
     def priority(self) -> int:
         """Returns the handle priority."""
-        return self._priority  # pragma: no cover
+        return self._priority
 
     @property
     def flags(self) -> Flag:
         """Returns the WinDivert flags."""
-        return self._flags  # pragma: no cover
-
-    @abc.abstractmethod
-    def open(self) -> None:
-        """
-        Opens a connection to the Divert subsystem (WinDivert, NFQUEUE, or Divert socket).
-        Matches packets according to the `filter` provided at initialization.
-
-        :raises RuntimeError: If the handle is already open.
-        :raises OSError: If the connection fails (e.g. insufficient permissions).
-        """
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def close(self) -> None:
-        """
-        Closes the connection to the Divert subsystem and cleans up any
-        firewall rules or resources.
-        """
-        raise NotImplementedError()
+        return self._flags
 
     @property
-    @abc.abstractmethod
     def is_open(self) -> bool:
         """Indicates if the Divert handle is currently open."""
-        raise NotImplementedError()
+        return self._is_open
 
-    @abc.abstractmethod
+    def open(self) -> None:
+        """
+        Opens a connection to the Divert subsystem.
+        """
+        if self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is already open.")
+        self._open_impl()
+        self._is_open = True
+
+    def close(self) -> None:
+        """
+        Closes the connection to the Divert subsystem and cleans up resources.
+        """
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        self._close_impl()
+        self._is_open = False
+
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Receives an intercepted packet that matched the filter.
-        This method blocks until a packet is available or the timeout is reached.
-
-        :param bufsize: The maximum size of the packet to receive.
-        :param timeout: Maximum time to wait for a packet (in seconds).
-        :return: A `pydivert.Packet` instance.
-        :raises RuntimeError: If the handle is closed.
         """
-        raise NotImplementedError()
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return self._recv_impl(bufsize, timeout)
 
-    @abc.abstractmethod
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
-        Asynchronous version of `recv()`.
-        Yields control while waiting for a packet.
-
-        :param bufsize: The maximum size of the packet to receive.
-        :param timeout: Maximum time to wait for a packet (in seconds/milliseconds depending on backend).
-        :return: A `pydivert.Packet` instance.
+        Asynchronous version of recv().
         """
-        raise NotImplementedError()
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return await self._recv_async_impl(bufsize, timeout)
 
-    @abc.abstractmethod
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
-        Injects a packet into the network stack or accepts a modified intercepted packet.
-
-        :param packet: The `pydivert.Packet` to send.
-        :param recalculate_checksum: If `True`, recalculate IP, TCP, UDP, and ICMP checksums before sending.
-        :return: Number of bytes sent.
+        Injects a packet into the network stack.
         """
-        raise NotImplementedError()
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return self._send_impl(packet, recalculate_checksum)
 
-    @abc.abstractmethod
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
-        Asynchronous version of `send()`.
-
-        :param packet: The `pydivert.Packet` to send.
-        :param recalculate_checksum: If `True`, recalculate checksums.
-        :return: Number of bytes sent.
+        Asynchronous version of send().
         """
-        raise NotImplementedError()
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return await self._send_async_impl(packet, recalculate_checksum)
+
+    @abc.abstractmethod
+    def _open_impl(self) -> None:
+        """Backend-specific open logic."""
+        pass
+
+    @abc.abstractmethod
+    def _close_impl(self) -> None:
+        """Backend-specific close logic."""
+        pass
+
+    @abc.abstractmethod
+    def _recv_impl(self, bufsize: int, timeout: float | None) -> Packet:
+        """Backend-specific sync receive logic."""
+        pass
+
+    @abc.abstractmethod
+    async def _recv_async_impl(self, bufsize: int, timeout: float | None) -> Packet:
+        """Backend-specific async receive logic."""
+        pass
+
+    @abc.abstractmethod
+    def _send_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
+        """Backend-specific sync send logic."""
+        pass
+
+    @abc.abstractmethod
+    async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
+        """Backend-specific async send logic."""
+        pass
 
     def __enter__(self: T) -> T:
         self.open()
-        return self  # pragma: no cover
+        return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.close()  # pragma: no cover
+        self.close()
 
     async def __aenter__(self: T) -> T:
         self.open()
-        return self  # pragma: no cover
+        return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.close()  # pragma: no cover
+        self.close()
 
     def __iter__(self) -> Iterator[Packet]:
-        return self  # pragma: no cover
+        return self
 
     def __next__(self) -> Packet:
-        return self.recv()  # pragma: no cover
+        return self.recv()
 
     def __aiter__(self) -> AsyncIterator[Packet]:
-        return self  # pragma: no cover
+        return self
 
     async def __anext__(self) -> Packet:
-        return await self.recv_async()  # pragma: no cover
+        return await self.recv_async()

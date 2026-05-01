@@ -28,7 +28,7 @@ def test_ebpf_open_close():
     with pytest.raises(RuntimeError, match="not open"):
         w.close()
     
-    with pytest.raises(RuntimeError, match="Not open"):
+    with pytest.raises(RuntimeError, match="not open"):
         w.recv()
 
 @pytest.mark.asyncio
@@ -66,11 +66,10 @@ def test_ebpf_send_errors():
 import socket # needed for AF_INET6
 
 def test_ebpf_flags():
-    # Test supported flags
+    # Test flags
     with pydivert.Divert("false", flags=Flag.SNIFF) as w:
         assert w.is_open
     
-    # Test unsupported flags (currently ignored but should not crash)
     with pydivert.Divert("false", flags=Flag.DROP) as w:
         assert w.is_open
 
