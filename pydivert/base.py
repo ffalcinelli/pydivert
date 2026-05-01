@@ -111,6 +111,14 @@ class BaseDivert(abc.ABC):
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
         return self._recv_impl(bufsize, timeout)
 
+    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+        """
+        Receives a batch of intercepted packets.
+        """
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return self._recv_batch_impl(count, bufsize, timeout)
+
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Asynchronous version of recv().
@@ -118,6 +126,14 @@ class BaseDivert(abc.ABC):
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
         return await self._recv_async_impl(bufsize, timeout)
+
+    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+        """
+        Asynchronously receives a batch of packets.
+        """
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return await self._recv_batch_async_impl(count, bufsize, timeout)
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
@@ -151,8 +167,18 @@ class BaseDivert(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        """Backend-specific sync batch receive logic."""
+        pass
+
+    @abc.abstractmethod
     async def _recv_async_impl(self, bufsize: int, timeout: float | None) -> Packet:
         """Backend-specific async receive logic."""
+        pass
+
+    @abc.abstractmethod
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        """Backend-specific async batch receive logic."""
         pass
 
     @abc.abstractmethod

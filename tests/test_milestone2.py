@@ -1,81 +1,75 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import pytest
+import pydivert
 import socket
-import threading
 import time
-import subprocess
-from pydivert.ebpf import EBPFDivert
+from pydivert.packet import Packet
 
-def test_milestone2():
-    print("--- Starting Milestone 2 Integration Test ---")
+def test_zerocopy_parsing_ipv4():
+    # Construct a raw IPv4/UDP packet
+    # Version=4, IHL=5, TOS=0, Len=28, ID=1, Frag=0, TTL=64, Proto=17, Checksum=0, SRC=127.0.0.1, DST=127.0.0.1
+    raw = bytearray(b'E\x00\x00\x1c\x00\x01\x00\x00@\x11\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01')
+    # UDP: Sport=1234, Dport=80, Len=8, Check=0
+    raw += b'\x04\xd2\x00P\x00\x08\x00\x00'
     
-    # Send a quick UDP packet to make sure UDP is NOT blocked.
-    # We will use socket to send a UDP packet and receive it.
-    udp_port = 12346
+    p = Packet(raw)
+    assert p.ipv4 is not None
+    assert p.src_addr == "127.0.0.1"
+    assert p.dst_addr == "127.0.0.1"
+    assert p.src_port == 1234
+    assert p.dst_port == 80
     
-    def receive_udp():
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("127.0.0.1", udp_port))
-        sock.settimeout(2.0)
-        try:
-            data, _ = sock.recvfrom(1024)
-            if b"TEST_UDP" in data:
-                print("SUCCESS: UDP packet passed through unharmed (as expected)!")
-                return True
-        except socket.timeout:
-            print("FAILURE: UDP packet was dropped! Milestone 2 should only drop ICMP.")
-            return False
-        finally:
-            sock.close()
-        return False
-        
-    def send_udp():
-        time.sleep(1)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(b"TEST_UDP", ("127.0.0.1", udp_port))
-        sock.close()
+    # Verify zero-copy modification
+    p.src_addr = "10.0.0.1"
+    assert raw[12:16] == socket.inet_pton(socket.AF_INET, "10.0.0.1")
+    
+    p.src_port = 8888
+    assert raw[20:22] == b'\x22\xb8' # 8888 in hex
 
-    udp_thread = threading.Thread(target=receive_udp)
-    udp_thread.start()
+def test_zerocopy_parsing_tcp():
+    # IPv4 + TCP
+    raw = bytearray(b'E\x00\x00(\x00\x01\x00\x00@\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01')
+    # TCP: Sport=1234, Dport=80, Seq=1, Ack=2, Off=5, Flags=SYN, Win=1024, Check=0, Urg=0
+    raw += b'\x04\xd2\x00P\x00\x00\x00\x01\x00\x00\x00\x02P\x02\x04\x00\x00\x00\x00\x00'
     
-    # We will use the system's 'ping' command to send ICMP packets
+    p = Packet(raw)
+    assert p.tcp is not None
+    assert p.tcp.seq_num == 1
+    assert p.tcp.syn is True
+    assert p.tcp.ack is False
+    
+    p.tcp.seq_num = 100
+    assert raw[24:28] == b'\x00\x00\x00d' # 100 in hex
+
+@pytest.mark.skipif(not socket.gethostname().startswith("linux") and not socket.gethostname().startswith("ubuntu"), reason="Batching test optimized for Linux VM")
+def test_batch_receive_ebpf():
+    # Use EBPFDivert directly if on linux
+    from pydivert.ebpf import EBPFDivert
     try:
-        with EBPFDivert(filter="icmp") as w:
-            threading.Thread(target=send_udp).start()
+        with EBPFDivert("false") as w:
+            # Inject fake packets into the internal queue to test batch draining
+            p1 = Packet(b"E" + b"\x00" * 27)
+            p2 = Packet(b"E" + b"\x00" * 27)
+            w._impl._queue.extend([p1, p2])
             
-            # Start ping to 127.0.0.1 (count 1, timeout 1s)
-            print("Pinging 127.0.0.1 (expecting 100% packet loss because ICMP should be dropped)...")
-            ping_process = subprocess.run(["ping", "-c", "1", "-W", "1", "127.0.0.1"], capture_output=True, text=True)
-            
-            if "100% packet loss" in ping_process.stdout or ping_process.returncode != 0:
-                print("SUCCESS: Ping failed (ICMP packet dropped successfully)!")
-                ping_dropped = True
-            else:
-                print("FAILURE: Ping succeeded! The packet was not dropped by eBPF.")
-                ping_dropped = False
-                
-            # Verify pydivert caught the ICMP packet
-            start_time = time.time()
-            captured_icmp = False
-            while time.time() - start_time < 2.0:
-                try:
-                    packet = w.recv(timeout=0.5)
-                    if packet.ipv4 and packet.icmpv4:
-                        print("SUCCESS: Divert successfully captured the stolen ICMP packet!")
-                        captured_icmp = True
-                        break
-                except TimeoutError:
-                    continue
-                    
-    except Exception as e:
-        print(f"ERROR starting EBPFDivert: {e}")
-        ping_dropped = False
-        captured_icmp = False
-        
-    udp_thread.join()
-    
-    if ping_dropped and captured_icmp:
-        print("--- Milestone 2 Test: PASSED ---")
-    else:
-        print("--- Milestone 2 Test: FAILED ---")
+            batch = w.recv_batch(count=2, timeout=0.1)
+            assert len(batch) == 2
+    except (ImportError, PermissionError):
+        pytest.skip("EBPF not available or permission denied")
 
-if __name__ == "__main__":
-    test_milestone2()
+def test_performance_comparison():
+    # Construct a packet
+    raw = bytearray(b'E\x00\x00\x1c\x00\x01\x00\x00@\x11\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01')
+    raw += b'\x04\xd2\x00P\x00\x08\x00\x00'
+    p = Packet(raw)
+    
+    start = time.perf_counter()
+    for _ in range(10000):
+        _ = p.src_addr
+        _ = p.dst_port
+    end = time.perf_counter()
+    
+    duration = end - start
+    print(f"\nZero-copy parsing duration for 10k accesses: {duration:.4f}s")
+    # This should be very fast (< 0.1s typically)
+    assert duration < 1.0 

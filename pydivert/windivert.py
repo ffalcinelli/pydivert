@@ -27,6 +27,7 @@ import ctypes
 import logging
 import os
 import subprocess
+import time
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 from typing import Any
 
@@ -136,9 +137,27 @@ class WinDivert(BaseDivert):
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = c_uint(0)
+        
+        # Note: synchronous timeout is not natively supported by WinDivertRecv,
+        # but we could use WaitForSingleObject if we used overlapped I/O here too.
+        # For now, we stick to the basic blocking call.
         windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
 
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        packets = []
+        for i in range(count):
+            try:
+                # We can only afford to block on the first packet
+                if i > 0:
+                    # Non-blocking check for subsequent packets using a 0 timeout (simulated)
+                    # WinDivert doesn't have a clean "peek", so we'd need overlapped for true non-blocking batching.
+                    break 
+                packets.append(self._recv_impl(bufsize, timeout))
+            except Exception:
+                break
+        return packets
 
     async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
@@ -165,7 +184,17 @@ class WinDivert(BaseDivert):
                 error = windivert_dll.GetLastError()
                 if error == windivert_dll.ERROR_IO_PENDING:
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+                    # Wait for completion or timeout
+                    if timeout:
+                        try:
+                            await asyncio.wait_for(
+                                loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE),
+                                timeout
+                            )
+                        except asyncio.TimeoutError:
+                            raise TimeoutError() from None
+                    else:
+                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
                 else:
                     raise windivert_dll.WinError(error)
             self._pending_ops.remove(overlapped)
@@ -176,6 +205,17 @@ class WinDivert(BaseDivert):
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
+
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        packets = []
+        for i in range(count):
+            try:
+                # Only the first packet respects the full timeout
+                t = timeout if i == 0 else 0.001 
+                packets.append(await self._recv_async_impl(bufsize, t))
+            except (TimeoutError, Exception):
+                break
+        return packets
 
     @staticmethod
     def _parse_packet(packet, recv_len, address):

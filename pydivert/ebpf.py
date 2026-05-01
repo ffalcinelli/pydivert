@@ -181,6 +181,32 @@ class EBPFDivert(BaseDivert):
                 time.sleep(0.01)
         return self._queue.pop(0)
 
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        if Flag.SEND_ONLY in self.flags:
+            raise OSError(socket.EBADF, "Handle is send-only")
+
+        packets = []
+        start = time.time()
+        bpf = cast(Any, libbpf)
+
+        while len(packets) < count and self.is_open:
+            while self._queue and len(packets) < count:
+                packets.append(self._queue.pop(0))
+            
+            if len(packets) >= count:
+                break
+            
+            if self._ringbuf:
+                bpf.ring_buffer__poll(self._ringbuf, 10)
+            
+            if timeout and (time.time() - start) > timeout:
+                break
+            
+            if not self._ringbuf:
+                time.sleep(0.01)
+
+        return packets
+
     def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if Flag.RECV_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is receive-only")
@@ -250,6 +276,27 @@ class EBPFDivert(BaseDivert):
                     loop.remove_reader(self._epoll_fd)
                 except (ValueError, RuntimeError):
                     pass
+
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        import asyncio
+        if Flag.SEND_ONLY in self.flags:
+            raise OSError(socket.EBADF, "Handle is send-only")
+
+        packets = []
+        while self._queue and len(packets) < count:
+            packets.append(self._queue.pop(0))
+        
+        if len(packets) >= count:
+            return packets
+
+        # Wait for more packets if needed
+        while len(packets) < count:
+            try:
+                p = await self._recv_async_impl(bufsize, timeout)
+                packets.append(p)
+            except TimeoutError:
+                break
+        return packets
 
     async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         import asyncio

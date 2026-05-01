@@ -1,270 +1,157 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-# 1) The GNU Lesser General Public License as published by the Free
-#    Software Foundation, either version 3 of the License, or (at your
-#    option) any later version.
-#
-# 2) The GNU General Public License as published by the Free Software
-#    Foundation, either version 2 of the License, or (at your option)
-#    any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
 from __future__ import annotations
 
+import ctypes
 import logging
 import socket
-import struct
-
 from pydivert.packet.header import Header
-from pydivert.util import flag_property, raw_property
 
 logger = logging.getLogger(__name__)
 
+class IPv4Struct(ctypes.BigEndianStructure):
+    _fields_ = [
+        ("v_ihl", ctypes.c_uint8),
+        ("tos", ctypes.c_uint8),
+        ("len", ctypes.c_uint16),
+        ("id", ctypes.c_uint16),
+        ("frag_off", ctypes.c_uint16),
+        ("ttl", ctypes.c_uint8),
+        ("proto", ctypes.c_uint8),
+        ("check", ctypes.c_uint16),
+        ("saddr", ctypes.c_uint8 * 4),
+        ("daddr", ctypes.c_uint8 * 4),
+    ]
+
+class IPv6Struct(ctypes.BigEndianStructure):
+    _fields_ = [
+        ("v_tc_fl", ctypes.c_uint32),
+        ("payload_len", ctypes.c_uint16),
+        ("next_hdr", ctypes.c_uint8),
+        ("hop_limit", ctypes.c_uint8),
+        ("saddr", ctypes.c_uint8 * 16),
+        ("daddr", ctypes.c_uint8 * 16),
+    ]
 
 class IPHeader(Header):
-    _src_addr: slice = slice(0, 0)
-    _dst_addr: slice = slice(0, 0)
-    _af: int = 0
+    _struct_type: type[ctypes.BigEndianStructure]
+    _af: int
+
+    def __init__(self, packet: Packet, start: int = 0) -> None:
+        super().__init__(packet, start)
+        self._view = self._struct_type.from_buffer(self._packet.raw, self._start)
 
     @property
     def src_addr(self) -> str | None:
-        """
-        The packet source address.
-        """
-        try:
-            return socket.inet_ntop(self._af, self.raw[self._src_addr].tobytes())
-        except (OSError, ValueError) as e:
-            logger.warning("Failed to parse IP address: %s", e)
-            return None
+        return socket.inet_ntop(self._af, bytes(self._view.saddr))
 
     @src_addr.setter
     def src_addr(self, val: str) -> None:
-        self.raw[self._src_addr] = socket.inet_pton(self._af, val)
+        addr_bytes = socket.inet_pton(self._af, val)
+        for i, b in enumerate(addr_bytes):
+            self._view.saddr[i] = b
 
     @property
     def dst_addr(self) -> str | None:
-        """
-        The packet destination address.
-        """
-        try:
-            return socket.inet_ntop(self._af, self.raw[self._dst_addr].tobytes())
-        except (OSError, ValueError) as e:
-            logger.warning("Failed to parse IP address: %s", e)
-            return None
+        return socket.inet_ntop(self._af, bytes(self._view.daddr))
 
     @dst_addr.setter
     def dst_addr(self, val: str) -> None:
-        self.raw[self._dst_addr] = socket.inet_pton(self._af, val)
-
-    @property
-    def packet_len(self) -> int:
-        """
-        The total packet length, including *all* headers, as reported by the IP header.
-        """
-        return len(self._packet.raw)
-
-    @packet_len.setter
-    def packet_len(self, val: int) -> None:
-        raise AttributeError("can't set attribute")
-
+        addr_bytes = socket.inet_pton(self._af, val)
+        for i, b in enumerate(addr_bytes):
+            self._view.daddr[i] = b
 
 class IPv4Header(IPHeader):
+    _struct_type = IPv4Struct
+    _af = socket.AF_INET
     __slots__ = ()
     __match_args__ = ("src_addr", "dst_addr", "protocol", "ident", "ttl")
-    __repr_fields__ = (
-        "cksum",
-        "df",
-        "diff_serv",
-        "dscp",
-        "dst_addr",
-        "ecn",
-        "evil",
-        "flags",
-        "frag_offset",
-        "hdr_len",
-        "header_len",
-        "ident",
-        "mf",
-        "packet_len",
-        "raw",
-        "reserved",
-        "src_addr",
-        "tos",
-        "ttl",
-    )
-    _src_addr = slice(12, 16)
-    _dst_addr = slice(16, 20)
-    _af = socket.AF_INET
-
-    @property
-    def header_len(self) -> int:
-        """
-        The IP header length in bytes.
-        """
-        return self.hdr_len * 4
+    __repr_fields__ = ("cksum", "dst_addr", "ident", "packet_len", "protocol", "src_addr", "tos", "ttl")
 
     @property
     def hdr_len(self) -> int:
-        """
-        The header length in words of 32bit.
-        """
-        return self.raw[0] & 0x0F
+        return self._view.v_ihl & 0x0F
 
     @hdr_len.setter
     def hdr_len(self, val: int) -> None:
-        if val < 5:
-            raise ValueError("IP header length must be greater or equal than 5.")
-        struct.pack_into("!B", self.raw, 0, 0x40 | val)
-
-    packet_len: int = raw_property("!H", 2, docs=IPHeader.packet_len.__doc__)
-    tos: int = raw_property("!B", 1, docs="The Type Of Service field (six-bit DiffServ field and a two-bit ECN field).")
-    ident: int = raw_property("!H", 4, docs="The Identification field.")
-
-    reserved: bool = flag_property("reserved", 6, 0b10000000)
-    evil: bool = flag_property("evil", 6, 0b10000000, docs="Just an april's fool joke for the RESERVED flag.")
-    df: bool = flag_property("df", 6, 0b01000000)
-    mf: bool = flag_property("mf", 6, 0b00100000)
-
-    ttl: int = raw_property("!B", 8, docs="The Time To Live field.")
-    protocol: int = raw_property("!B", 9, docs="The Protocol field.")
-    cksum: int = raw_property("!H", 10, docs="The IP header Checksum field.")
+        self._view.v_ihl = (0x40 | (val & 0x0F))
 
     @property
-    def flags(self) -> int:
-        """
-        The flags field: RESERVED (the evil bit), DF (don't fragment), MF (more fragments).
-        """
-        return self.raw[6] >> 5
+    def header_len(self) -> int:
+        return self.hdr_len * 4
 
+    @property
+    def tos(self) -> int: return self._view.tos
+    @tos.setter
+    def tos(self, val: int): self._view.tos = val
+
+    @property
+    def packet_len(self) -> int: return self._view.len
+    @packet_len.setter
+    def packet_len(self, val: int): self._view.len = val
+
+    @property
+    def ident(self) -> int: return self._view.id
+    @ident.setter
+    def ident(self, val: int): self._view.id = val
+
+    @property
+    def ttl(self) -> int: return self._view.ttl
+    @ttl.setter
+    def ttl(self, val: int): self._view.ttl = val
+
+    @property
+    def protocol(self) -> int: return self._view.proto
+    @protocol.setter
+    def protocol(self, val: int): self._view.proto = val
+
+    @property
+    def cksum(self) -> int: return self._view.check
+    @cksum.setter
+    def cksum(self, val: int): self._view.check = val
+
+    @property
+    def flags(self) -> int: return self._view.frag_off >> 13
     @flags.setter
-    def flags(self, val: int) -> None:
-        struct.pack_into("!B", self.raw, 6, (val << 5) | (self.frag_offset & 0xFF00))
+    def flags(self, val: int):
+        self._view.frag_off = (val << 13) | (self._view.frag_off & 0x1FFF)
 
     @property
-    def frag_offset(self) -> int:
-        """
-        The Fragment Offset field in blocks of 8 bytes.
-        """
-        return struct.unpack_from("!H", self.raw, 6)[0] & 0x1FFF
-
+    def frag_offset(self) -> int: return self._view.frag_off & 0x1FFF
     @frag_offset.setter
-    def frag_offset(self, val: int) -> None:
-        self.raw[6:8] = struct.pack("!H", (self.flags << 13) | (val & 0x1FFF))
-
-    @property
-    def dscp(self) -> int:
-        """
-        The Differentiated Services Code Point field (originally defined as Type of Service) also known as DiffServ.
-        """
-        return (self.raw[1] >> 2) & 0x3F
-
-    @dscp.setter
-    def dscp(self, val: int) -> None:
-        struct.pack_into("!B", self.raw, 1, (val << 2) | self.ecn)
-
-    diff_serv = dscp
-
-    @property
-    def ecn(self) -> int:
-        """
-        The Explicit Congestion Notification field.
-        """
-        return self.raw[1] & 0x03
-
-    @ecn.setter
-    def ecn(self, val: int) -> None:
-        struct.pack_into("!B", self.raw, 1, (self.dscp << 2) | (val & 0x03))
-
+    def frag_offset(self, val: int):
+        self._view.frag_off = (self._view.frag_off & 0xE000) | (val & 0x1FFF)
 
 class IPv6Header(IPHeader):
-    __slots__ = ()
-    __match_args__ = ("src_addr", "dst_addr", "next_hdr", "hop_limit")
-    __repr_fields__ = (
-        "diff_serv",
-        "dst_addr",
-        "ecn",
-        "flow_label",
-        "header_len",
-        "hop_limit",
-        "next_hdr",
-        "packet_len",
-        "payload_len",
-        "raw",
-        "src_addr",
-        "traffic_class",
-    )
-    _src_addr = slice(8, 24)
-    _dst_addr = slice(24, 40)
+    _struct_type = IPv6Struct
     _af = socket.AF_INET6
     header_len: int = 40
-
-    payload_len: int = raw_property("!H", 4, docs="The Payload Length field.")
-    next_hdr: int = raw_property("!B", 6, docs="The Next Header field. Replaces the Protocol field in IPv4.")
-    hop_limit: int = raw_property("!B", 7, docs="The Hop Limit field. Replaces the TTL field in IPv4.")
+    __slots__ = ()
+    __repr_fields__ = ("dst_addr", "hop_limit", "next_hdr", "payload_len", "src_addr")
 
     @property
-    def packet_len(self) -> int:
-        return self.payload_len + self.header_len
+    def payload_len(self) -> int: return self._view.payload_len
+    @payload_len.setter
+    def payload_len(self, val: int): self._view.payload_len = val
 
+    @property
+    def packet_len(self) -> int: return self.payload_len + 40
     @packet_len.setter
-    def packet_len(self, val: int) -> None:
-        self.payload_len = val - self.header_len
+    def packet_len(self, val: int): self.payload_len = val - 40
+
+    @property
+    def next_hdr(self) -> int: return self._view.next_hdr
+    @next_hdr.setter
+    def next_hdr(self, val: int): self._view.next_hdr = val
+
+    @property
+    def hop_limit(self) -> int: return self._view.hop_limit
+    @hop_limit.setter
+    def hop_limit(self, val: int): self._view.hop_limit = val
 
     @property
     def traffic_class(self) -> int:
-        """
-        The Traffic Class field (six-bit DiffServ field and a two-bit ECN field).
-        """
-        return (struct.unpack_from("!H", self.raw, 0)[0] >> 4) & 0x00FF
-
+        return (self._view.v_tc_fl >> 20) & 0xFF
+    
     @traffic_class.setter
-    def traffic_class(self, val: int) -> None:
-        struct.pack_into("!H", self.raw, 0, 0x6000 | (val << 4) | (self.flow_label >> 16))
-
-    @property
-    def flow_label(self) -> int:
-        """
-        The Flow Label field.
-        """
-        return struct.unpack_from("!I", self.raw, 0)[0] & 0x000FFFFF
-
-    @flow_label.setter
-    def flow_label(self, val: int) -> None:
-        struct.pack_into("!I", self.raw, 0, 0x60000000 | (self.traffic_class << 20) | (val & 0x000FFFFF))
-
-    @property
-    def diff_serv(self) -> int:
-        """
-        The DiffServ field.
-        """
-        return (self.traffic_class & 0xFC) >> 2
-
-    @diff_serv.setter
-    def diff_serv(self, val: int) -> None:
-        self.traffic_class = self.ecn | (val << 2)
-
-    @property
-    def ecn(self) -> int:
-        """
-        The Explicit Congestion Notification field.
-        """
-        return self.traffic_class & 0x03
-
-    @ecn.setter
-    def ecn(self, val: int) -> None:
-        self.traffic_class = (self.diff_serv << 2) | val
-
-    packet_len.__doc__ = IPHeader.packet_len.__doc__
+    def traffic_class(self, val: int):
+        self._view.v_tc_fl = (0x60000000 | (val << 20) | (self._view.v_tc_fl & 0x000FFFFF))
