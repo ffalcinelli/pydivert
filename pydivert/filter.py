@@ -97,18 +97,18 @@ class WinDivertTransformer(Transformer):
         field = self._normalize_field_name(str(left).lower())
         val = str(right)
 
-        # Basic equality transpilation for iptables
+        # Basic equality transpilation
         if op == "==":
             rules = self._handle_port_comparison(field, val)
-            if rules:
-                return rules
+            if rules: return rules
 
             rules = self._handle_addr_comparison(field, val)
-            if rules:
-                return rules
+            if rules: return rules
+            
+            if field == "ip.ttl":
+                return [{"ttl": val}]
 
-        # For other operators, we return an empty dict to allow user-space filtering
-        # while still having a basic hook if other AND conditions match.
+        # For other operators or fields, we return an empty dict to allow user-space filtering
         return [{}]
 
     def _normalize_field_name(self, field: str) -> str:
@@ -178,6 +178,12 @@ class WinDivertTransformer(Transformer):
             return [{"direction": "outbound"}]
         if name == "loopback":
             return [{"loopback": True}]
+        
+        # TCP Flags as keywords
+        if name in ("tcp.syn", "tcp.ack", "tcp.fin", "tcp.rst", "tcp.psh", "tcp.urg"):
+            flag = name.split(".")[1]
+            return [{"proto": "tcp", flag: True}]
+
         # Other names are just strings to be used in comparisons
         return name
 
@@ -453,7 +459,7 @@ def transpile_to_rules(filter_str):
     return rules
 
 
-def transpile_to_ebpf(filter_str: str, sniff: bool = False) -> list[dict[str, Any]]:
+def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) -> list[dict[str, Any]]:
     """
     Parses a WinDivert filter and returns a list of dictionaries compatible with BpfFilterRule.
     """
@@ -478,6 +484,9 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False) -> list[dict[str, An
     MATCH_FALSE = 1 << 7
     MATCH_ENABLED = 1 << 8
     MATCH_SNIFF = 1 << 9
+    MATCH_DROP = 1 << 10
+    MATCH_TTL = 1 << 11
+    MATCH_TCP_FLAGS = 1 << 12
 
     rules = transpile_to_rules(filter_str)
     ebpf_rules = []
@@ -491,11 +500,16 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False) -> list[dict[str, An
             "proto": 0,
             "direction": 0,
             "loopback": 0,
+            "ttl": 0,
+            "tcp_flags": 0,
+            "tcp_flags_mask": 0,
             "match_mask": MATCH_ENABLED,
         }
 
         if sniff:
             ebpf_rule["match_mask"] |= MATCH_SNIFF
+        if drop:
+            ebpf_rule["match_mask"] |= MATCH_DROP
 
         if "false" in rule:
             ebpf_rule["match_mask"] |= MATCH_FALSE
@@ -531,6 +545,25 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False) -> list[dict[str, An
         if "loopback" in rule:
             ebpf_rule["loopback"] = 1 if rule["loopback"] else 0
             ebpf_rule["match_mask"] |= MATCH_LOOPBACK
+        
+        # Extended fields for Milestone 3
+        if "ttl" in rule:
+            ebpf_rule["ttl"] = int(rule["ttl"])
+            ebpf_rule["match_mask"] |= MATCH_TTL
+        
+        # TCP Flags
+        tcp_flags = 0
+        tcp_mask = 0
+        for flag in ["syn", "ack", "fin", "rst", "psh", "urg"]:
+            if flag in rule:
+                tcp_mask |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
+                if rule[flag]:
+                    tcp_flags |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
+        
+        if tcp_mask:
+            ebpf_rule["tcp_flags"] = tcp_flags
+            ebpf_rule["tcp_flags_mask"] = tcp_mask
+            ebpf_rule["match_mask"] |= MATCH_TCP_FLAGS
 
         ebpf_rules.append(ebpf_rule)
 

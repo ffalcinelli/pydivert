@@ -61,6 +61,12 @@ if libbpf:
     libbpf.ring_buffer__poll.restype = ctypes.c_int
     libbpf.ring_buffer__poll.argtypes = [ctypes.c_void_p, ctypes.c_int]
 
+    libbpf.ring_buffer__consume.restype = ctypes.c_int
+    libbpf.ring_buffer__consume.argtypes = [ctypes.c_void_p]
+
+    libbpf.ring_buffer__epoll_fd.restype = ctypes.c_int
+    libbpf.ring_buffer__epoll_fd.argtypes = [ctypes.c_void_p]
+
     libbpf.ring_buffer__free.restype = None
     libbpf.ring_buffer__free.argtypes = [ctypes.c_void_p]
 

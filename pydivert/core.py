@@ -56,17 +56,23 @@ class Divert(BaseDivert):
     def _close_impl(self) -> None:
         self._impl.close()
 
-    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
-        return self._impl.recv(bufsize, timeout)
+    def _recv_impl(self, bufsize: int, timeout: float | None) -> Packet:
+        return self._impl._recv_impl(bufsize, timeout)
 
-    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
-        return await self._impl.recv_async(bufsize, timeout)
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        return self._impl._recv_batch_impl(count, bufsize, timeout)
 
-    def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        return self._impl.send(packet, recalculate_checksum)
+    async def _recv_async_impl(self, bufsize: int, timeout: float | None) -> Packet:
+        return await self._impl._recv_async_impl(bufsize, timeout)
 
-    async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        return await self._impl.send_async(packet, recalculate_checksum)
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        return await self._impl._recv_batch_async_impl(count, bufsize, timeout)
+
+    def _send_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
+        return self._impl._send_impl(packet, recalculate_checksum)
+
+    async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
+        return await self._impl._send_async_impl(packet, recalculate_checksum)
 
     @property
     def is_open(self) -> bool:

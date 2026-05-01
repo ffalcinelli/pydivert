@@ -84,7 +84,9 @@ class EBPFDivert(BaseDivert):
                         proto=rule["proto"],
                         direction=rule["direction"],
                         loopback=rule["loopback"],
-                        padding=0
+                        ttl=rule.get("ttl", 0),
+                        tcp_flags=rule.get("tcp_flags", 0),
+                        tcp_flags_mask=rule.get("tcp_flags_mask", 0)
                     )
                     key = ctypes.c_uint32(i)
                     bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)

@@ -1,95 +1,61 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import pytest
 import socket
-import threading
-import time
-import subprocess
-from pydivert.ebpf import EBPFDivert
+from pydivert.filter import transpile_to_ebpf
+from pydivert.packet import Packet
 
-def test_milestone3():
-    print("--- Starting Milestone 3 Integration Test ---")
+def test_transpiler_extended_fields():
+    # Test TTL transpilation
+    rules = transpile_to_ebpf("ip.TTL == 64")
+    assert len(rules) == 1
+    assert rules[0]["ttl"] == 64
+    assert rules[0]["match_mask"] & (1 << 11) # MATCH_TTL
     
-    # We will test two ports. Port 12345 is blocked, port 12346 is allowed.
-    blocked_port = 12345
-    allowed_port = 12346
-    
-    def receive_udp(port, name):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("127.0.0.1", port))
-        sock.settimeout(2.0)
-        try:
-            data, _ = sock.recvfrom(1024)
-            if b"TEST" in data:
-                return True
-        except socket.timeout:
-            return False
-        finally:
-            sock.close()
-        return False
-        
-    def send_udp(port):
-        time.sleep(1)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(b"TEST_UDP", ("127.0.0.1", port))
-        sock.close()
+    # Test TCP Syn flag transpilation
+    rules = transpile_to_ebpf("tcp.Syn")
+    assert len(rules) == 1
+    assert rules[0]["tcp_flags"] == 0x02 # SYN bit
+    assert rules[0]["tcp_flags_mask"] == 0x02
+    assert rules[0]["match_mask"] & (1 << 12) # MATCH_TCP_FLAGS
 
-    # Start receivers
-    allowed_thread = threading.Thread(target=lambda: result.update({"allowed": receive_udp(allowed_port, "allowed")}))
-    blocked_thread = threading.Thread(target=lambda: result.update({"blocked": receive_udp(blocked_port, "blocked")}))
+def test_jit_fallback_logic():
+    from pydivert.jit import compile_filter
+    from pydivert.filter import transpile_to_python
     
-    result = {}
-    allowed_thread.start()
-    blocked_thread.start()
+    # A filter that is valid but complex
+    filter_str = "tcp.SrcPort == 1234 and ip.TTL < 128"
+    python_expr = transpile_to_python(filter_str)
+    jit_func = compile_filter(python_expr)
+    
+    # Create matching packet
+    raw_match = bytearray(b'E\x00\x00\x28\x00\x01\x00\x00@\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01')
+    raw_match += b'\x04\xd2\x00P\x00\x00\x00\x01\x00\x00\x00\x02P\x02\x04\x00\x00\x00\x00\x00'
+    p_match = Packet(raw_match)
+    assert jit_func(p_match) is True
+    
+    # Create non-matching packet (different TTL)
+    raw_no_match = bytearray(raw_match)
+    raw_no_match[8] = 200 # TTL = 200
+    p_no_match = Packet(raw_no_match)
+    assert jit_func(p_no_match) is False
+
+import sys
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Kernel test for Linux")
+def test_kernel_ttl_matching():
+    import pydivert
+    from scapy.all import IP, UDP, send
+    import time
     
     try:
-        # Transpiler rule: steal UDP destination port 12345
-        with EBPFDivert(filter="udp.DstPort == 12345") as w:
-            # Send to both ports
-            threading.Thread(target=send_udp, args=(allowed_port,)).start()
-            threading.Thread(target=send_udp, args=(blocked_port,)).start()
+        # Open a handle with TTL filter
+        with pydivert.Divert("ip.TTL == 63", flags=pydivert.Flag.SNIFF) as w:
+            time.sleep(0.5)
+            # Send a packet with TTL 63 using Scapy
+            packet = IP(dst="127.0.0.1", ttl=63)/UDP(sport=1234, dport=5678)
+            send(packet, verbose=False, iface="lo")
             
-            # Start ping to 127.0.0.1 (count 1, timeout 1s). It should pass because filter is ONLY udp.DstPort == 12345
-            ping_process = subprocess.run(["ping", "-c", "1", "-W", "1", "127.0.0.1"], capture_output=True, text=True)
-            if ping_process.returncode == 0:
-                print("SUCCESS: Ping succeeded! Unrelated ICMP packet was correctly NOT dropped.")
-                ping_passed = True
-            else:
-                print("FAILURE: Ping failed! ICMP packet was unexpectedly dropped.")
-                ping_passed = False
-
-            # Verify pydivert caught the blocked UDP packet
-            start_time = time.time()
-            captured_blocked = False
-            while time.time() - start_time < 3.0:
-                try:
-                    packet = w.recv(timeout=0.5)
-                    if packet.udp and packet.dst_port == blocked_port:
-                        print("SUCCESS: Divert correctly captured the blocked UDP packet.")
-                        captured_blocked = True
-                        break
-                except TimeoutError:
-                    continue
-                    
-    except Exception as e:
-        print(f"ERROR starting EBPFDivert: {e}")
-        ping_passed = False
-        captured_blocked = False
-        
-    allowed_thread.join()
-    blocked_thread.join()
-    
-    if result.get("allowed", False):
-        print("SUCCESS: Allowed UDP packet correctly reached destination.")
-    else:
-        print("FAILURE: Allowed UDP packet was dropped!")
-        
-    if not result.get("blocked", True):
-        print("SUCCESS: Blocked UDP packet correctly NOT reached destination.")
-    else:
-        print("FAILURE: Blocked UDP packet reached destination!")
-    
-    if ping_passed and captured_blocked and result.get("allowed", False) and not result.get("blocked", True):
-        print("--- Milestone 3 Test: PASSED ---")
-    else:
-        print("--- Milestone 3 Test: FAILED ---")
-
-if __name__ == "__main__":
-    test_milestone3()
+            # Wait for capture
+            captured = w.recv(timeout=2.0)
+            assert captured.ip.ttl == 63
+    except (ImportError, PermissionError):
+        pytest.skip("EBPF/Scapy not available or permission denied")

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import abc
 import socket
+import time
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
@@ -32,6 +33,7 @@ class BaseDivert(abc.ABC):
         self._priority = priority
         self._flags = flags
         self._is_open = False
+        self._jit_filter = None
 
     @staticmethod
     def register() -> None:
@@ -85,6 +87,13 @@ class BaseDivert(abc.ABC):
         """Indicates if the Divert handle is currently open."""
         return self._is_open
 
+    def _compile_jit_if_needed(self):
+        # We always compile a JIT filter for complex expressions as a fallback
+        from pydivert.filter import transpile_to_python
+        from pydivert.jit import compile_filter
+        expr = transpile_to_python(self._filter)
+        self._jit_filter = compile_filter(expr)
+
     def open(self) -> None:
         """
         Opens a connection to the Divert subsystem.
@@ -92,6 +101,7 @@ class BaseDivert(abc.ABC):
         if self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is already open.")
         self._open_impl()
+        self._compile_jit_if_needed()
         self._is_open = True
 
     def close(self) -> None:
@@ -109,7 +119,11 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return self._recv_impl(bufsize, timeout)
+        
+        while True:
+            packet = self._recv_impl(bufsize, timeout)
+            if self._jit_filter is None or self._jit_filter(packet):
+                return packet
 
     def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
         """
@@ -117,7 +131,11 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return self._recv_batch_impl(count, bufsize, timeout)
+        
+        packets = self._recv_batch_impl(count, bufsize, timeout)
+        if self._jit_filter:
+            return [p for p in packets if self._jit_filter(p)]
+        return packets
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
@@ -125,7 +143,11 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return await self._recv_async_impl(bufsize, timeout)
+        
+        while True:
+            packet = await self._recv_async_impl(bufsize, timeout)
+            if self._jit_filter is None or self._jit_filter(packet):
+                return packet
 
     async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
         """
@@ -133,7 +155,11 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return await self._recv_batch_async_impl(count, bufsize, timeout)
+        
+        packets = await self._recv_batch_async_impl(count, bufsize, timeout)
+        if self._jit_filter:
+            return [p for p in packets if self._jit_filter(p)]
+        return packets
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """

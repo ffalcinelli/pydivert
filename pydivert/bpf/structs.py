@@ -53,7 +53,10 @@ class BpfFilterRule(ctypes.Structure):
         ("proto", ctypes.c_uint8),
         ("direction", ctypes.c_uint8),
         ("loopback", ctypes.c_uint8),
-        ("padding", ctypes.c_uint8),
+        ("ttl", ctypes.c_uint8),
+        ("tcp_flags", ctypes.c_uint8),
+        ("tcp_flags_mask", ctypes.c_uint8),
+        ("padding", ctypes.c_uint8 * 2),
     ]
 
 
