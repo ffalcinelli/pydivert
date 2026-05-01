@@ -177,6 +177,66 @@ class Packet:
         return None
 
     @property
+    def interface(self) -> tuple[int, int]:
+        """The interface index and sub-interface index (if any)."""
+        return self._interface
+
+    @property
+    def direction(self) -> Direction:
+        """The packet direction (INBOUND or OUTBOUND)."""
+        return self._direction
+
+    @property
+    def timestamp(self) -> int:
+        """The packet timestamp."""
+        return self._timestamp
+
+    @property
+    def is_loopback(self) -> bool:
+        """True if the packet was captured on the loopback interface."""
+        return self._loopback
+
+    @is_loopback.setter
+    def is_loopback(self, val: bool) -> None:
+        self._loopback = val
+        self._wd_addr.Loopback = 1 if val else 0
+
+    @property
+    def is_impostor(self) -> bool:
+        """True if the packet is an impostor."""
+        return self._impostor
+
+    @property
+    def is_sniffed(self) -> bool:
+        """True if the packet was sniffed."""
+        return self._sniffed
+
+    @property
+    def is_inbound(self) -> bool:
+        """True if the packet is inbound."""
+        return self._direction == Direction.INBOUND
+
+    @property
+    def is_outbound(self) -> bool:
+        """True if the packet is outbound."""
+        return self._direction == Direction.OUTBOUND
+
+    @property
+    def ip_checksum(self) -> bool:
+        """True if the IP checksum is valid."""
+        return self._ip_checksum
+
+    @property
+    def tcp_checksum(self) -> bool:
+        """True if the TCP checksum is valid."""
+        return self._tcp_checksum
+
+    @property
+    def udp_checksum(self) -> bool:
+        """True if the UDP checksum is valid."""
+        return self._udp_checksum
+
+    @property
     def src_addr(self) -> str | None: return self.ip.src_addr if self.ip else None
     @src_addr.setter
     def src_addr(self, val: str):
