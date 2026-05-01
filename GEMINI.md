@@ -1,29 +1,31 @@
 # PyDivert Project Overview
 
-PyDivert is a high-performance Python binding for **WinDivert**, a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
+PyDivert is a high-performance, cross-platform Python binding for capturing, modifying, and dropping network packets. It supports **Windows** (via WinDivert) and **Linux** (via eBPF).
 
 ## Core Architecture
 
-- **`pydivert.WinDivert`**: The primary class for managing the WinDivert handle. It supports synchronous (`recv`/`send`) and asynchronous (`recv_ex`/`send_ex`) operations. It also provides static methods for programmatic driver management (`register`/`unregister`).
-- **`pydivert.Packet`**: Represents a network packet and its associated metadata. It handles lazy parsing of protocol headers and manages the complex `WinDivertAddress` structure required for WinDivert 2.2 layers (Network, Flow, Socket, Reflect).
-- **`pydivert.windivert_dll`**: A low-level `ctypes` wrapper for the bundled WinDivert binaries. It includes definitions for WinDivert structures like `WinDivertAddress` and `Overlapped`.
+- **`pydivert.Divert`**: The primary class for managing the capture handle. It acts as a cross-platform facade, routing to `WinDivert` on Windows and `EBPFDivert` on Linux. It supports synchronous (`recv`/`send`) and asynchronous (`recv_async`/`send_async`) operations.
+- **`pydivert.EBPFDivert`**: The Linux counterpart using **eBPF (CO-RE)**. It provides a compatible API with `WinDivert` for seamless cross-platform usage.
+- **`pydivert.Packet`**: Represents a network packet and its associated metadata. It handles lazy parsing of protocol headers and manages complex metadata across both backends.
+- **`pydivert.windivert_dll`**: A low-level `ctypes` wrapper for the bundled WinDivert binaries (Windows only).
+- **`pydivert.bpf`**: eBPF bytecode and Python bindings for Linux packet interception.
 - **`pydivert.packet` subpackage**: Contains protocol-specific header implementations (IPv4, IPv6, TCP, UDP, ICMP) and logic for automatic checksum recalculation.
 
 ## Key Technologies
 
 - **Python**: Supports 3.10+ (64-bit).
-- **WinDivert**: Bundled version 2.2.2 (64-bit DLL and driver).
-- **ctypes**: Used for zero-overhead interfacing with the native DLL.
+- **WinDivert**: Bundled version 2.2.2 (Windows).
+- **eBPF (CO-RE)**: Native Linux kernel integration for high-performance packet manipulation.
+- **ctypes / cffi**: Used for zero-overhead interfacing with native components.
 - **uv**: Modern package management and build tool.
-- **hatchling**: Build backend for PEP 517/621 with PEP 639 (SPDX) support.
 
-## WinDivert 2.2 Support
+## Cross-Platform Features
 
-PyDivert provides full access to WinDivert 2.2 features:
-- **Advanced Layers**: Support for `Layer.NETWORK`, `Layer.FLOW`, `Layer.SOCKET`, and `Layer.REFLECT`.
-- **Rich Metadata**: Access to process IDs (PIDs), endpoint IDs, loopback status, and impostor flags.
-- **Overlapped I/O**: High-performance asynchronous capture and injection via Windows Overlapped I/O.
-- **Programmatic Driver Management**: Methods to register and unregister the WinDivert driver service at runtime.
+PyDivert 4.0 provides a unified interface for packet manipulation:
+- **Unified Filter Language**: Use the same WinDivert-style filters on both Windows and Linux.
+- **Advanced Metadata**: Access to process IDs (PIDs), endpoint IDs, loopback status, and more.
+- **Asyncio Support**: Native asynchronous capture and injection on both platforms.
+- **Physical Verification**: Automated integration tests ensure behavioral parity between the backends.
 
 ## Development Guide
 
@@ -61,7 +63,7 @@ Since **WinDivert** is Windows-only, a `Vagrantfile` is provided for local devel
 - **Start the VM**: `vagrant up`
 - **Run tests in the VM**:
   ```bash
-  vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+  vagrant ssh linux -c "sudo /pydivert/.venv/bin/python -m pytest /pydivert/pydivert/tests"
   ```
 
 ## License

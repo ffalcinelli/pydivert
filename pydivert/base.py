@@ -16,10 +16,9 @@ class BaseDivert(abc.ABC):
     This interface defines the core functionality for capturing, filtering,
     and re-injecting network packets. It is implemented by OS-specific backends:
     - `WinDivert` (Windows)
-    - `NetFilterQueue` (Linux)
-    - `Divert` (FreeBSD/macOS)
+    - `eBPF` (Linux)
 
-    For standard cross-platform usage, use the `pydivert.PyDivert` facade instead
+    For standard cross-platform usage, use the `pydivert.Divert` facade instead
     of instantiating these backends directly.
     """
 

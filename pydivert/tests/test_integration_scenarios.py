@@ -1,3 +1,4 @@
+import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -73,7 +74,7 @@ def _proxy_server(proxy_port, backend_port):
 def test_integration_tcp_proxy_transform():
     """
     Scenario: A client connects to a 'Public Service' port.
-    PyDivert intercepts the traffic, redirects it to a 'Hidden Proxy' port,
+    Divert intercepts the traffic, redirects it to a 'Hidden Proxy' port,
     the proxy modifies the data and forwards it to the 'Actual Backend'.
     All transparently to the client.
     """
@@ -96,7 +97,7 @@ def test_integration_tcp_proxy_transform():
 
     def diverter():
         try:
-            with pydivert.WinDivert(filt) as w:
+            with pydivert.Divert(filt) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -149,7 +150,7 @@ def _udp_server(port):
 def test_integration_dns_modification():
     """
     Scenario: Intercept UDP DNS-like traffic and modify the response payload.
-    This test verifies that PyDivert can correctly modify UDP payloads in-flight.
+    This test verifies that Divert can correctly modify UDP payloads in-flight.
     """
     server_port = get_free_port(socket.SOCK_DGRAM)
 
@@ -163,7 +164,7 @@ def test_integration_dns_modification():
 
     def diverter():
         try:
-            with pydivert.WinDivert(filt) as w:
+            with pydivert.Divert(filt) as w:
                 for packet in w:
                     if stop_event.is_set():
                         break
@@ -202,23 +203,23 @@ def test_integration_driver_management():
     """
     try:
         # Check if already registered
-        pydivert.WinDivert.is_registered()
+        pydivert.Divert.is_registered()
 
         # Unregister (might fail if handles are open, but we try)
-        pydivert.WinDivert.unregister()
+        pydivert.Divert.unregister()
 
         # Register
-        pydivert.WinDivert.register()
-        assert pydivert.WinDivert.is_registered() is True
+        pydivert.Divert.register()
+        assert pydivert.Divert.is_registered() is True
 
         # Unregister again
-        pydivert.WinDivert.unregister()
+        pydivert.Divert.unregister()
         # Note: unregister might return before the service is fully gone
         time.sleep(1.0)
 
         # Re-register for subsequent tests
-        pydivert.WinDivert.register()
-        assert pydivert.WinDivert.is_registered() is True
+        pydivert.Divert.register()
+        assert pydivert.Divert.is_registered() is True
 
     except (PermissionError, OSError) as e:
         pytest.skip(f"Test failed with {type(e).__name__}: {e}")

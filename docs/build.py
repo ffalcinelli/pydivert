@@ -99,7 +99,7 @@ def generate_index_html(tags):
         <meta charset="UTF-8">
         <meta http-equiv="refresh" content="0; url=latest/">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>PyDivert Documentation</title>
+        <title>Divert Documentation</title>
         <style>
             body {{ font-family: sans-serif; margin: 40px; line-height: 1.6; }}
             h1 {{ color: #333; }}
@@ -110,7 +110,7 @@ def generate_index_html(tags):
         </style>
     </head>
     <body>
-        <h1>PyDivert Documentation</h1>
+        <h1>Divert Documentation</h1>
         <p>You are being redirected to the <a href="latest/">latest documentation</a>.</p>
 
         <h2>Available Versions</h2>

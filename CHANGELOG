@@ -1,3 +1,10 @@
+Version 4.0.0
+    - Dual-Backend Support: Added a new eBPF backend for Linux, enabling PyDivert to work on both Windows and Linux.
+    - CO-RE eBPF: High-performance packet capture and injection on Linux using Compile Once - Run Everywhere eBPF.
+    - Transpiler Integration: Unified filter language support across Windows and Linux via the Lark-based transpiler.
+    - Packet Modification: Support for intercepting, modifying, and reinjecting packets on both operating systems.
+    - Unified API: The EBPFDivert class provides the same interface as WinDivert for seamless cross-platform development.
+
 Version 3.1.1
     - Performance Optimization: Added caching for WinDivertAddress in the Packet class to reduce overhead during metadata access.
     - Security & Reliability: Improved driver service management by ensuring WinDivert service stop failures are properly handled.

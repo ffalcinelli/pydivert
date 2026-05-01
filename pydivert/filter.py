@@ -444,21 +444,16 @@ def transpile_to_rules(filter_str):
     """
     Parses a WinDivert filter and returns a list of rule components for backends.
     """
-    try:
-        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
-        tree = parser.parse(filter_str)
-        transformer = WinDivertTransformer()
-        rules = transformer.transform(tree)
-        if not isinstance(rules, list):
-            rules = [rules]
-        return rules
-    except Exception as e:  # pragma: no cover
-        # Fallback to broad interception if parsing fails or filter is too complex
-        logger.debug("Transpilation to rules failed: %s", e)
-        return [{}]
+    parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
+    tree = parser.parse(filter_str)
+    transformer = WinDivertTransformer()
+    rules = transformer.transform(tree)
+    if not isinstance(rules, list):
+        rules = [rules]
+    return rules
 
 
-def transpile_to_ebpf(filter_str: str) -> list[dict[str, Any]]:
+def transpile_to_ebpf(filter_str: str, sniff: bool = False) -> list[dict[str, Any]]:
     """
     Parses a WinDivert filter and returns a list of dictionaries compatible with BpfFilterRule.
     """
@@ -478,41 +473,65 @@ def transpile_to_ebpf(filter_str: str) -> list[dict[str, Any]]:
     MATCH_SRC_PORT = 1 << 2
     MATCH_DST_PORT = 1 << 3
     MATCH_PROTO = 1 << 4
+    MATCH_DIRECTION = 1 << 5
+    MATCH_LOOPBACK = 1 << 6
+    MATCH_FALSE = 1 << 7
+    MATCH_ENABLED = 1 << 8
+    MATCH_SNIFF = 1 << 9
 
-    try:
-        rules = transpile_to_rules(filter_str)
-        ebpf_rules = []
+    rules = transpile_to_rules(filter_str)
+    ebpf_rules = []
 
-        for rule in rules:
-            ebpf_rule = {
-                "src_ip": 0,
-                "dst_ip": 0,
-                "src_port": 0,
-                "dst_port": 0,
-                "proto": 0,
-                "match_mask": 0,
-            }
+    for rule in rules:
+        ebpf_rule = {
+            "src_ip": 0,
+            "dst_ip": 0,
+            "src_port": 0,
+            "dst_port": 0,
+            "proto": 0,
+            "direction": 0,
+            "loopback": 0,
+            "match_mask": MATCH_ENABLED,
+        }
 
-            if "srcaddr" in rule:
-                ebpf_rule["src_ip"] = struct.unpack("I", socket.inet_aton(rule["srcaddr"]))[0]
+        if sniff:
+            ebpf_rule["match_mask"] |= MATCH_SNIFF
+
+        if "false" in rule:
+            ebpf_rule["match_mask"] |= MATCH_FALSE
+
+        if "srcaddr" in rule:
+            addr = rule["srcaddr"]
+            if ":" not in addr:
+                ebpf_rule["src_ip"] = struct.unpack("I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_SRC_IP
-            if "dstaddr" in rule:
-                ebpf_rule["dst_ip"] = struct.unpack("I", socket.inet_aton(rule["dstaddr"]))[0]
+        if "dstaddr" in rule:
+            addr = rule["dstaddr"]
+            if ":" not in addr:
+                ebpf_rule["dst_ip"] = struct.unpack("I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_DST_IP
-            if "sport" in rule:
-                ebpf_rule["src_port"] = int(rule["sport"])
-                ebpf_rule["match_mask"] |= MATCH_SRC_PORT
-            if "dport" in rule:
-                ebpf_rule["dst_port"] = int(rule["dport"])
-                ebpf_rule["match_mask"] |= MATCH_DST_PORT
-            if "proto" in rule:
-                ebpf_rule["proto"] = PROTO_MAP.get(rule["proto"].lower(), 0)
-                if ebpf_rule["proto"] != 0:
-                    ebpf_rule["match_mask"] |= MATCH_PROTO
+        if "proto" in rule:
+            proto = rule["proto"].lower()
+            ebpf_rule["proto"] = PROTO_MAP.get(proto, 0)
+            if ebpf_rule["proto"] != 0:
+                ebpf_rule["match_mask"] |= MATCH_PROTO
+        if "sport" in rule:
+            ebpf_rule["src_port"] = int(rule["sport"])
+            ebpf_rule["match_mask"] |= MATCH_SRC_PORT
+        if "dport" in rule:
+            ebpf_rule["dst_port"] = int(rule["dport"])
+            ebpf_rule["match_mask"] |= MATCH_DST_PORT
+        if "direction" in rule:
+            direction = rule["direction"]
+            if direction == "inbound":
+                ebpf_rule["direction"] = 1
+            elif direction == "outbound":
+                ebpf_rule["direction"] = 2
+            ebpf_rule["match_mask"] |= MATCH_DIRECTION
+        if "loopback" in rule:
+            ebpf_rule["loopback"] = 1 if rule["loopback"] else 0
+            ebpf_rule["match_mask"] |= MATCH_LOOPBACK
 
-            ebpf_rules.append(ebpf_rule)
+        ebpf_rules.append(ebpf_rule)
 
-        return ebpf_rules
-    except Exception as e:
-        logger.debug("Transpilation to eBPF failed: %s", e)
-        return []
+    return ebpf_rules

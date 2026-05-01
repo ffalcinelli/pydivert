@@ -1,3 +1,4 @@
+import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -23,8 +24,8 @@
 # see <https://www.gnu.org/licenses/>.
 
 """
-Integration tests for PyDivert using a local HTTP server.
-These tests verify that PyDivert can correctly intercept and modify HTTP traffic.
+Integration tests for Divert using a local HTTP server.
+These tests verify that Divert can correctly intercept and modify HTTP traffic.
 Note: These tests must be run on Windows with administrator privileges.
 """
 
@@ -80,7 +81,7 @@ def test_http_port_redirection():  # noqa: C901
     stop_event = threading.Event()
 
     def divert_and_redirect():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.Divert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break
@@ -151,7 +152,7 @@ def test_http_modification():  # noqa: C901
     stop_event = threading.Event()
 
     def divert_and_modify():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.Divert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break

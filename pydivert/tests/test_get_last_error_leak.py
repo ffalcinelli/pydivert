@@ -3,7 +3,10 @@
 import ctypes
 from unittest.mock import patch
 
+import sys
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
 
 from pydivert import WinDivert
 

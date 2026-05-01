@@ -1,4 +1,7 @@
+import sys
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
 
 from pydivert import Flag, WinDivert
 

@@ -67,3 +67,19 @@ def raw_property(fmt, offset, docs=None):
         rprop.__doc__ = docs
 
     return rprop
+
+
+def internet_checksum(data):
+    """
+    Calculates the 16-bit one's complement sum of the given data (RFC 1071).
+    """
+    if not isinstance(data, (bytes, bytearray)):
+        data = bytes(data)
+    
+    if len(data) % 2 == 1:
+        data += b"\x00"
+
+    s = sum(struct.unpack(f"!{len(data) // 2}H", data))
+    while s >> 16:
+        s = (s & 0xFFFF) + (s >> 16)
+    return ~s & 0xFFFF

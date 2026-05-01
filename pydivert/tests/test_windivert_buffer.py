@@ -1,8 +1,13 @@
 import ctypes
+import os
 from typing import Any, cast
 from unittest.mock import patch
 
+import pytest
+
 from pydivert import WinDivert
+
+pytestmark = pytest.mark.skipif(os.name != "nt", reason="WinDivert is only supported on Windows")
 
 
 class MockOverlapped:

@@ -1,3 +1,4 @@
+import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -33,7 +34,7 @@ import pydivert
 
 def run_recv_no_open(queue):
     try:
-        w = pydivert.WinDivert("false")
+        w = pydivert.Divert("false")
         w.recv()
     except RuntimeError as e:
         queue.put(str(e))
@@ -45,7 +46,7 @@ def run_recv_no_open(queue):
 
 def run_recv_with_context_manager(queue):
     try:
-        with pydivert.WinDivert("false"):
+        with pydivert.Divert("false"):
             queue.put("Success")
             # We don't actually recv() here because it would block indefinitely on "false" filter
     except Exception as e:
@@ -68,7 +69,7 @@ def server_worker(stop_event, barrier, results_queue):
         barrier.wait()
 
         try:
-            with pydivert.WinDivert(f"udp and udp.DstPort == {port}") as w:
+            with pydivert.Divert(f"udp and udp.DstPort == {port}") as w:
                 while not stop_event.is_set():
                     try:
                         # We expect 1 packet

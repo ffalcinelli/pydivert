@@ -52,6 +52,7 @@ test = [
     "codecov>=2.0.5",
     "wheel>=0.29",
     "setuptools",
+    "scapy",
 ]
 docs = [
     "pdoc>=14.0.0",

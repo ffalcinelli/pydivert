@@ -49,8 +49,11 @@ class BpfFilterRule(ctypes.Structure):
         ("dst_ip", ctypes.c_uint32),
         ("src_port", ctypes.c_uint16),
         ("dst_port", ctypes.c_uint16),
+        ("match_mask", ctypes.c_uint16),
         ("proto", ctypes.c_uint8),
-        ("match_mask", ctypes.c_uint8),
+        ("direction", ctypes.c_uint8),
+        ("loopback", ctypes.c_uint8),
+        ("padding", ctypes.c_uint8),
     ]
 
 

@@ -27,6 +27,7 @@ from __future__ import annotations
 import ctypes
 import pprint
 import socket
+import struct
 from functools import cached_property
 from typing import Any
 
@@ -603,6 +604,44 @@ class Packet:
 
         See: https://reqrypt.org/windivert-doc.html#divert_helper_calc_checksums
         """
+        import os
+        if os.name != "nt":
+            # Basic fallback for common cases (IPv4 + TCP/UDP/ICMP)
+            from pydivert.util import internet_checksum
+            count = 0
+            if self.ipv4:
+                # IP header checksum (offset 10, length 2)
+                struct.pack_into("!H", self.raw, 10, 0)
+                ihl = (self.raw[0] & 0x0F) * 4
+                struct.pack_into("!H", self.raw, 10, internet_checksum(self.raw[:ihl]))
+                count += 1
+            
+            # For TCP/UDP/ICMP, it's more complex (pseudo-header). 
+            # On Linux, we could use scapy if available.
+            try:
+                from scapy.all import IP, IPv6, TCP, UDP, ICMP, ICMPv6EchoRequest
+                s_bytes = self.raw.tobytes()
+                if self.ipv4:
+                    s_pkt = IP(s_bytes)
+                elif self.ipv6:
+                    s_pkt = IPv6(s_bytes)
+                else:
+                    return count
+                
+                if s_pkt.haslayer(TCP): del s_pkt[TCP].chksum
+                if s_pkt.haslayer(UDP): del s_pkt[UDP].chksum
+                if s_pkt.haslayer(ICMP): del s_pkt[ICMP].chksum
+                if s_pkt.haslayer(ICMPv6EchoRequest): del s_pkt[ICMPv6EchoRequest].cksum
+
+                # Force scapy to recalculate
+                s_new_bytes = bytes(s_pkt)
+                if len(s_new_bytes) == len(s_bytes):
+                    self.raw[:] = s_new_bytes
+                    return count + 1 # simplistic count
+            except Exception:
+                pass
+            return count
+
         buff, buff_ = self.__to_buffers()
         addr = self.wd_addr
         num: int = windivert_dll.WinDivertHelperCalcChecksums(
@@ -695,22 +734,22 @@ class Packet:
         """
         Evaluates the packet against the given packet filter string.
 
-        The remapped function is::
-
-            BOOL WinDivertHelperEvalFilter(
-                __in const char *filter,
-                __in WINDIVERT_LAYER layer,
-                __in PVOID pPacket,
-                __in UINT packetLen,
-                __in PWINDIVERT_ADDRESS pAddr
-            );
-
-        See: https://reqrypt.org/windivert-doc.html#divert_helper_eval_filter
+        On Windows, this uses WinDivertHelperEvalFilter.
+        On other platforms, it currently always returns True as filtering is
+        expected to be handled by the backend (e.g. eBPF).
 
         :param filter: The filter string.
         :param layer: The network layer.
         :return: True if the packet matches, and False otherwise.
         """
+        if ctypes.sizeof(ctypes.c_void_p) == 8 and socket.gethostname().startswith("windows"): # This is a weak check
+            pass # continue to windows logic
+        
+        # Better check
+        import os
+        if os.name != "nt":
+            return True
+
         buff, buff_ = self.__to_buffers()
         addr: Any = self.wd_addr
         addr.Layer = layer

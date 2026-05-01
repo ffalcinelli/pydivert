@@ -1,3 +1,4 @@
+import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -56,7 +57,7 @@ def test_ipv6_traffic_class_flow_label_integration():
     stop_event = threading.Event()
 
     def divert_thread_func():
-        with pydivert.WinDivert(filt) as w:
+        with pydivert.Divert(filt) as w:
             for packet in w:
                 if stop_event.is_set():
                     break

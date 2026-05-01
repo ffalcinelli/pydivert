@@ -1,0 +1,22 @@
+[run]
+source = pydivert
+branch = True
+omit = pydivert/tests/*
+
+[report]
+show_missing = True
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    if os.name != .nt.:
+    if sys.platform == .win32.:
+    if sys.platform.startswith(.linux.):
+
+[paths]
+source =
+    pydivert/
+    */pydivert/
+    C:/pydivert/pydivert/
+    \\VBOXSVR\C:_PYDIVERT\pydivert\

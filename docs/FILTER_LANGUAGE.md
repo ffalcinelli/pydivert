@@ -1,13 +1,13 @@
 # WinDivert Filter Language
 
-This page provides a detailed reference for the WinDivert filter language syntax, which is used by PyDivert to capture specific network packets.
+This page provides a detailed reference for the WinDivert filter language syntax, which is used by Divert to capture specific network packets.
 
 > [!NOTE]
 > This documentation is based on the original [WinDivert Filter Language Documentation](https://reqrypt.org/windivert-doc.html#filter_language). Credits go to the original WinDivert authors for their excellent work and comprehensive documentation.
 
 ## Overview
 
-A WinDivert filter is a string representing a boolean expression that is evaluated for each packet (or event) seen by the driver. If the expression evaluates to `true`, the packet is diverted to the PyDivert handle; otherwise, it is ignored.
+A WinDivert filter is a string representing a boolean expression that is evaluated for each packet (or event) seen by the driver. If the expression evaluates to `true`, the packet is diverted to the Divert handle; otherwise, it is ignored.
 
 ## Syntax
 

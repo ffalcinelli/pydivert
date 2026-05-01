@@ -75,6 +75,8 @@ class WinDivert(BaseDivert):
         :param priority: The priority of the handle (higher priority handles see packets first).
         :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
         """
+        if os.name != "nt":
+            raise OSError("WinDivert is only supported on Windows.")
         self._handle = None
         self._event = None
         self._filter = filter.encode()

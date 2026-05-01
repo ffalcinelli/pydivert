@@ -1,3 +1,4 @@
+import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -25,7 +26,7 @@
 import pytest
 
 from pydivert.consts import Param
-from pydivert.windivert import WinDivert
+from pydivert import Divert
 
 from .fixtures import scenario
 from .fixtures import windivert_handle as w
@@ -34,7 +35,7 @@ assert scenario, w  # keep fixtures
 
 
 def test_open():
-    w = WinDivert("false")
+    w = Divert("false")
     w.open()
     assert w.is_open
     w.close()
@@ -42,7 +43,7 @@ def test_open():
 
     with w:
         # open a second one.
-        with WinDivert("false") as w2:
+        with Divert("false") as w2:
             assert w2.is_open
 
         assert w.is_open
@@ -66,6 +67,8 @@ class TestParams:
         Tests setting and getting the value for queue time at its boundaries.
         From docs: 128 < default 512 < 2048
         """
+        if w._impl.__class__.__name__ != "WinDivert":
+            pytest.skip("Params are only supported on WinDivert backend")
         for value in (128, 512, 2048):
             w.set_param(Param.QUEUE_TIME, value)
             assert value == w.get_param(Param.QUEUE_TIME)
@@ -91,17 +94,21 @@ class TestParams:
             assert value == w.get_param(Param.QUEUE_SIZE)
 
     def test_invalid_set(self, w):
+        if w._impl.__class__.__name__ != "WinDivert":
+            pytest.skip("Params are only supported on WinDivert backend")
         with pytest.raises(OSError):
             w.set_param(42, 43)
 
     def test_invalid_get(self, w):
+        if w._impl.__class__.__name__ != "WinDivert":
+            pytest.skip("Params are only supported on WinDivert backend")
         with pytest.raises(OSError):
             w.get_param(42)
 
 
 def test_echo(scenario):
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
+    w = w  # type: Divert
     reply = send(server_addr, b"echo")
 
     for p in w:
@@ -117,7 +124,7 @@ def test_echo(scenario):
 
 def test_divert(scenario):
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
+    w = w  # type: Divert
     target = (server_addr[0], 80)
     reply = send(target, b"echo")
     for p in w:
@@ -136,7 +143,7 @@ def test_divert(scenario):
 
 def test_modify_payload(scenario):
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
+    w = w  # type: Divert
     reply = send(server_addr, b"echo")
 
     for p in w:
@@ -152,7 +159,7 @@ def test_modify_payload(scenario):
 @pytest.mark.skip(reason="Fails on Vagrant VM: packets are not truncated as expected")
 def test_packet_cutoff(scenario):
     client_addr, server_addr, w, send = scenario
-    w = w  # type: WinDivert
+    w = w  # type: Divert
     reply = send(server_addr, b"a" * 1000)
 
     cutoff = None
@@ -175,14 +182,19 @@ def test_packet_cutoff(scenario):
 
 def test_check_filter():
 
-    res, pos, msg = WinDivert.check_filter("true")
+    res, pos, msg = Divert.check_filter("true")
     assert res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter("something wrong here")
+    
+    if sys.platform != "win32":
+        # eBPF validator is not yet implemented, skips rest of test
+        return
+
+    res, pos, msg = Divert.check_filter("something wrong here")
     assert not res
     assert pos == 0
     assert msg is not None
-    res, pos, msg = WinDivert.check_filter("outbound and something wrong here")
+    res, pos, msg = Divert.check_filter("outbound and something wrong here")
     assert not res
     assert pos == 13

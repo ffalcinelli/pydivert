@@ -1,7 +1,10 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 
+import sys
 import pytest
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
 
 import pydivert
 from pydivert.packet import Packet

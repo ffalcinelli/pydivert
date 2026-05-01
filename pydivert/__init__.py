@@ -30,15 +30,15 @@
 
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
 from .ebpf import EBPFDivert
+from .core import Divert
 from .packet import Packet
-from .pydivert import PyDivert
 from .windivert import WinDivert
 
 __author__ = "fabio"
 __version__ = "4.0.0"
 
 __all__ = [
-    "PyDivert",
+    "Divert",
     "WinDivert",
     "EBPFDivert",
     "Packet",
