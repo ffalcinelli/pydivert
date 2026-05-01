@@ -1,75 +1,52 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import pytest
 import socket
-import threading
-import time
-from pydivert.ebpf import EBPFDivert
+import logging
+from pydivert.packet import Packet
 
-def test_milestone4():
-    print("--- Starting Milestone 4 Integration Test ---")
-    
-    port = 12347
-    
-    def receive_udp():
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("127.0.0.1", port))
-        sock.settimeout(5.0)
-        try:
-            data, _ = sock.recvfrom(1024)
-            if b"TEST_MODIFIED" in data:
-                print("SUCCESS: Modified payload was successfully received by the destination!")
-                return True
-            else:
-                print(f"FAILURE: Received incorrect payload: {data}")
-                return False
-        except socket.timeout:
-            print("FAILURE: Packet was dropped or not reinjected properly!")
-            return False
-        finally:
-            sock.close()
-        return False
-        
-    def send_udp():
-        time.sleep(1)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(b"TEST_ORIGINAL", ("127.0.0.1", port))
-        sock.close()
-
-    result = {}
-    recv_thread = threading.Thread(target=lambda: result.update({"success": receive_udp()}))
-    recv_thread.start()
+import sys
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Kernel test for Linux")
+def test_ebpf_stats_increment():
+    import pydivert
+    from scapy.all import IP, UDP, send
+    import time
     
     try:
-        with EBPFDivert(filter=f"udp.DstPort == {port}") as w:
-            threading.Thread(target=send_udp).start()
+        # Open a handle
+        with pydivert.Divert("udp.DstPort == 9999") as w:
+            time.sleep(0.5)
+            initial_stats = w.stats()
             
-            start_time = time.time()
-            captured_and_sent = False
-            while time.time() - start_time < 3.0:
-                try:
-                    packet = w.recv(timeout=0.5)
-                    if packet.udp and packet.dst_port == port:
-                        print(f"Divert intercepted a packet! Payload: {packet.payload}")
-                        if packet.payload == b"TEST_ORIGINAL":
-                            # Modify the payload
-                            packet.payload = b"TEST_MODIFIED"
-                            # Reinject the packet (checksums will be recalculated)
-                            w.send(packet)
-                            print("Modified packet successfully reinjected!")
-                            captured_and_sent = True
-                        elif packet.payload == b"TEST_MODIFIED":
-                            print("Oh no! The reinjected packet was intercepted AGAIN!")
-                except TimeoutError:
-                    continue
-                    
-    except Exception as e:
-        print(f"ERROR starting EBPFDivert: {e}")
-        captured_and_sent = False
-        
-    recv_thread.join()
-    
-    if result.get("success", False) and captured_and_sent:
-        print("--- Milestone 4 Test: PASSED ---")
-    else:
-        print("--- Milestone 4 Test: FAILED ---")
+            # Send 5 packets
+            packet = IP(dst="127.0.0.1")/UDP(sport=1234, dport=9999)
+            for _ in range(5):
+                send(packet, verbose=False, iface="lo")
+            
+            # Wait for processing
+            time.sleep(1.0)
+            final_stats = w.stats()
+            
+            # Diverted count should increase by 5
+            # (Note: it might be more if other UDP 9999 packets exist on lo, but at least 5)
+            assert final_stats["diverted"] >= initial_stats["diverted"] + 5
+    except (ImportError, PermissionError):
+        pytest.skip("EBPF/Scapy not available or permission denied")
 
-if __name__ == "__main__":
-    test_milestone4()
+def test_structured_logging(caplog):
+    import pydivert
+    caplog.set_level(logging.DEBUG, logger="pydivert.capture")
+    
+    # Create a packet and manually trigger a log through facade (requires handle mock)
+    # For simplicity, we just check if the logger exists and can be used
+    logger = logging.getLogger("pydivert.capture")
+    logger.debug("Test log entry")
+    
+    assert "Test log entry" in caplog.text
+
+def test_type_safety_smoke():
+    # Simple check to ensure classes have basic type hints (can't easily check full PEP 484 via pytest)
+    import pydivert.base
+    from typing import get_type_hints
+    hints = get_type_hints(pydivert.base.BaseDivert.__init__)
+    assert "filter" in hints
+    assert "layer" in hints

@@ -209,6 +209,30 @@ class EBPFDivert(BaseDivert):
 
         return packets
 
+    def _stats_impl(self) -> dict[str, int]:
+        if Flag.SEND_ONLY in self.flags:
+            return {"diverted": 0, "dropped": 0, "sniffed": 0}
+
+        bpf = cast(Any, libbpf)
+        map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"stats_map")
+        if not map_ptr:
+            return {"diverted": 0, "dropped": 0, "sniffed": 0}
+
+        fd = bpf.bpf_map__fd(map_ptr)
+        num_cpus = os.cpu_count() or 1
+        
+        stats = {"diverted": 0, "dropped": 0, "sniffed": 0}
+        keys = {"diverted": 0, "dropped": 1, "sniffed": 2}
+        
+        for name, key_val in keys.items():
+            key = ctypes.c_uint32(key_val)
+            # Per-CPU array values are contiguous __u64[num_cpus]
+            values = (ctypes.c_uint64 * num_cpus)()
+            if bpf.bpf_map_lookup_elem(fd, ctypes.byref(key), ctypes.byref(values)) == 0:
+                stats[name] = sum(values)
+        
+        return stats
+
     def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if Flag.RECV_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is receive-only")

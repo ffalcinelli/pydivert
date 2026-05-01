@@ -238,6 +238,13 @@ class WinDivert(BaseDivert):
             wd_addr=address,
         )
 
+    def _stats_impl(self) -> dict[str, int]:
+        return {
+            "queue_len": self.get_param(Param.QUEUE_LEN),
+            "queue_time": self.get_param(Param.QUEUE_TIME),
+            "queue_size": self.get_param(Param.QUEUE_SIZE),
+        }
+
     def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if recalculate_checksum:
             packet.recalculate_checksums()

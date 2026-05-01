@@ -2,13 +2,15 @@
 import abc
 import socket
 import time
+import logging
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, TypeVar
+from typing import Any, TypeVar, Optional, Union
 
 from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Flag, Layer
 from pydivert.packet import Packet
 
 T = TypeVar("T", bound="BaseDivert")
+logger = logging.getLogger("pydivert.capture")
 
 
 class BaseDivert(abc.ABC):
@@ -29,11 +31,11 @@ class BaseDivert(abc.ABC):
         if isinstance(filter, str):
             filter = filter.strip()
         self._filter: str = str(filter)
-        self._layer = layer
-        self._priority = priority
-        self._flags = flags
-        self._is_open = False
-        self._jit_filter = None
+        self._layer: Layer = layer
+        self._priority: int = priority
+        self._flags: Flag = flags
+        self._is_open: bool = False
+        self._jit_filter: Optional[Any] = None
 
     @staticmethod
     def register() -> None:
@@ -87,7 +89,7 @@ class BaseDivert(abc.ABC):
         """Indicates if the Divert handle is currently open."""
         return self._is_open
 
-    def _compile_jit_if_needed(self):
+    def _compile_jit_if_needed(self) -> None:
         # We always compile a JIT filter for complex expressions as a fallback
         from pydivert.filter import transpile_to_python
         from pydivert.jit import compile_filter
@@ -103,6 +105,7 @@ class BaseDivert(abc.ABC):
         self._open_impl()
         self._compile_jit_if_needed()
         self._is_open = True
+        logger.info("Divert handle opened with filter: %s", self._filter)
 
     def close(self) -> None:
         """
@@ -112,8 +115,9 @@ class BaseDivert(abc.ABC):
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
         self._close_impl()
         self._is_open = False
+        logger.info("Divert handle closed.")
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
         """
         Receives an intercepted packet that matched the filter.
         """
@@ -123,9 +127,11 @@ class BaseDivert(abc.ABC):
         while True:
             packet = self._recv_impl(bufsize, timeout)
             if self._jit_filter is None or self._jit_filter(packet):
+                logger.debug("Packet captured: %s", packet)
                 return packet
+            logger.debug("Packet dropped by JIT filter: %s", packet)
 
-    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> list[Packet]:
         """
         Receives a batch of intercepted packets.
         """
@@ -134,10 +140,13 @@ class BaseDivert(abc.ABC):
         
         packets = self._recv_batch_impl(count, bufsize, timeout)
         if self._jit_filter:
-            return [p for p in packets if self._jit_filter(p)]
+            filtered = [p for p in packets if self._jit_filter(p)]
+            logger.debug("Batch captured: %d received, %d passed JIT", len(packets), len(filtered))
+            return filtered
+        logger.debug("Batch captured: %d received", len(packets))
         return packets
 
-    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
         """
         Asynchronous version of recv().
         """
@@ -147,9 +156,11 @@ class BaseDivert(abc.ABC):
         while True:
             packet = await self._recv_async_impl(bufsize, timeout)
             if self._jit_filter is None or self._jit_filter(packet):
+                logger.debug("Packet captured (async): %s", packet)
                 return packet
+            logger.debug("Packet dropped by JIT filter (async): %s", packet)
 
-    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> list[Packet]:
         """
         Asynchronously receives a batch of packets.
         """
@@ -158,8 +169,19 @@ class BaseDivert(abc.ABC):
         
         packets = await self._recv_batch_async_impl(count, bufsize, timeout)
         if self._jit_filter:
-            return [p for p in packets if self._jit_filter(p)]
+            filtered = [p for p in packets if self._jit_filter(p)]
+            logger.debug("Batch captured (async): %d received, %d passed JIT", len(packets), len(filtered))
+            return filtered
+        logger.debug("Batch captured (async): %d received", len(packets))
         return packets
+
+    def stats(self) -> dict[str, int]:
+        """
+        Returns a dictionary of handle statistics.
+        """
+        if not self._is_open:
+            raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
+        return self._stats_impl()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
@@ -167,7 +189,9 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return self._send_impl(packet, recalculate_checksum)
+        sent_len = self._send_impl(packet, recalculate_checksum)
+        logger.debug("Packet injected: %d bytes", sent_len)
+        return sent_len
 
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
@@ -175,7 +199,9 @@ class BaseDivert(abc.ABC):
         """
         if not self._is_open:
             raise RuntimeError(f"{self.__class__.__name__} handle is not open.")
-        return await self._send_async_impl(packet, recalculate_checksum)
+        sent_len = await self._send_async_impl(packet, recalculate_checksum)
+        logger.debug("Packet injected (async): %d bytes", sent_len)
+        return sent_len
 
     @abc.abstractmethod
     def _open_impl(self) -> None:
@@ -188,23 +214,28 @@ class BaseDivert(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def _recv_impl(self, bufsize: int, timeout: float | None) -> Packet:
+    def _recv_impl(self, bufsize: int, timeout: Optional[float]) -> Packet:
         """Backend-specific sync receive logic."""
         pass
 
     @abc.abstractmethod
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
         """Backend-specific sync batch receive logic."""
         pass
 
     @abc.abstractmethod
-    async def _recv_async_impl(self, bufsize: int, timeout: float | None) -> Packet:
+    async def _recv_async_impl(self, bufsize: int, timeout: Optional[float]) -> Packet:
         """Backend-specific async receive logic."""
         pass
 
     @abc.abstractmethod
-    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
         """Backend-specific async batch receive logic."""
+        pass
+
+    @abc.abstractmethod
+    def _stats_impl(self) -> dict[str, int]:
+        """Backend-specific stats logic."""
         pass
 
     @abc.abstractmethod

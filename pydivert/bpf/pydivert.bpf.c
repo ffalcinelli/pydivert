@@ -23,6 +23,10 @@
 #define MATCH_TTL (1 << 11)
 #define MATCH_TCP_FLAGS (1 << 12)
 
+#define STAT_DIVERTED 0
+#define STAT_DROPPED 1
+#define STAT_SNIFFED 2
+
 char LICENSE[] SEC("license") = "Dual MIT/GPL";
 
 struct {
@@ -51,6 +55,20 @@ struct {
     __type(key, __u32);
     __type(value, struct filter_rule);
 } filter_rules SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 3);
+    __type(key, __u32);
+    __type(value, __u64);
+} stats_map SEC(".maps");
+
+static __always_inline void increment_stat(__u32 key) {
+    __u64 *val = bpf_map_lookup_elem(&stats_map, &key);
+    if (val) {
+        *val += 1;
+    }
+}
 
 static __always_inline __u16 match_packet(struct __sk_buff *skb, __u8 direction) {
     void *data = (void *)(long)skb->data;
@@ -156,7 +174,10 @@ int tc_divert_ingress(struct __sk_buff *skb) {
     __u16 mask = match_packet(skb, 1); // 1 = Inbound
     if (!mask) return TC_ACT_OK;
 
-    if (mask & MATCH_DROP) return TC_ACT_SHOT;
+    if (mask & MATCH_DROP) {
+        increment_stat(STAT_DROPPED);
+        return TC_ACT_SHOT;
+    }
 
     __u32 len = skb->len;
     if (len > 2048) len = 2048;
@@ -174,8 +195,12 @@ int tc_divert_ingress(struct __sk_buff *skb) {
     
     bpf_ringbuf_submit(ringbuf_space, 0);
 
-    if (mask & MATCH_SNIFF) return TC_ACT_OK;
+    if (mask & MATCH_SNIFF) {
+        increment_stat(STAT_SNIFFED);
+        return TC_ACT_OK;
+    }
 
+    increment_stat(STAT_DIVERTED);
     return TC_ACT_STOLEN;
 }
 
@@ -186,7 +211,10 @@ int tc_divert_egress(struct __sk_buff *skb) {
     __u16 mask = match_packet(skb, 2); // 2 = Outbound
     if (!mask) return TC_ACT_OK;
 
-    if (mask & MATCH_DROP) return TC_ACT_SHOT;
+    if (mask & MATCH_DROP) {
+        increment_stat(STAT_DROPPED);
+        return TC_ACT_SHOT;
+    }
 
     __u32 len = skb->len;
     if (len > 2048) len = 2048;
@@ -204,7 +232,11 @@ int tc_divert_egress(struct __sk_buff *skb) {
     
     bpf_ringbuf_submit(ringbuf_space, 0);
 
-    if (mask & MATCH_SNIFF) return TC_ACT_OK;
+    if (mask & MATCH_SNIFF) {
+        increment_stat(STAT_SNIFFED);
+        return TC_ACT_OK;
+    }
 
+    increment_stat(STAT_DIVERTED);
     return TC_ACT_STOLEN;
 }

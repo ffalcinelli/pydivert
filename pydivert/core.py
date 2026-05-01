@@ -74,6 +74,9 @@ class Divert(BaseDivert):
     async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
         return await self._impl._send_async_impl(packet, recalculate_checksum)
 
+    def _stats_impl(self) -> dict[str, int]:
+        return self._impl._stats_impl()
+
     @property
     def is_open(self) -> bool:
         # Override BaseDivert.is_open to check the underlying implementation
