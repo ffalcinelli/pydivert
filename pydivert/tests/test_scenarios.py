@@ -120,3 +120,47 @@ def test_scenario_sniff_icmp():
     time.sleep(1)
     assert len(captured_packets) >= 1
     assert any(p.icmp for p in captured_packets)
+
+def test_scenario_drop_flag(echo_server):
+    """Scenario: Use Flag.DROP to silently drop packets in kernel."""
+    port = echo_server
+    from pydivert.consts import Flag
+    
+    with pydivert.Divert(f"tcp.DstPort == {port}", flags=Flag.DROP) as w:
+        time.sleep(1)
+        # Try to connect - should fail
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            with pytest.raises((socket.timeout, ConnectionRefusedError, OSError)):
+                s.connect(("127.0.0.1", port))
+        
+        # Verify recv() yields nothing
+        with pytest.raises(TimeoutError):
+            w.recv(timeout=0.1)
+
+def test_scenario_recv_only_flag():
+    """Scenario: Use Flag.RECV_ONLY to disable packet injection."""
+    from pydivert.consts import Flag
+    with pydivert.Divert("false", flags=Flag.RECV_ONLY) as w:
+        p = pydivert.Packet(b"E" + b"\x00" * 19) # dummy IP
+        p.dst_addr = "127.0.0.1"
+        with pytest.raises(OSError):
+            w.send(p)
+        
+        # Also check async
+        import asyncio
+        with pytest.raises(OSError):
+            asyncio.run(w.send_async(p))
+
+def test_scenario_send_only_flag():
+    """Scenario: Use Flag.SEND_ONLY to disable packet capture."""
+    from pydivert.consts import Flag
+    with pydivert.Divert("true", flags=Flag.SEND_ONLY) as w:
+        with pytest.raises(OSError):
+            w.recv(timeout=0.1)
+        
+        # Injection should still work
+        p = pydivert.Packet(b"E" + b"\x00" * 19)
+        p.dst_addr = "127.0.0.1"
+        # This shouldn't raise OSError
+        w.send(p)

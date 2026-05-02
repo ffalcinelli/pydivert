@@ -23,7 +23,7 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         super().__init__(packet, start)
-        self._view = TCPStruct.from_buffer(self._packet.raw, self._start)
+        self._view = TCPStruct.from_buffer(self._packet._raw, self._start)
 
     @property
     def src_port(self) -> int: return self._view.sport
@@ -52,6 +52,14 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
         self._view.off_res_flags = (val << 12) | (self._view.off_res_flags & 0x0FFF)
 
     @property
+    def reserved(self) -> int:
+        return (self._view.off_res_flags >> 9) & 0x07
+
+    @reserved.setter
+    def reserved(self, val: int):
+        self._view.off_res_flags = (self._view.off_res_flags & 0xF1FF) | ((val & 0x07) << 9)
+
+    @property
     def header_len(self) -> int: return self.data_offset * 4
 
     @property
@@ -77,43 +85,64 @@ class TCPHeader(Header, PayloadMixin, PortMixin):
 
     # Flags
     @property
-    def syn(self) -> bool: return bool(self.control_bits & 0x02)
-    @syn.setter
-    def syn(self, val: bool):
-        if val: self.control_bits |= 0x02
-        else: self.control_bits &= ~0x02
+    def ns(self) -> bool: return bool(self._view.off_res_flags & 0x0100)
+    @ns.setter
+    def ns(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0100
+        else: self._view.off_res_flags &= ~0x0100
 
     @property
-    def ack(self) -> bool: return bool(self.control_bits & 0x10)
-    @ack.setter
-    def ack(self, val: bool):
-        if val: self.control_bits |= 0x10
-        else: self.control_bits &= ~0x10
+    def cwr(self) -> bool: return bool(self._view.off_res_flags & 0x0080)
+    @cwr.setter
+    def cwr(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0080
+        else: self._view.off_res_flags &= ~0x0080
 
     @property
-    def fin(self) -> bool: return bool(self.control_bits & 0x01)
-    @fin.setter
-    def fin(self, val: bool):
-        if val: self.control_bits |= 0x01
-        else: self.control_bits &= ~0x01
+    def ece(self) -> bool: return bool(self._view.off_res_flags & 0x0040)
+    @ece.setter
+    def ece(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0040
+        else: self._view.off_res_flags &= ~0x0040
 
     @property
-    def rst(self) -> bool: return bool(self.control_bits & 0x04)
-    @rst.setter
-    def rst(self, val: bool):
-        if val: self.control_bits |= 0x04
-        else: self.control_bits &= ~0x04
-
-    @property
-    def psh(self) -> bool: return bool(self.control_bits & 0x08)
-    @psh.setter
-    def psh(self, val: bool):
-        if val: self.control_bits |= 0x08
-        else: self.control_bits &= ~0x08
-
-    @property
-    def urg(self) -> bool: return bool(self.control_bits & 0x20)
+    def urg(self) -> bool: return bool(self._view.off_res_flags & 0x0020)
     @urg.setter
     def urg(self, val: bool):
-        if val: self.control_bits |= 0x20
-        else: self.control_bits &= ~0x20
+        if val: self._view.off_res_flags |= 0x0020
+        else: self._view.off_res_flags &= ~0x0020
+
+    @property
+    def ack(self) -> bool: return bool(self._view.off_res_flags & 0x0010)
+    @ack.setter
+    def ack(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0010
+        else: self._view.off_res_flags &= ~0x0010
+
+    @property
+    def psh(self) -> bool: return bool(self._view.off_res_flags & 0x0008)
+    @psh.setter
+    def psh(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0008
+        else: self._view.off_res_flags &= ~0x0008
+
+    @property
+    def rst(self) -> bool: return bool(self._view.off_res_flags & 0x0004)
+    @rst.setter
+    def rst(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0004
+        else: self._view.off_res_flags &= ~0x0004
+
+    @property
+    def syn(self) -> bool: return bool(self._view.off_res_flags & 0x0002)
+    @syn.setter
+    def syn(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0002
+        else: self._view.off_res_flags &= ~0x0002
+
+    @property
+    def fin(self) -> bool: return bool(self._view.off_res_flags & 0x0001)
+    @fin.setter
+    def fin(self, val: bool):
+        if val: self._view.off_res_flags |= 0x0001
+        else: self._view.off_res_flags &= ~0x0001

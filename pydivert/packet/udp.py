@@ -20,7 +20,7 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         super().__init__(packet, start)
-        self._view = UDPStruct.from_buffer(self._packet.raw, self._start)
+        self._view = UDPStruct.from_buffer(self._packet._raw, self._start)
 
     @property
     def src_port(self) -> int: return self._view.sport

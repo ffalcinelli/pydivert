@@ -22,8 +22,17 @@ class MockBackend(BaseDivert):
         self.recv_called = True
         return Packet(b"E" + b"\x00" * 19)
 
+    def _recv_batch_impl(self, count, bufsize, timeout):
+        return [self._recv_impl(bufsize, timeout) for _ in range(count)]
+
     async def _recv_async_impl(self, bufsize, timeout):
         return self._recv_impl(bufsize, timeout)
+
+    async def _recv_batch_async_impl(self, count, bufsize, timeout):
+        return self._recv_batch_impl(count, bufsize, timeout)
+
+    def _stats_impl(self):
+        return {"diverted": 0, "dropped": 0, "sniffed": 0}
 
     def _send_impl(self, packet, recalculate_checksum):
         self.send_called = True

@@ -31,9 +31,9 @@ PyDivert 4.0 provides a unified interface for packet manipulation:
 
 ### Prerequisites
 
-- Windows 11 (64-bit).
-- Administrator Privileges (required for WinDivert driver interaction).
-- [uv](https://github.com/astral-sh/uv) installed.
+- [Vagrant](https://www.vagrantup.com/) and [VirtualBox](https://www.virtualbox.org/) installed (Recommended for safe testing).
+- [uv](https://github.com/astral-sh/uv) installed (Local development).
+- **Elevated Privileges**: PyDivert requires root/Administrator privileges to interact with network drivers and eBPF.
 
 ### Building and Running
 
@@ -42,10 +42,7 @@ PyDivert 4.0 provides a unified interface for packet manipulation:
   uv sync --extra test --extra docs --extra lint --extra typecheck
   ```
 - **Run tests**:
-  ```bash
-  uv run pytest
-  ```
-  Note: Most tests require administrator privileges.
+  Testing PyDivert requires elevated privileges and interacts directly with the network stack. It is **strongly recommended** to run tests inside the provided Vagrant virtual machines to avoid compromising your host system (see the "Testing in Virtual Environments" section below).
 - **Linting & Type Checking**:
   ```bash
   uv run ruff check .
@@ -53,17 +50,23 @@ PyDivert 4.0 provides a unified interface for packet manipulation:
   ```
 - **Build documentation**:
   ```bash
-  uv run python docs/build.py
+  uv run --extra docs python docs/build.py
   ```
 
-### Testing on Non-Windows Platforms
+### Testing in Virtual Environments (Recommended)
 
-Since **WinDivert** is Windows-only, a `Vagrantfile` is provided for local development on Linux/macOS.
+To ensure a safe and consistent environment with the required elevated privileges, use the provided Vagrant virtual machines.
 
-- **Start the VM**: `vagrant up`
-- **Run tests in the VM**:
+- **Initialize VMs**: `vagrant up`
+- **Run Linux Tests (eBPF)**:
   ```bash
+  # Requires root privileges inside the VM
   vagrant ssh linux -c "sudo /pydivert/.venv/bin/python -m pytest /pydivert/pydivert/tests"
+  ```
+- **Run Windows Tests (WinDivert)**:
+  ```bash
+  # Requires Administrator privileges (default in Vagrant Windows boxes)
+  vagrant winrm windows -c "C:\pydivert\.venv\Scripts\python.exe -m pytest C:\pydivert\pydivert\tests"
   ```
 
 ## License

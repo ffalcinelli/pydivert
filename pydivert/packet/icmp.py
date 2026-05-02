@@ -18,7 +18,7 @@ class ICMPHeader(Header, PayloadMixin):
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         super().__init__(packet, start)
-        self._view = ICMPStruct.from_buffer(self._packet.raw, self._start)
+        self._view = ICMPStruct.from_buffer(self._packet._raw, self._start)
 
     @property
     def type(self) -> int: return self._view.type

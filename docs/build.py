@@ -126,6 +126,14 @@ def generate_index_html(tags):
         f.write(html)
 
 def main():
+    # Check for pdoc
+    try:
+        import pdoc  # noqa: F401
+    except ImportError:
+        print("Error: 'pdoc' is not installed.")
+        print("Please run the build script using: uv run --extra docs python docs/build.py")
+        sys.exit(1)
+
     site_dir = os.path.join(root, "site")
     if os.path.exists(site_dir):
         shutil.rmtree(site_dir)

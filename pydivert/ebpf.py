@@ -32,6 +32,21 @@ class EBPFDivert(BaseDivert):
     Linux implementation of the Divert interface using **eBPF**.
     """
 
+    # Re-expose members for documentation since BaseDivert is internal
+    recv = BaseDivert.recv
+    recv_async = BaseDivert.recv_async
+    recv_batch = BaseDivert.recv_batch
+    recv_batch_async = BaseDivert.recv_batch_async
+    send = BaseDivert.send
+    send_async = BaseDivert.send_async
+    stats = BaseDivert.stats
+    filter = BaseDivert.filter
+    layer = BaseDivert.layer
+    priority = BaseDivert.priority
+    flags = BaseDivert.flags
+    open = BaseDivert.open
+    close = BaseDivert.close
+
     def __init__(
         self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
     ) -> None:

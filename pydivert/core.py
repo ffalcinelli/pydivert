@@ -11,6 +11,21 @@ class Divert(BaseDivert):
     """
     A unified, cross-platform facade for capturing, filtering, and modifying network packets.
     """
+    
+    # Re-expose members for documentation since BaseDivert is internal
+    recv = BaseDivert.recv
+    recv_async = BaseDivert.recv_async
+    recv_batch = BaseDivert.recv_batch
+    recv_batch_async = BaseDivert.recv_batch_async
+    send = BaseDivert.send
+    send_async = BaseDivert.send_async
+    stats = BaseDivert.stats
+    filter = BaseDivert.filter
+    layer = BaseDivert.layer
+    priority = BaseDivert.priority
+    flags = BaseDivert.flags
+    open = BaseDivert.open
+    close = BaseDivert.close
 
     def __init__(
         self,
