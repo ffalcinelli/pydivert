@@ -38,13 +38,6 @@ async def test_ebpf_async():
         with pytest.raises(TimeoutError):
             await w.recv_async(timeout=0.1)
 
-def test_ebpf_invalid_interface():
-    from pydivert.ebpf import EBPFDivert
-    w = EBPFDivert()
-    w._ifname = "invalid_if_name_123"
-    with pytest.raises((OSError, RuntimeError)):
-        w.open()
-
 def test_ebpf_send_errors():
     with pydivert.Divert("false") as w:
         p = pydivert.Packet(b"E" + b"\x00" * 19) # dummy IP
@@ -89,7 +82,6 @@ def test_ebpf_close_cleanup():
     w.open()
     # Mocking missing attributes to test hasattr checks in close()
     impl = w._impl
-    del impl._hook_ingress
-    del impl._hook_egress
+    impl._hooks.clear()
     w.close()
     assert not w.is_open

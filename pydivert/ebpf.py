@@ -3,7 +3,7 @@ import ctypes
 import os
 import socket
 import time
-from typing import Any, cast
+from typing import Any, cast, Optional, List
 
 from pydivert.base import BaseDivert
 from pydivert.bpf import (
@@ -58,7 +58,7 @@ class EBPFDivert(BaseDivert):
             raise ImportError("libbpf missing on system.")
         self._obj = self._ringbuf = self._raw_sock = self._raw_sock6 = None
         self._queue: list[Packet] = []
-        self._ifname = "lo"
+        self._hooks: List[tuple[BpfTcHook, BpfTcOpts]] = []
 
     def _open_impl(self):
         bpf = cast(Any, libbpf)
@@ -106,22 +106,27 @@ class EBPFDivert(BaseDivert):
                     key = ctypes.c_uint32(i)
                     bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)
 
-            # TC Ingress
+            # TC Hooks for all interfaces
             prog_ingress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_ingress")
-            ifindex = socket.if_nametoindex(self._ifname)
-            self._hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
-            bpf.bpf_tc_hook_destroy(ctypes.byref(self._hook_ingress))
-            bpf.bpf_tc_hook_create(ctypes.byref(self._hook_ingress))
-            self._opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress))
-            bpf.bpf_tc_attach(ctypes.byref(self._hook_ingress), ctypes.byref(self._opts_ingress))
-
-            # TC Egress
             prog_egress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_egress")
-            self._hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
-            bpf.bpf_tc_hook_destroy(ctypes.byref(self._hook_egress))
-            bpf.bpf_tc_hook_create(ctypes.byref(self._hook_egress))
-            self._opts_egress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_egress))
-            bpf.bpf_tc_attach(ctypes.byref(self._hook_egress), ctypes.byref(self._opts_egress))
+            
+            for ifindex, ifname in socket.if_nameindex():
+                # Ingress
+                hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
+                bpf.bpf_tc_hook_destroy(ctypes.byref(hook_ingress))
+                if bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress)) in (0, -17): # 0 or EEXIST
+                    opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress))
+                    if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:
+                        self._hooks.append((hook_ingress, opts_ingress))
+
+                # Egress
+                hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
+                bpf.bpf_tc_hook_destroy(ctypes.byref(hook_egress))
+                if bpf.bpf_tc_hook_create(ctypes.byref(hook_egress)) in (0, -17):
+                    opts_egress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_egress))
+                    if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
+                        self._hooks.append((hook_egress, opts_egress))
+
         else:
             # SEND_ONLY: mark as "open" but without eBPF hooks
             self._obj = True # Sentinel
@@ -149,8 +154,9 @@ class EBPFDivert(BaseDivert):
         # Skip prefix (5 bytes) and Ethernet header (14 bytes)
         p = Packet(raw_full[19 : 19 + (pkt_len - 14)], direction=direction)
 
-        # Mark as loopback if captured on lo
-        if self._ifname == "lo":
+        # Basic loopback detection based on IP addresses
+        if p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1" or \
+           p.src_addr == "::1" or p.dst_addr == "::1":
             p.is_loopback = True
 
         self._queue.append(p)
@@ -166,12 +172,11 @@ class EBPFDivert(BaseDivert):
 
         bpf = cast(Any, libbpf)
         if self._obj is not True and self._obj:
-            if hasattr(self, "_hook_ingress"):
-                bpf.bpf_tc_detach(ctypes.byref(self._hook_ingress), ctypes.byref(self._opts_ingress))
-                bpf.bpf_tc_hook_destroy(ctypes.byref(self._hook_ingress))
-            if hasattr(self, "_hook_egress"):
-                bpf.bpf_tc_detach(ctypes.byref(self._hook_egress), ctypes.byref(self._opts_egress))
-                bpf.bpf_tc_hook_destroy(ctypes.byref(self._hook_egress))
+            for hook, opts in self._hooks:
+                bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
+                bpf.bpf_tc_hook_destroy(ctypes.byref(hook))
+            self._hooks.clear()
+
             if self._ringbuf:
                 bpf.ring_buffer__free(self._ringbuf)
             bpf.bpf_object__close(self._obj)
@@ -183,7 +188,7 @@ class EBPFDivert(BaseDivert):
             self._raw_sock6.close()
             self._raw_sock6 = None
 
-    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -198,7 +203,7 @@ class EBPFDivert(BaseDivert):
                 time.sleep(0.01)
         return self._queue.pop(0)
 
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -261,7 +266,7 @@ class EBPFDivert(BaseDivert):
             scope_id = 0
             if packet.dst_addr == "::1":
                 try:
-                    scope_id = socket.if_nametoindex(self._ifname)
+                    scope_id = socket.if_nametoindex("lo")
                 except OSError:
                     scope_id = 0
             return self._raw_sock6.sendto(packet.raw, (packet.dst_addr, 0, 0, scope_id))
@@ -270,7 +275,7 @@ class EBPFDivert(BaseDivert):
             raise RuntimeError("Not open")
         return self._raw_sock.sendto(packet.raw, (packet.dst_addr, 0))
 
-    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
         import asyncio
 
         if Flag.SEND_ONLY in self.flags:
@@ -318,7 +323,7 @@ class EBPFDivert(BaseDivert):
                 except (ValueError, RuntimeError):
                     pass
 
-    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
         import asyncio
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
