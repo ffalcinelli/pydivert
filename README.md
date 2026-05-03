@@ -204,11 +204,24 @@ For the original technical reference, please visit the [official WinDivert docum
 
 ### Testing with Vagrant
 
-Since WinDivert requires Windows, use **Vagrant** to run tests on a Windows 11 VM:
+PyDivert includes a `Vagrantfile` to easily run tests in a clean environment with the necessary privileges.
+
+#### Windows (WinDivert)
+To run tests on a Windows 11 VM:
 
 ```bash
-vagrant up
-vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+vagrant up windows
+# This will sync the project and run tests automatically
+vagrant provision windows --provision-with test-windows
+```
+
+#### Linux (eBPF)
+To run tests on a Ubuntu VM with eBPF support:
+
+```bash
+vagrant up linux
+# This will recompile the eBPF program and run tests automatically
+vagrant provision linux --provision-with test-linux
 ```
 
 ## API Reference

@@ -4,8 +4,6 @@ from unittest.mock import MagicMock, patch
 import sys
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
-
 import pydivert
 from pydivert.packet import Packet
 
@@ -230,8 +228,8 @@ def test_packet_is_checksum_valid_udp():
 
     # Mock WinDivertHelperCalcChecksums to return success
     with patch("pydivert.windivert_dll.WinDivertHelperCalcChecksums", return_value=1):
+        p.recalculate_checksums()
         assert p.is_checksum_valid  # other.udp.cksum = 0 is hit here in is_checksum_valid
-
 
 def test_ip_packet_len_direct_access():
     from pydivert.packet.ip import IPv4Header

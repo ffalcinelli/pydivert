@@ -71,11 +71,16 @@ class WinDivert(BaseDivert):
     close = BaseDivert.close
 
     def __init__(
-        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+        self,
+        filter: str = "true",
+        layer: Layer = Layer.NETWORK,
+        priority: int = 0,
+        flags: Flag = Flag.DEFAULT,
+        **kwargs,
     ) -> None:
         if os.name != "nt":
             raise OSError("WinDivert is only supported on Windows.")
-        super().__init__(filter, layer, priority, flags)
+        super().__init__(filter, layer, priority, flags, **kwargs)
         self._handle = None
         self._event = None
         self._recv_buf = None
@@ -166,7 +171,10 @@ class WinDivert(BaseDivert):
                 if error == windivert_dll.ERROR_IO_PENDING:
                     # Wait for completion or timeout
                     wait_res = windivert_dll.WaitForSingleObject(self._event, int(timeout * 1000))
-                    if wait_res == 0x00000102: # WAIT_TIMEOUT
+                    if wait_res == 0: # SUCCESS
+                        from pydivert.windivert_dll import windll
+                        windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(recv_len), False)
+                    elif wait_res == 0x00000102: # WAIT_TIMEOUT
                         # Cancel the pending operation
                         windivert_dll.windll.kernel32.CancelIoEx(self._handle, byref(overlapped))
                         raise TimeoutError()
@@ -328,6 +336,58 @@ class WinDivert(BaseDivert):
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
+
+    def recv_ex(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Optional[Overlapped] = None) -> Packet | None:
+        """
+        Receives an intercepted packet using WinDivertRecvEx.
+        """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+            self._recv_buf = bytearray(bufsize)
+            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+
+        packet = self._recv_buf
+        packet_ = self._recv_buf_c
+        address = WinDivertAddress()
+        recv_len = c_uint(0)
+        
+        try:
+            windivert_dll.WinDivertRecvEx(self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), None, byref(overlapped) if overlapped else None)
+        except OSError as e:
+            if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
+                if overlapped:
+                    overlapped._packet_buffer = packet_
+                    overlapped._address = address
+                    overlapped._recv_len = recv_len
+                return None
+            raise
+        return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+
+    def send_ex(self, packet: Packet, flags: int = 0, overlapped: Optional[Overlapped] = None) -> int | None:
+        """
+        Injects a packet into the network stack using WinDivertSendEx.
+        """
+        if self._handle is None:
+            raise RuntimeError("WinDivert handle is not open")
+
+        send_len = c_uint(0)
+        raw = packet.raw
+        buff = (c_char * len(packet.raw)).from_buffer(raw)
+        wd_addr = packet.wd_addr
+        
+        try:
+            windivert_dll.WinDivertSendEx(self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), ctypes.sizeof(WinDivertAddress), byref(overlapped) if overlapped else None)
+        except OSError as e:
+            if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
+                if overlapped:
+                    overlapped._packet_raw = buff
+                    overlapped._address = wd_addr
+                    overlapped._send_len = send_len
+                return None
+            raise
+        return send_len.value
 
     def get_param(self, name: Param) -> int:
         """

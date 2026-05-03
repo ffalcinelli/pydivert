@@ -7,7 +7,6 @@ import pytest
 import pydivert
 from pydivert.consts import Direction, Layer
 
-pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
 from pydivert.packet.ip import IPHeader
 from pydivert.windivert_dll import WinDivertAddress
 

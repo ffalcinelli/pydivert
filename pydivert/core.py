@@ -33,10 +33,11 @@ class Divert(BaseDivert):
         layer: Layer = Layer.NETWORK,
         priority: int = 0,
         flags: Flag = Flag.DEFAULT,
+        **kwargs,
     ) -> None:
-        super().__init__(filter, layer, priority, flags)
+        super().__init__(filter, layer, priority, flags, **kwargs)
         impl_class = self._get_implementation_class()
-        self._impl: BaseDivert = impl_class(filter, layer, priority, flags)
+        self._impl: BaseDivert = impl_class(filter, layer, priority, flags, **kwargs)
 
     @staticmethod
     def _get_implementation_class() -> type[BaseDivert]:

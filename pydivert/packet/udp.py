@@ -2,7 +2,13 @@
 from __future__ import annotations
 
 import ctypes
+from typing import TYPE_CHECKING
+
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
+
+if TYPE_CHECKING:  # pragma: no cover
+    from pydivert.packet import Packet
+
 
 class UDPStruct(ctypes.BigEndianStructure):
     _fields_ = [
@@ -12,7 +18,8 @@ class UDPStruct(ctypes.BigEndianStructure):
         ("check", ctypes.c_uint16),
     ]
 
-class UDPHeader(Header, PayloadMixin, PortMixin):
+
+class UDPHeader(Header, PortMixin, PayloadMixin):
     __slots__ = ("_view",)
     __match_args__ = ("src_port", "dst_port", "payload_len")
     __repr_fields__ = ("cksum", "dst_port", "header_len", "payload", "payload_len", "src_port")
@@ -20,22 +27,31 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         super().__init__(packet, start)
-        self._view = UDPStruct.from_buffer(self._packet._raw, self._start)
+        try:
+            self._view = UDPStruct.from_buffer(self._packet._raw, self._start)
+        except ValueError:
+            self._view = UDPStruct()
 
     @property
     def src_port(self) -> int: return self._view.sport
     @src_port.setter
-    def src_port(self, val: int): self._view.sport = val
+    def src_port(self, val: int):
+        self._view.sport = val
+        self._packet._invalidate_checksums()
 
     @property
     def dst_port(self) -> int: return self._view.dport
     @dst_port.setter
-    def dst_port(self, val: int): self._view.dport = val
+    def dst_port(self, val: int):
+        self._view.dport = val
+        self._packet._invalidate_checksums()
 
     @property
     def payload_len(self) -> int: return self._view.len - 8
     @payload_len.setter
-    def payload_len(self, val: int): self._view.len = val + 8
+    def payload_len(self, val: int):
+        self._view.len = val + 8
+        self._packet._invalidate_checksums()
 
     @property
     def cksum(self) -> int: return self._view.check
@@ -48,5 +64,6 @@ class UDPHeader(Header, PayloadMixin, PortMixin):
 
     @payload.setter
     def payload(self, val: bytes | bytearray | memoryview) -> None:
-        PayloadMixin.payload.fset(self, val)
         self.payload_len = len(val)
+        PayloadMixin.payload.fset(self, val)
+        self._packet._invalidate_checksums()

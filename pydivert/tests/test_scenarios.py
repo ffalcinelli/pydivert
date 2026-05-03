@@ -160,7 +160,8 @@ def test_scenario_send_only_flag():
             w.recv(timeout=0.1)
         
         # Injection should still work
-        p = pydivert.Packet(b"E" + b"\x00" * 19)
+        # Valid 20-byte IPv4 header (len=20 at offset 2)
+        p = pydivert.Packet(b"E\x00\x00\x14" + b"\x00" * 16)
         p.dst_addr = "127.0.0.1"
         # This shouldn't raise OSError
         w.send(p)

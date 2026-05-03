@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Header:
-    __slots__ = ("_packet", "_start", "__dict__")
+    __slots__ = ("_packet", "_start")
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         self._packet = packet
@@ -53,6 +53,7 @@ class Header:
             self._packet.raw = memoryview(bytearray(self._packet.raw[: self._start].tobytes() + val))
             if self._packet.ip:
                 self._packet.ip.packet_len = len(self._packet.raw)
+        self._packet._invalidate_checksums()
 
 
 class RawProtocol:

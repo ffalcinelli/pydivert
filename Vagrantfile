@@ -19,6 +19,8 @@ Vagrant.configure("2") do |config|
       cd /pydivert
       uv sync --extra test --extra linux
     SHELL
+
+    linux.vm.provision "test-linux", type: "shell", path: "scripts/run-tests-linux.sh", run: "never"
   end
 
   # --- Windows VM (Windows 11 with WinDivert support) ---
@@ -34,5 +36,6 @@ Vagrant.configure("2") do |config|
       vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
     end
     windows.vm.provision "shell", path: "scripts/vagrant-provision.ps1"
+    windows.vm.provision "test-windows", type: "shell", path: "scripts/run-tests-windows.ps1", run: "never"
   end
 end

@@ -19,15 +19,15 @@ class BpfTcHook(ctypes.Structure):
         ("reserved", ctypes.c_uint * 24),
     ]
 
-
 class BpfTcOpts(ctypes.Structure):
     _fields_ = [
         ("sz", ctypes.c_size_t),
         ("prog_fd", ctypes.c_int),
-        ("prog_id", ctypes.c_uint),
-        ("handle", ctypes.c_uint),
-        ("priority", ctypes.c_uint),
-        ("reserved", ctypes.c_uint * 20),
+        ("flags", ctypes.c_uint32),
+        ("prog_id", ctypes.c_uint32),
+        ("handle", ctypes.c_uint32),
+        ("priority", ctypes.c_uint32),
+        ("padding", ctypes.c_uint32),
     ]
 
 

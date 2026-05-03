@@ -19,9 +19,9 @@ class MockOverlapped:
 def test_windivert_recv_buffer_reuse(wd_dll):
     w = WinDivert()
     w._handle = "fake_handle"
+    w._is_open = True
 
-    def fake_recv(handle, pPacket, packetLen, pRecvLen, pAddr):
-        # pRecvLen here will just be the c_uint directly since we mocked byref
+    def fake_recv(handle, pPacket, packetLen, pRecvLen, pAddr):        # pRecvLen here will just be the c_uint directly since we mocked byref
         pRecvLen.value = 5
         ctypes.memmove(pPacket, b"hello", 5)
         pAddr.Outbound = 1

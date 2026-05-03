@@ -3,6 +3,8 @@ import ctypes
 import os
 import socket
 import time
+import threading
+import random
 from typing import Any, cast, Optional, List
 
 from pydivert.base import BaseDivert
@@ -26,6 +28,9 @@ from pydivert.packet import Packet
 # Define SO_MARK if missing (e.g. for type checking on non-Linux)
 SO_MARK = getattr(socket, "SO_MARK", 36)
 
+_ebpf_lock = threading.Lock()
+_initialized_hooks = set()
+
 
 class EBPFDivert(BaseDivert):
     """
@@ -48,111 +53,126 @@ class EBPFDivert(BaseDivert):
     close = BaseDivert.close
 
     def __init__(
-        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+        self,
+        filter: str = "true",
+        layer: Layer = Layer.NETWORK,
+        priority: int = 0,
+        flags: Flag = Flag.DEFAULT,
+        **kwargs,
     ) -> None:
-        super().__init__(filter, layer, priority, flags)
+        super().__init__(filter, layer, priority, flags, **kwargs)
         if layer not in (Layer.NETWORK, Layer.FLOW, Layer.SOCKET):
             raise NotImplementedError(f"Layer {layer} is not supported on Linux yet.")
-        
+
         if libbpf is None:
             raise ImportError("libbpf missing on system.")
         self._obj = self._ringbuf = self._raw_sock = self._raw_sock6 = None
         self._queue: list[Packet] = []
         self._hooks: List[tuple[BpfTcHook, BpfTcOpts]] = []
+        self._interfaces = kwargs.get("interfaces", None)
 
     def _open_impl(self):
-        bpf = cast(Any, libbpf)
-        obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
-        
-        if Flag.SEND_ONLY not in self.flags:
-            self._obj = bpf.bpf_object__open_file(obj_path.encode(), None)
-            if not self._obj or bpf.bpf_object__load(self._obj) != 0:
-                raise RuntimeError("Failed to load BPF object.")
+        with _ebpf_lock:
+            bpf = cast(Any, libbpf)
+            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
 
-            # Ringbuf
-            map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"pcap_ringbuf")
-            if not map_ptr:
-                raise RuntimeError("pcap_ringbuf map missing.")
+            if Flag.SEND_ONLY not in self.flags:
+                self._obj = bpf.bpf_object__open_file(obj_path.encode(), None)
+                if not self._obj or bpf.bpf_object__load(self._obj) != 0:
+                    raise RuntimeError("Failed to load BPF object.")
 
-            self._cb = RINGBUF_CB(self._ring_callback)
-            self._ringbuf = bpf.ring_buffer__new(bpf.bpf_map__fd(map_ptr), self._cb, None, None)
-            if not self._ringbuf:
-                raise RuntimeError("Failed to create ring buffer.")
-            
-            self._epoll_fd = bpf.ring_buffer__epoll_fd(self._ringbuf)
-            self._recv_futures: list[Any] = []
+                # Ringbuf
+                map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"pcap_ringbuf")
+                if not map_ptr:
+                    raise RuntimeError("pcap_ringbuf map missing.")
 
-            # Load filter rules
-            filter_rules = transpile_to_ebpf(self.filter, sniff=(Flag.SNIFF in self.flags), drop=(Flag.DROP in self.flags))
-            rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
-            if rules_map_ptr:
-                rules_fd = bpf.bpf_map__fd(rules_map_ptr)
-                for i, rule in enumerate(filter_rules):
-                    if i >= 64:
-                        break # Max 64 rules
-                    c_rule = BpfFilterRule(
-                        src_ip=rule["src_ip"],
-                        dst_ip=rule["dst_ip"],
-                        src_port=rule["src_port"],
-                        dst_port=rule["dst_port"],
-                        match_mask=rule["match_mask"],
-                        proto=rule["proto"],
-                        direction=rule["direction"],
-                        loopback=rule["loopback"],
-                        ttl=rule.get("ttl", 0),
-                        tcp_flags=rule.get("tcp_flags", 0),
-                        tcp_flags_mask=rule.get("tcp_flags_mask", 0)
-                    )
-                    key = ctypes.c_uint32(i)
-                    bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)
+                self._cb = RINGBUF_CB(self._ring_callback)
+                self._ringbuf = bpf.ring_buffer__new(bpf.bpf_map__fd(map_ptr), self._cb, None, None)
+                if not self._ringbuf:
+                    raise RuntimeError("Failed to create ring buffer.")
 
-            # TC Hooks for all interfaces
-            prog_ingress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_ingress")
-            prog_egress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_egress")
-            
-            for ifindex, ifname in socket.if_nameindex():
-                # Ingress
-                hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
-                bpf.bpf_tc_hook_destroy(ctypes.byref(hook_ingress))
-                if bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress)) in (0, -17): # 0 or EEXIST
-                    opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress))
+                self._epoll_fd = bpf.ring_buffer__epoll_fd(self._ringbuf)
+                self._recv_futures: list[Any] = []
+
+                # Load filter rules
+                filter_rules = transpile_to_ebpf(self.filter, sniff=(Flag.SNIFF in self.flags), drop=(Flag.DROP in self.flags))
+                rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
+                if rules_map_ptr:
+                    rules_fd = bpf.bpf_map__fd(rules_map_ptr)
+                    for i, rule in enumerate(filter_rules):
+                        if i >= 64:
+                            break # Max 64 rules
+                        c_rule = BpfFilterRule(
+                            src_ip=rule["src_ip"],
+                            dst_ip=rule["dst_ip"],
+                            src_port=rule["src_port"],
+                            dst_port=rule["dst_port"],
+                            match_mask=rule["match_mask"],
+                            proto=rule["proto"],
+                            direction=rule["direction"],
+                            loopback=rule["loopback"],
+                            ttl=rule.get("ttl", 0),
+                            tcp_flags=rule.get("tcp_flags", 0),
+                            tcp_flags_mask=rule.get("tcp_flags_mask", 0)
+                        )
+                        key = ctypes.c_uint32(i)
+                        bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)
+
+                # TC Hooks for specific or all interfaces
+                prog_ingress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_ingress")
+                prog_egress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_egress")
+
+                for ifindex, ifname in socket.if_nameindex():
+                    if self._interfaces is not None and ifname not in self._interfaces:
+                        continue
+
+                    # Ingress
+                    hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
+                    if (ifindex, 1) not in _initialized_hooks:
+                        bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
+                        _initialized_hooks.add((ifindex, 1))
+                    
+                    priority = random.randint(1, 65535)
+                    opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress), flags=0, priority=priority)
                     if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:
                         self._hooks.append((hook_ingress, opts_ingress))
 
-                # Egress
-                hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
-                bpf.bpf_tc_hook_destroy(ctypes.byref(hook_egress))
-                if bpf.bpf_tc_hook_create(ctypes.byref(hook_egress)) in (0, -17):
-                    opts_egress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_egress))
+                    # Egress
+                    hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
+                    if (ifindex, 2) not in _initialized_hooks:
+                        bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
+                        _initialized_hooks.add((ifindex, 2))
+                    
+                    priority = random.randint(1, 65535)
+                    opts_egress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_egress), flags=0, priority=priority)
                     if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
                         self._hooks.append((hook_egress, opts_egress))
 
-        else:
-            # SEND_ONLY: mark as "open" but without eBPF hooks
-            self._obj = True # Sentinel
+            else:
+                # SEND_ONLY: mark as "open" but without eBPF hooks
+                self._obj = True # Sentinel
 
-        if Flag.RECV_ONLY not in self.flags:
-            self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-            self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
+            if Flag.RECV_ONLY not in self.flags:
+                self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+                self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
 
-            try:
-                self._raw_sock6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
-                self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
-            except OSError:
-                self._raw_sock6 = None
-
+                try:
+                    self._raw_sock6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
+                    self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
+                except OSError:
+                    self._raw_sock6 = None
     def _ring_callback(self, ctx, data, size):
-        if size < 5:
+        if size < 6:
             return 0
         import struct
 
         raw_full = ctypes.string_at(data, size)
-        pkt_len = struct.unpack("I", raw_full[:4])[0]
-        direction_val = raw_full[4]
+        pkt_len, direction_val, l2_len = struct.unpack("IBB", raw_full[:6])
         direction = Direction.INBOUND if direction_val == 1 else Direction.OUTBOUND
 
-        # Skip prefix (5 bytes) and Ethernet header (14 bytes)
-        p = Packet(raw_full[19 : 19 + (pkt_len - 14)], direction=direction)
+        # Skip prefix (6 bytes) and L2 header (l2_len)
+        # The packet data starts at offset 6
+        p = Packet(raw_full[6 + l2_len : 6 + pkt_len], direction=direction)
 
         # Basic loopback detection based on IP addresses
         if p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1" or \
@@ -170,23 +190,24 @@ class EBPFDivert(BaseDivert):
                     fut.set_exception(RuntimeError("Handle closed"))
             self._recv_futures.clear()
 
-        bpf = cast(Any, libbpf)
-        if self._obj is not True and self._obj:
-            for hook, opts in self._hooks:
-                bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
-                bpf.bpf_tc_hook_destroy(ctypes.byref(hook))
-            self._hooks.clear()
+        with _ebpf_lock:
+            bpf = cast(Any, libbpf)
+            if self._obj is not True and self._obj:
+                for hook, opts in self._hooks:
+                    bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
+                    bpf.bpf_tc_hook_destroy(ctypes.byref(hook))
+                self._hooks.clear()
 
-            if self._ringbuf:
-                bpf.ring_buffer__free(self._ringbuf)
-            bpf.bpf_object__close(self._obj)
-        self._obj = self._ringbuf = None
-        if self._raw_sock:
-            self._raw_sock.close()
-            self._raw_sock = None
-        if self._raw_sock6:
-            self._raw_sock6.close()
-            self._raw_sock6 = None
+                if self._ringbuf:
+                    bpf.ring_buffer__free(self._ringbuf)
+                bpf.bpf_object__close(self._obj)
+            self._obj = self._ringbuf = None
+            if self._raw_sock:
+                self._raw_sock.close()
+                self._raw_sock = None
+            if self._raw_sock6:
+                self._raw_sock6.close()
+                self._raw_sock6 = None
 
     def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
