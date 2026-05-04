@@ -3,9 +3,9 @@ import ctypes
 import logging
 
 from .structs import (
+    LIBBPF_PRINT_CB,
     PERF_BUF_CB,
     RINGBUF_CB,
-    LIBBPF_PRINT_CB,
     BpfFilterRule,
     BpfMap,
     BpfObject,
@@ -91,6 +91,9 @@ if libbpf:
 
     libbpf.bpf_tc_detach.restype = ctypes.c_int
     libbpf.bpf_tc_detach.argtypes = [ctypes.POINTER(BpfTcHook), ctypes.POINTER(BpfTcOpts)]
+
+    libbpf.libbpf_num_possible_cpus.restype = ctypes.c_int
+    libbpf.libbpf_num_possible_cpus.argtypes = []
 
     libbpf.libbpf_set_print.restype = None
     libbpf.libbpf_set_print.argtypes = [LIBBPF_PRINT_CB]

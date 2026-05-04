@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import pytest
+
 from pydivert.filter import transpile_to_ebpf
+
 
 def test_transpiler_basic():
     # Test common filter strings
@@ -48,7 +50,7 @@ def test_transpile_to_python():
     expr = transpile_to_python("tcp and tcp.DstPort == 80")
     assert "packet.tcp" in expr
     assert "packet.dst_port == 80" in expr
-    
+
     assert "True" == transpile_to_python("true")
     assert "False" == transpile_to_python("false")
     assert "not" in transpile_to_python("not tcp")

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import socket
-import sys
+
 import pytest
+
 import pydivert
 from pydivert.consts import Flag
+
 
 def test_external_traffic_capture():
     """
@@ -32,7 +34,7 @@ def test_external_traffic_capture():
                 assert packet.dst_port == 53
             except TimeoutError:
                 pytest.fail("Failed to capture external DNS traffic. Ensure the environment has internet access.")
-                
+
     except (PermissionError, OSError) as e:
         if "WinError 10042" in str(e) or "privileges" in str(e).lower() or "root" in str(e).lower():
              pytest.skip(f"Test requires administrator/root privileges: {e}")

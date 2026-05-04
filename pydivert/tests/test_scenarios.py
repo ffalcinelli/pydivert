@@ -1,12 +1,15 @@
-import sys
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import socket
+import sys
 import threading
 import time
+
 import pytest
-from scapy.all import IP, TCP, ICMP, send, sniff, Raw
+from scapy.all import ICMP, IP
+
 import pydivert
 from pydivert.consts import Direction
+
 
 @pytest.fixture
 def echo_server():
@@ -15,9 +18,9 @@ def echo_server():
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.listen(5)
-    
+
     stop_event = threading.Event()
-    
+
     def run():
         sock.settimeout(1.0)
         while not stop_event.is_set():
@@ -27,7 +30,7 @@ def echo_server():
                     data = conn.recv(1024)
                     if data:
                         conn.sendall(data)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except Exception:
                 break
@@ -43,7 +46,7 @@ def test_scenario_drop_tcp(echo_server):
     """Scenario: Drop all TCP packets to a specific port."""
     port = echo_server
     filter_str = f"tcp.DstPort == {port}"
-    
+
     # Start Divert and DON'T re-inject packets (effectively dropping them)
     def divert_and_drop():
         with pydivert.Divert(filter_str) as w:
@@ -65,9 +68,9 @@ def test_scenario_modify_port(echo_server):
     """Scenario: Redirect traffic from Port A to Port B."""
     real_port = echo_server
     fake_port = 12345
-    
+
     filter_str = f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}"
-    
+
     def redirect_logic():
         with pydivert.Divert(filter_str) as w:
             for packet in w:
@@ -112,11 +115,11 @@ def test_scenario_sniff_icmp():
     else:
         ping_packet = IP(dst="127.0.0.1")/ICMP()
         raw_packet = bytes(ping_packet)
-        
+
         with pydivert.Divert("false") as injector:
             p = pydivert.Packet(raw_packet, direction=Direction.OUTBOUND)
             injector.send(p)
-    
+
     time.sleep(1)
     assert len(captured_packets) >= 1
     assert any(p.icmp for p in captured_packets)
@@ -125,7 +128,7 @@ def test_scenario_drop_flag(echo_server):
     """Scenario: Use Flag.DROP to silently drop packets in kernel."""
     port = echo_server
     from pydivert.consts import Flag
-    
+
     with pydivert.Divert(f"tcp.DstPort == {port}", flags=Flag.DROP) as w:
         time.sleep(1)
         # Try to connect - should fail
@@ -133,7 +136,7 @@ def test_scenario_drop_flag(echo_server):
             s.settimeout(1)
             with pytest.raises((socket.timeout, ConnectionRefusedError, OSError)):
                 s.connect(("127.0.0.1", port))
-        
+
         # Verify recv() yields nothing
         with pytest.raises(TimeoutError):
             w.recv(timeout=0.1)
@@ -146,7 +149,7 @@ def test_scenario_recv_only_flag():
         p.dst_addr = "127.0.0.1"
         with pytest.raises(OSError):
             w.send(p)
-        
+
         # Also check async
         import asyncio
         with pytest.raises(OSError):
@@ -158,7 +161,7 @@ def test_scenario_send_only_flag():
     with pydivert.Divert("true", flags=Flag.SEND_ONLY) as w:
         with pytest.raises(OSError):
             w.recv(timeout=0.1)
-        
+
         # Injection should still work
         # Valid 20-byte IPv4 header (len=20 at offset 2)
         p = pydivert.Packet(b"E\x00\x00\x14" + b"\x00" * 16)

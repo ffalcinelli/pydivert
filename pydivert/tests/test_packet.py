@@ -1,4 +1,15 @@
+import socket
+import struct
 import sys
+
+import pytest
+from hypothesis import example, given
+from hypothesis.strategies import binary
+
+import pydivert
+from pydivert import util
+from pydivert.consts import Direction, Protocol
+
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -23,16 +34,8 @@ import sys
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
-import socket
-import struct
 
-import pytest
-from hypothesis import example, given
-from hypothesis.strategies import binary
 
-import pydivert
-from pydivert import util
-from pydivert.consts import Direction, Protocol
 
 
 def p(raw):
@@ -292,7 +295,7 @@ def test_ipv6_udp_modify():
     )
     if sys.platform == "win32":
         assert x.raw.tobytes() == a
-    
+
     assert x.recalculate_checksums() >= 1
     if sys.platform == "win32":
         assert x.raw.tobytes() != a
@@ -346,7 +349,7 @@ def test_icmp_modify():
     )
     if sys.platform == "win32":
         assert x.raw.tobytes() == a
-    
+
     assert x.recalculate_checksums() >= 1
     if sys.platform == "win32":
         assert x.raw.tobytes() != a

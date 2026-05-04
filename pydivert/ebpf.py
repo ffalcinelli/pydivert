@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import ctypes
+import errno
+import logging
 import os
 import socket
-import time
 import threading
-import random
-import logging
-from typing import Any, cast, Optional, List
+import time
+from typing import Any, cast
 
 from pydivert.base import BaseDivert
 from pydivert.bpf import (
-    RINGBUF_CB,
     LIBBPF_PRINT_CB,
+    RINGBUF_CB,
     BpfFilterRule,
     BpfTcHook,
     BpfTcOpts,
@@ -83,7 +83,7 @@ class EBPFDivert(BaseDivert):
             raise ImportError("libbpf missing on system.")
         self._obj = self._ringbuf = self._raw_sock = self._raw_sock6 = None
         self._queue: list[Packet] = []
-        self._hooks: List[tuple[BpfTcHook, BpfTcOpts]] = []
+        self._hooks: list[tuple[BpfTcHook, BpfTcOpts]] = []
         self._interfaces = kwargs.get("interfaces", None)
 
     def _open_impl(self):
@@ -116,7 +116,7 @@ class EBPFDivert(BaseDivert):
                 rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
                 if rules_map_ptr:
                     rules_fd = bpf.bpf_map__fd(rules_map_ptr)
-                    
+
                     # Clear map (up to 64 rules)
                     empty_rule = BpfFilterRule()
                     for i in range(64):
@@ -158,7 +158,7 @@ class EBPFDivert(BaseDivert):
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
                     except Exception:
                         pass
-                    
+
                     tc_priority = 100
                     opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress), flags=0, priority=tc_priority)
                     bpf.bpf_tc_detach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress))
@@ -171,7 +171,7 @@ class EBPFDivert(BaseDivert):
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
                     except Exception:
                         pass
-                    
+
                     opts_egress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_egress), flags=0, priority=tc_priority)
                     bpf.bpf_tc_detach(ctypes.byref(hook_egress), ctypes.byref(opts_egress))
                     if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
@@ -208,10 +208,10 @@ class EBPFDivert(BaseDivert):
         # Extract captured data, skipping prefix and any L2 header if needed
         # Since we load from offset 0, we have the full frame including L2
         raw_frame = bytes(buf.data)[:pkt_len]
-        
+
         # Trust the l2_len provided by BPF
         actual_l2_len = l2_len
-        
+
         # If BPF couldn't determine it, fallback to the heuristic
         if actual_l2_len == 0 and pkt_len > 0:
             if raw_frame[0] == 0x45 or (raw_frame[0] & 0xF0) == 0x60:
@@ -262,7 +262,7 @@ class EBPFDivert(BaseDivert):
                 self._raw_sock6.close()
                 self._raw_sock6 = None
 
-    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -272,7 +272,7 @@ class EBPFDivert(BaseDivert):
             if self._ringbuf:
                 bpf.ring_buffer__poll(self._ringbuf, 10)
             if timeout and (time.time() - start) > timeout:
-                raise socket.timeout("The read operation timed out")
+                raise TimeoutError("The read operation timed out")
             time.sleep(0.001)
 
         if not self._queue:
@@ -280,7 +280,7 @@ class EBPFDivert(BaseDivert):
 
         return self._queue.pop(0)
 
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -290,21 +290,48 @@ class EBPFDivert(BaseDivert):
             packets.append(p)
             while len(packets) < count and self._queue:
                 packets.append(self._queue.pop(0))
-        except socket.timeout:
+        except TimeoutError:
             if not packets:
                 raise
         return packets
 
     def _stats_impl(self):
-        return {"diverted": 0, "dropped": 0, "sniffed": 0}
+        if self._obj is True or not self._obj:
+            return {"diverted": 0, "dropped": 0, "sniffed": 0}
+
+        bpf = cast(Any, libbpf)
+        map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"stats_map")
+        if not map_ptr:
+            return {"diverted": 0, "dropped": 0, "sniffed": 0}
+
+        fd = bpf.bpf_map__fd(map_ptr)
+        num_cpus = bpf.libbpf_num_possible_cpus()
+        if num_cpus <= 0:
+            num_cpus = os.cpu_count() or 1
+
+        def get_stat(key_idx):
+            key = ctypes.c_uint32(key_idx)
+            # PERCPU_ARRAY map values are returned as an array of values, one per CPU.
+            # Each value is 8-byte aligned.
+            value_type = ctypes.c_uint64 * num_cpus
+            values = value_type()
+            if bpf.bpf_map_lookup_elem(fd, ctypes.byref(key), ctypes.byref(values)) == 0:
+                return sum(values)
+            return 0
+
+        return {
+            "diverted": get_stat(0),  # STAT_DIVERTED
+            "dropped": get_stat(1),   # STAT_DROPPED
+            "sniffed": get_stat(2),   # STAT_SNIFFED
+        }
 
     def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if Flag.RECV_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is receive-only")
-        
+
         if recalculate_checksum:
             packet.recalculate_checksums()
-        
+
         dst_addr = packet.dst_addr
         if dst_addr is None:
             logger.warning("Cannot send packet with unknown destination address")
@@ -313,12 +340,13 @@ class EBPFDivert(BaseDivert):
         # Choose socket and possibly bind to interface
         sock = self._raw_sock6 if packet.ipv6 else self._raw_sock
         if not sock:
-            raise RuntimeError("Socket not available")
+            msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
+            raise OSError(errno.EAFNOSUPPORT, msg)
 
-        # For loopback re-injection, some kernels require explicit binding or 
+        # For loopback re-injection, some kernels require explicit binding or
         # handling to ensure the packet hits the right hooks.
         # But for now, we just send.
-        
+
         if packet.ipv6:
             scope_id = 0
             if dst_addr == "::1":
@@ -327,10 +355,10 @@ class EBPFDivert(BaseDivert):
                 except OSError:
                     scope_id = 0
             return sock.sendto(packet.raw, (dst_addr, 0, 0, scope_id))
-        
+
         return sock.sendto(packet.raw, (dst_addr, 0))
 
-    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         import asyncio
 
         if Flag.SEND_ONLY in self.flags:
@@ -357,21 +385,24 @@ class EBPFDivert(BaseDivert):
         loop.add_reader(self._epoll_fd, on_readable)
         try:
             if timeout:
-                return await asyncio.wait_for(future, timeout)
+                try:
+                    return await asyncio.wait_for(future, timeout)
+                except asyncio.TimeoutError:
+                    raise TimeoutError() from None
             return await future
         finally:
             loop.remove_reader(self._epoll_fd)
             if future in self._recv_futures:
                 self._recv_futures.remove(future)
 
-    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         packets = []
         try:
             p = await self._recv_async_impl(bufsize, timeout)
             packets.append(p)
             while len(packets) < count and self._queue:
                 packets.append(self._queue.pop(0))
-        except (socket.timeout, Exception):
+        except (TimeoutError, Exception):
             if not packets:
                 raise
         return packets

@@ -1,8 +1,10 @@
 import asyncio
-import sys
+
 import pytest
+
 import pydivert
 from pydivert.packet import Packet
+
 
 @pytest.mark.asyncio
 async def test_recv_async_execution():

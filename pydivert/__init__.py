@@ -29,8 +29,8 @@
 """
 
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
-from .ebpf import EBPFDivert
 from .core import Divert
+from .ebpf import EBPFDivert
 from .packet import Packet
 from .windivert import WinDivert
 

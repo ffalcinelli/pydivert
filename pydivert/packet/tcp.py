@@ -78,8 +78,8 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
 
     @reserved.setter
     def reserved(self, val: int):
-        self._view.off_res_flags = ((self.data_offset << 12) | 
-                                    ((val & 0x07) << 9) | 
+        self._view.off_res_flags = ((self.data_offset << 12) |
+                                    ((val & 0x07) << 9) |
                                     (self.control_bits))
         self._packet._invalidate_checksums()
 

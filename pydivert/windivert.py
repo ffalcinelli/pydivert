@@ -27,9 +27,7 @@ import ctypes
 import logging
 import os
 import subprocess
-import time
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
-from typing import Any, Optional
 
 from pydivert import service, windivert_dll  # noqa: F401
 from pydivert.base import BaseDivert
@@ -148,7 +146,7 @@ class WinDivert(BaseDivert):
             windivert_dll.CloseHandle(self._event)
             self._event = None
 
-    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
             self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
@@ -157,7 +155,7 @@ class WinDivert(BaseDivert):
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = c_uint(0)
-        
+
         if timeout is None:
             windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
         else:
@@ -185,7 +183,7 @@ class WinDivert(BaseDivert):
 
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         packets = []
         for i in range(count):
             try:
@@ -196,7 +194,7 @@ class WinDivert(BaseDivert):
                 break
         return packets
 
-    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
             self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
@@ -244,11 +242,11 @@ class WinDivert(BaseDivert):
                 self._pending_ops.remove(overlapped)
             raise
 
-    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: Optional[float]) -> list[Packet]:
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         packets = []
         for i in range(count):
             try:
-                t = timeout if i == 0 else 0.001 
+                t = timeout if i == 0 else 0.001
                 packets.append(await self._recv_async_impl(bufsize, t))
             except (TimeoutError, Exception):
                 break
@@ -337,7 +335,7 @@ class WinDivert(BaseDivert):
                 self._pending_ops.remove(overlapped)
             raise
 
-    def recv_ex(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Optional[Overlapped] = None) -> Packet | None:
+    def recv_ex(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Overlapped | None = None) -> Packet | None:
         """
         Receives an intercepted packet using WinDivertRecvEx.
         """
@@ -352,7 +350,7 @@ class WinDivert(BaseDivert):
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = c_uint(0)
-        
+
         try:
             windivert_dll.WinDivertRecvEx(self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), None, byref(overlapped) if overlapped else None)
         except OSError as e:
@@ -365,7 +363,7 @@ class WinDivert(BaseDivert):
             raise
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
-    def send_ex(self, packet: Packet, flags: int = 0, overlapped: Optional[Overlapped] = None) -> int | None:
+    def send_ex(self, packet: Packet, flags: int = 0, overlapped: Overlapped | None = None) -> int | None:
         """
         Injects a packet into the network stack using WinDivertSendEx.
         """
@@ -376,7 +374,7 @@ class WinDivert(BaseDivert):
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
         wd_addr = packet.wd_addr
-        
+
         try:
             windivert_dll.WinDivertSendEx(self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), ctypes.sizeof(WinDivertAddress), byref(overlapped) if overlapped else None)
         except OSError as e:

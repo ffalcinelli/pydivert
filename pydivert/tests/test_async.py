@@ -22,9 +22,9 @@
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
+import sys
 from unittest.mock import MagicMock, patch
 
-import sys
 import pytest
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")

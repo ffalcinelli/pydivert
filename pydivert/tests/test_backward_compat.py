@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
+
 import pytest
+
 import pydivert
-from pydivert.consts import Layer, Flag
+from pydivert.consts import Layer
+
 
 def test_windivert_legacy_instantiation():
     """
@@ -31,6 +34,7 @@ def test_ebpf_divert_availability():
     if sys.platform.startswith("linux"):
         try:
             from pydivert.ebpf import EBPFDivert
+
             # Instantiation might fail if libbpf is missing, which is acceptable for an availability test
             # but the class should exist.
             assert EBPFDivert is not None

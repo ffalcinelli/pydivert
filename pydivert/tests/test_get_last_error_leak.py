@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 
 import ctypes
+import sys
 from unittest.mock import patch
 
-import sys
 import pytest
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")

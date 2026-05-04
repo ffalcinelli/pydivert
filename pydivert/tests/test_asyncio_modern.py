@@ -1,6 +1,8 @@
-import sys
+
 import pytest
+
 import pydivert
+
 
 @pytest.mark.asyncio
 async def test_async_context_manager():

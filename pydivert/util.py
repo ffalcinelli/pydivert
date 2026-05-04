@@ -23,6 +23,7 @@
 # see <https://www.gnu.org/licenses/>.
 
 import struct
+import sys
 
 
 def fromhex(x):
@@ -75,11 +76,17 @@ def internet_checksum(data):
     """
     if not isinstance(data, (bytes, bytearray)):
         data = bytes(data)
-    
+
     if len(data) % 2 == 1:
         data += b"\x00"
 
-    s = sum(struct.unpack(f"!{len(data) // 2}H", data))
+    # Optimization: Use memoryview to sum 16-bit words.
+    # sum() on a memoryview cast to 'H' is significantly faster than struct.unpack.
+    s = sum(memoryview(data).cast("H"))
     while s >> 16:
         s = (s & 0xFFFF) + (s >> 16)
+
+    if sys.byteorder == "little":
+        s = ((s << 8) & 0xFF00) | ((s >> 8) & 0x00FF)
+
     return ~s & 0xFFFF

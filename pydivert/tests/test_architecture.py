@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import pytest
+
 from pydivert.base import BaseDivert
 from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
+
 
 class MockBackend(BaseDivert):
     def __init__(self, *args, **kwargs):
@@ -88,16 +90,16 @@ def test_base_properties():
 async def test_base_async_state_management():
     w = MockBackend()
     p = Packet(b"E" + b"\x00" * 19)
-    
+
     with pytest.raises(RuntimeError, match="not open"):
         await w.recv_async()
-    
+
     with pytest.raises(RuntimeError, match="not open"):
         await w.send_async(p)
-    
+
     async with w:
         assert w.is_open
         await w.recv_async()
         await w.send_async(p)
-    
+
     assert not w.is_open

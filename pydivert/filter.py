@@ -104,7 +104,7 @@ class WinDivertTransformer(Transformer):
 
             rules = self._handle_addr_comparison(field, val)
             if rules: return rules
-            
+
             if field == "ip.ttl":
                 return [{"ttl": val}]
 
@@ -178,7 +178,7 @@ class WinDivertTransformer(Transformer):
             return [{"direction": "outbound"}]
         if name == "loopback":
             return [{"loopback": True}]
-        
+
         # TCP Flags as keywords
         if name in ("tcp.syn", "tcp.ack", "tcp.fin", "tcp.rst", "tcp.psh", "tcp.urg"):
             flag = name.split(".")[1]
@@ -545,12 +545,12 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         if "loopback" in rule:
             ebpf_rule["loopback"] = 1 if rule["loopback"] else 0
             ebpf_rule["match_mask"] |= MATCH_LOOPBACK
-        
+
         # Extended fields for Milestone 3
         if "ttl" in rule:
             ebpf_rule["ttl"] = int(rule["ttl"])
             ebpf_rule["match_mask"] |= MATCH_TTL
-        
+
         # TCP Flags
         tcp_flags = 0
         tcp_mask = 0
@@ -559,7 +559,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
                 tcp_mask |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
                 if rule[flag]:
                     tcp_flags |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
-        
+
         if tcp_mask:
             ebpf_rule["tcp_flags"] = tcp_flags
             ebpf_rule["tcp_flags_mask"] = tcp_mask

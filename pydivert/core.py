@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
-from typing import Any
 
 from pydivert.base import BaseDivert
-from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Flag, Layer
+from pydivert.consts import Flag, Layer
 from pydivert.packet import Packet
 
 
@@ -11,7 +10,7 @@ class Divert(BaseDivert):
     """
     A unified, cross-platform facade for capturing, filtering, and modifying network packets.
     """
-    
+
     # Re-expose members for documentation since BaseDivert is internal
     recv = BaseDivert.recv
     recv_async = BaseDivert.recv_async

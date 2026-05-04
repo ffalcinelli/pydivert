@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ctypes
 import socket
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydivert.packet.header import Header
 
@@ -266,7 +266,7 @@ class IPv6Header(IPHeader):
     @property
     def traffic_class(self) -> int:
         return (self._view.v_tc_fl >> 20) & 0xFF
-    
+
     @traffic_class.setter
     def traffic_class(self, val: int):
         self._view.v_tc_fl = (0x60000000 | (val << 20) | (self._view.v_tc_fl & 0x000FFFFF))

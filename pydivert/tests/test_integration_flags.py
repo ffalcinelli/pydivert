@@ -1,7 +1,8 @@
-import sys
+
 import pytest
-import pydivert
-from pydivert import Flag, Divert
+
+from pydivert import Divert, Flag
+
 
 def test_intflag_combinations():
     flags = Flag.SNIFF | Flag.FRAGMENTS

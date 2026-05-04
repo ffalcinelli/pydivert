@@ -44,6 +44,9 @@ WinDLL: Any
 try:
     from ctypes import (
         POINTER,
+    )
+    from ctypes import WinDLL as _WinDLL
+    from ctypes import (
         c_char_p,
         c_int,
         c_int16,
@@ -53,12 +56,7 @@ try:
         c_uint64,
         c_void_p,
     )
-    from ctypes import (
-        WinDLL as _WinDLL,
-    )
-    from ctypes import (
-        windll as _windll,
-    )
+    from ctypes import windll as _windll
 
     windll = _windll
     WinDLL = _WinDLL

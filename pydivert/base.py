@@ -23,11 +23,9 @@
 # see <https://www.gnu.org/licenses/>.
 
 import abc
-import asyncio
-import logging
-import socket
 import errno
-from typing import Any, Optional, TypeVar
+import logging
+from typing import Any, TypeVar
 
 from pydivert.consts import DEFAULT_PACKET_BUFFER_SIZE, Flag, Layer
 from pydivert.packet import Packet
@@ -57,7 +55,7 @@ class BaseDivert(abc.ABC):
         self._priority: int = priority
         self._flags: Flag = flags
         self._is_open: bool = False
-        self._jit_filter: Optional[Any] = None
+        self._jit_filter: Any | None = None
 
     @staticmethod
     def register() -> None:
@@ -110,10 +108,10 @@ class BaseDivert(abc.ABC):
         """
         if self._is_open:
             raise RuntimeError("Divert handle is already open.")
-        
+
         self._open_impl()
         self._is_open = True
-        logger.info("Divert handle opened (filter=%r, layer=%s, priority=%d, flags=%s)", 
+        logger.info("Divert handle opened (filter=%r, layer=%s, priority=%d, flags=%s)",
                     self.filter, self.layer, self.priority, self.flags)
         return self
 
@@ -145,16 +143,16 @@ class BaseDivert(abc.ABC):
         status = "open" if self.is_open else "closed"
         return f'<{self.__class__.__name__} state="{status}" filter={self.filter!r} layer="{self.layer}" priority="{self.priority}" flags="{self.flags}" />'
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Receives an intercepted packet that matched the filter.
         """
         if not self._is_open:
             raise RuntimeError("WinDivert handle is not open")
-        
+
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
-        
+
         while True:
             packet = self._recv_impl(bufsize, timeout)
             if self._jit_filter is None or self._jit_filter(packet):
@@ -162,7 +160,7 @@ class BaseDivert(abc.ABC):
                 return packet
             logger.debug("Packet dropped by JIT filter: %s", packet)
 
-    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> list[Packet]:
+    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
         """
         Receives a batch of intercepted packets.
         """
@@ -171,7 +169,7 @@ class BaseDivert(abc.ABC):
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
-        
+
         packets = self._recv_batch_impl(count, bufsize, timeout)
         if self._jit_filter:
             filtered = [p for p in packets if self._jit_filter(p)]
@@ -196,13 +194,13 @@ class BaseDivert(abc.ABC):
         except (EOFError, StopIteration, KeyboardInterrupt):
             raise StopAsyncIteration()
 
-    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> Packet:
+    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
         Asynchronous version of recv().
         """
         if not self._is_open:
             raise RuntimeError("WinDivert handle is not open")
-        
+
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
 
@@ -213,13 +211,13 @@ class BaseDivert(abc.ABC):
                 return packet
             logger.debug("Packet dropped by JIT filter (async): %s", packet)
 
-    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: Optional[float] = None) -> list[Packet]:
+    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
         """
         Asynchronously receives a batch of packets.
         """
         if not self._is_open:
             raise RuntimeError("WinDivert handle is not open")
-        
+
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
 
@@ -248,7 +246,7 @@ class BaseDivert(abc.ABC):
 
         if Flag.RECV_ONLY in self.flags:
             raise OSError(errno.EACCES, "Handle is recv-only")
-        
+
         sent_len = self._send_impl(packet, recalculate_checksum)
         logger.debug("Packet injected: %d bytes", sent_len)
         return sent_len

@@ -1,35 +1,152 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import ast
 import logging
-from typing import Any, Callable
-
-try:
-    import numba
-    import numpy as np
-    HAS_NUMBA = True
-except ImportError:
-    HAS_NUMBA = False
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
+class SafeEvaluator(ast.NodeVisitor):
+    """
+    A safe AST-based evaluator for packet filter expressions.
+    This replaces the unsafe eval() and exec() calls.
+    """
+
+    def __init__(self, packet):
+        self.packet = packet
+        self.functions = {
+            "AggregateField": lambda a, b: a or b,
+            "len": len,
+        }
+
+    def eval(self, node):
+        return self.visit(node)
+
+    def visit_Expression(self, node):
+        return self.visit(node.body)
+
+    def visit_BinOp(self, node):
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Div):
+            return left / right
+        raise ValueError(f"Unsupported binary operator: {type(node.op)}")
+
+    def visit_BoolOp(self, node):
+        if isinstance(node.op, ast.And):
+            res = None
+            for v in node.values:
+                res = self.visit(v)
+                if not res:
+                    return res
+            return res
+        if isinstance(node.op, ast.Or):
+            res = None
+            for v in node.values:
+                res = self.visit(v)
+                if res:
+                    return res
+            return res
+        raise ValueError(f"Unsupported boolean operator: {type(node.op)}")
+
+    def visit_Compare(self, node):
+        left = self.visit(node.left)
+        for op, right_node in zip(node.ops, node.comparators):
+            right = self.visit(right_node)
+            if isinstance(op, ast.Eq):
+                if not (left == right):
+                    return False
+            elif isinstance(op, ast.NotEq):
+                if not (left != right):
+                    return False
+            elif isinstance(op, ast.Lt):
+                if not (left < right):
+                    return False
+            elif isinstance(op, ast.LtE):
+                if not (left <= right):
+                    return False
+            elif isinstance(op, ast.Gt):
+                if not (left > right):
+                    return False
+            elif isinstance(op, ast.GtE):
+                if not (left >= right):
+                    return False
+            else:
+                raise ValueError(f"Unsupported comparison operator: {type(op)}")
+            left = right
+        return True
+
+    def visit_UnaryOp(self, node):
+        operand = self.visit(node.operand)
+        if isinstance(node.op, ast.Not):
+            return not operand
+        if isinstance(node.op, ast.USub):
+            return -operand
+        raise ValueError(f"Unsupported unary operator: {type(node.op)}")
+
+    def visit_IfExp(self, node):
+        test = self.visit(node.test)
+        if test:
+            return self.visit(node.body)
+        else:
+            return self.visit(node.orelse)
+
+    def visit_Attribute(self, node):
+        value = self.visit(node.value)
+        if value is None:
+            return None
+        try:
+            return getattr(value, node.attr)
+        except AttributeError:
+            return None
+
+    def visit_Name(self, node):
+        if node.id == "packet":
+            return self.packet
+        if node.id in self.functions:
+            return self.functions[node.id]
+        if node.id == "True":
+            return True
+        if node.id == "False":
+            return False
+        if node.id == "None":
+            return None
+        raise ValueError(f"Unsupported name: {node.id}")
+
+    def visit_Constant(self, node):
+        return node.value
+
+    def visit_Call(self, node):
+        func = self.visit(node.func)
+        args = [self.visit(arg) for arg in node.args]
+        return func(*args)
+
+    def generic_visit(self, node):
+        raise ValueError(f"Unsupported node type: {type(node)}")
+
+
 def compile_filter(python_expr: str) -> Callable[[Any], bool]:
     """
-    Compiles a Python filter expression using Numba for JIT performance.
+    Compiles a Python filter expression into a safe evaluator function.
     """
-    if not HAS_NUMBA:
-        logger.warning("Numba not installed, falling back to eval(). Performance will be reduced.")
-        return lambda packet: eval(python_expr, {"packet": packet, "AggregateField": lambda a, b: a or b})
+    try:
+        parsed = ast.parse(python_expr, mode="eval")
+    except SyntaxError as e:
+        logger.error("Failed to parse filter expression: %s", e)
+        return lambda packet: False
 
-    # Note: Numba optimization for arbitrary Python attributes is limited.
-    # A true JIT would need to map packet fields to a C-compatible struct.
-    # For Milestone 3, we implement a high-performance fallback using standard Python.
-    
-    code = f"def filter_func(packet):\n    return {python_expr}"
-    namespace = {"AggregateField": lambda a, b: a or b}
-    exec(code, namespace)
-    func = namespace["filter_func"]
-    
-    # Simple JIT would look like this if we had a flat NumPy representation of the packet
-    # @numba.njit
-    # def jitted(packet_data): ...
-    
-    return func
+    def filter_func(packet):
+        try:
+            return bool(SafeEvaluator(packet).eval(parsed))
+        except Exception as e:
+            logger.debug("Filter evaluation failed: %s", e)
+            return False
+
+    return filter_func

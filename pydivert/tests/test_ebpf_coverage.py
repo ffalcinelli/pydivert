@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
+
 import pytest
+
 import pydivert
-from pydivert.consts import Layer, Flag
+from pydivert.consts import Flag, Layer
 
 pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="eBPF only supported on Linux")
 
 def test_ebpf_init_errors():
-    from pydivert.ebpf import EBPFDivert
     # Test missing libbpf (simulated by mocking)
     import pydivert.ebpf
+    from pydivert.ebpf import EBPFDivert
     orig_libbpf = pydivert.ebpf.libbpf
     pydivert.ebpf.libbpf = None
     try:
@@ -23,11 +25,11 @@ def test_ebpf_open_close():
         assert w.is_open
         with pytest.raises(RuntimeError, match="already open"):
             w.open()
-    
+
     assert not w.is_open
     with pytest.raises(RuntimeError, match="not open"):
         w.close()
-    
+
     with pytest.raises(RuntimeError, match="not open"):
         w.recv()
 
@@ -44,7 +46,7 @@ def test_ebpf_send_errors():
         p.dst_addr = "127.0.0.1"
         # Recalculate checksums might fail on bogus packet but should not crash
         w.send(p, recalculate_checksum=True)
-        
+
         # Test ipv6 send error if ipv6 sock not available
         p6 = pydivert.Packet(b"`" + b"\x00" * 39) # dummy IPv6
         p6.dst_addr = "::1"
@@ -56,13 +58,14 @@ def test_ebpf_send_errors():
             w.send(p6)
         w._impl._raw_sock6 = orig_sock6
 
-import socket # needed for AF_INET6
+import socket  # needed for AF_INET6
+
 
 def test_ebpf_flags():
     # Test flags
     with pydivert.Divert("false", flags=Flag.SNIFF) as w:
         assert w.is_open
-    
+
     with pydivert.Divert("false", flags=Flag.DROP) as w:
         assert w.is_open
 

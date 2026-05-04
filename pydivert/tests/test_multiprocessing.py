@@ -1,4 +1,11 @@
-import sys
+import multiprocessing
+import socket
+import time
+
+import pytest
+
+import pydivert
+
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 #
@@ -23,13 +30,8 @@ import sys
 # and the GNU General Public License along with this program.  If not,
 # see <https://www.gnu.org/licenses/>.
 
-import multiprocessing
-import socket
-import time
 
-import pytest
 
-import pydivert
 
 
 def run_recv_no_open(queue):
