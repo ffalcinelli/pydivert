@@ -56,8 +56,25 @@ class BpfFilterRule(ctypes.Structure):
         ("ttl", ctypes.c_uint8),
         ("tcp_flags", ctypes.c_uint8),
         ("tcp_flags_mask", ctypes.c_uint8),
-        ("padding", ctypes.c_uint8 * 2),
+    ]
+
+
+class BpfPktHeader(ctypes.Structure):
+    _fields_ = [
+        ("pkt_len", ctypes.c_uint32),
+        ("ifindex", ctypes.c_uint32),
+        ("direction", ctypes.c_uint16),
+        ("l2_len", ctypes.c_uint16),
+        ("pad", ctypes.c_uint32),
+    ]
+
+
+class BpfPacketBuffer(ctypes.Structure):
+    _fields_ = [
+        ("hdr", BpfPktHeader),
+        ("data", ctypes.c_uint8 * 2048),
     ]
 
 
 RINGBUF_CB = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t)
+LIBBPF_PRINT_CB = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_void_p)

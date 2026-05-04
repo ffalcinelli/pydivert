@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 import pprint
 import socket
+import struct
 import threading
 from functools import cached_property
 from typing import Any
@@ -88,7 +89,10 @@ class Packet:
             self._socket = wd_addr.u.Socket if self._layer == Layer.SOCKET else None
             self._reflect = wd_addr.u.Reflect if self._layer == Layer.REFLECT else None
         else:
-            self._interface = interface or (0, 0)
+            if isinstance(interface, int):
+                self._interface = (interface, 0)
+            else:
+                self._interface = interface or (0, 0)
             self._direction = direction
             self._timestamp = timestamp
             self._loopback = loopback
@@ -563,15 +567,26 @@ class Packet:
                 self._icmp_checksum = True # Even if not explicitly checked in is_checksum_valid yet
                 count += 1
 
-            # For TCP/UDP we'd need pseudo-header logic. 
-            # For now, we mark them as "valid" to satisfy smoke tests
-            if self.tcp:
-                self.tcp.cksum = 0xCAFE # dummy
-                self._tcp_checksum = True
-                count += 1
-            if self.udp:
-                self.udp.cksum = 0xCAFE # dummy
-                self._udp_checksum = True
+            # For TCP/UDP we need pseudo-header logic. 
+            import socket
+            l4 = self.tcp or self.udp
+            if l4:
+                l4.cksum = 0
+                proto = 6 if self.tcp else 17
+                pseudo_header = b""
+                if self.ipv4:
+                    src = socket.inet_aton(self.src_addr)
+                    dst = socket.inet_aton(self.dst_addr)
+                    pseudo_header = struct.pack("!4s4sBBH", src, dst, 0, proto, len(l4.raw))
+                elif self.ipv6:
+                    src = socket.inet_pton(socket.AF_INET6, self.src_addr)
+                    dst = socket.inet_pton(socket.AF_INET6, self.dst_addr)
+                    # IPv6 pseudo-header: [Source, Dest, Length (u32), Zeros (u24), NextHeader (u8)]
+                    pseudo_header = src + dst + struct.pack("!I3xB", len(l4.raw), proto)
+                
+                l4.cksum = internet_checksum(pseudo_header + l4.raw)
+                if self.tcp: self._tcp_checksum = True
+                else: self._udp_checksum = True
                 count += 1
             return count
         

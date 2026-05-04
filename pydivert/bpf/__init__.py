@@ -5,6 +5,7 @@ import logging
 from .structs import (
     PERF_BUF_CB,
     RINGBUF_CB,
+    LIBBPF_PRINT_CB,
     BpfFilterRule,
     BpfMap,
     BpfObject,
@@ -73,6 +74,9 @@ if libbpf:
     libbpf.bpf_map_update_elem.restype = ctypes.c_int
     libbpf.bpf_map_update_elem.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint64]
 
+    libbpf.bpf_map_lookup_elem.restype = ctypes.c_int
+    libbpf.bpf_map_lookup_elem.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+
     libbpf.bpf_object__close.restype = None
     libbpf.bpf_object__close.argtypes = [ctypes.POINTER(BpfObject)]
 
@@ -88,6 +92,9 @@ if libbpf:
     libbpf.bpf_tc_detach.restype = ctypes.c_int
     libbpf.bpf_tc_detach.argtypes = [ctypes.POINTER(BpfTcHook), ctypes.POINTER(BpfTcOpts)]
 
+    libbpf.libbpf_set_print.restype = None
+    libbpf.libbpf_set_print.argtypes = [LIBBPF_PRINT_CB]
+
 __all__ = [
     "libbpf",
     "BpfObject",
@@ -98,4 +105,5 @@ __all__ = [
     "PerfBufferOpts",
     "PERF_BUF_CB",
     "RINGBUF_CB",
+    "LIBBPF_PRINT_CB",
 ]
