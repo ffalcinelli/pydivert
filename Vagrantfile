@@ -4,9 +4,9 @@
 Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/pydivert"
 
-  # --- Linux VM (Ubuntu 22.04 with eBPF support) ---
+  # --- Linux VM (Ubuntu 24.04 with eBPF support) ---
   config.vm.define "linux" do |linux|
-    linux.vm.box = "ubuntu/jammy64"
+    linux.vm.box = "bento/ubuntu-24.04"
     linux.vm.hostname = "pydivert-linux"
     linux.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"
@@ -25,7 +25,7 @@ Vagrant.configure("2") do |config|
 
   # --- Windows VM (Windows 11 with WinDivert support) ---
   config.vm.define "windows" do |windows|
-    windows.vm.box = "gusztavvargadr/windows-11-22h2-enterprise"
+    windows.vm.box = "gusztavvargadr/windows-11-24h2-enterprise"
     windows.vm.communicator = "winrm"
     windows.vm.synced_folder ".", "C:/pydivert"
     windows.vm.provider "virtualbox" do |vb|

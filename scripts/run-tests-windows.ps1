@@ -36,5 +36,6 @@ if ($uvPath) {
 Write-Host "Ensuring dependencies are up to date..."
 uv sync --extra test
 
-Write-Host "Running tests..."
-uv run pytest pydivert\tests
+Write-Host "Running tests with coverage..."
+$env:COVERAGE_FILE = "C:\pydivert\.coverage.windows"
+uv run pytest --cov=pydivert --cov-config=.coveragerc pydivert\tests
