@@ -120,7 +120,7 @@ class BaseDivert(abc.ABC):
         Closes the connection to the Divert subsystem and cleans up resources.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
         self._close_impl()
         self._is_open = False
         logger.info("Divert handle closed.")
@@ -148,7 +148,7 @@ class BaseDivert(abc.ABC):
         Receives an intercepted packet that matched the filter.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
@@ -165,7 +165,7 @@ class BaseDivert(abc.ABC):
         Receives a batch of intercepted packets.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
@@ -199,7 +199,7 @@ class BaseDivert(abc.ABC):
         Asynchronous version of recv().
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
@@ -216,7 +216,7 @@ class BaseDivert(abc.ABC):
         Asynchronously receives a batch of packets.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
@@ -234,7 +234,7 @@ class BaseDivert(abc.ABC):
         Returns a dictionary of handle statistics.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
         return self._stats_impl()
 
     def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
@@ -242,7 +242,7 @@ class BaseDivert(abc.ABC):
         Injects a packet into the network stack.
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.RECV_ONLY in self.flags:
             raise OSError(errno.EACCES, "Handle is recv-only")
@@ -256,7 +256,7 @@ class BaseDivert(abc.ABC):
         Asynchronous version of send().
         """
         if not self._is_open:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if Flag.RECV_ONLY in self.flags:
             raise OSError(errno.EACCES, "Handle is recv-only")

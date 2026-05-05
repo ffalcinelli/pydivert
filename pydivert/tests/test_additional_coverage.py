@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import sys
 from typing import Any, cast
 
 import pytest
@@ -15,18 +16,20 @@ def test_ip_packet_len_setter():
         p.packet_len = 100
 
 
-def test_windivert_recv_no_handle():
-    w = pydivert.WinDivert()
-    with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
+def test_divert_recv_no_handle():
+    w = pydivert.Divert()
+    with pytest.raises(RuntimeError, match="Divert handle is not open"):
         w.recv()
 
 
-def test_windivert_recv_ex_no_handle():
-    w = pydivert.WinDivert()
-    with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
+@pytest.mark.skipif(sys.platform != "win32", reason="recv_ex is Windows-only")
+def test_divert_recv_ex_no_handle():
+    w = pydivert.Divert()
+    with pytest.raises(RuntimeError, match="Divert handle is not open"):
         w.recv_ex()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_register_coverage():
     try:
         pydivert.WinDivert.register()

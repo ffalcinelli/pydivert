@@ -92,23 +92,23 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
     __u16 l2_len = 0;
     int found = 0;
 
-    // Detect L3 offset: try 0, 14, 4
+    // Detect L3 offset: try 0 (No L2), then 4 (Loopback), then 14 (Ethernet)
     if (data + 20 <= data_end) {
         __u8 b0 = *(__u8 *)data;
         if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
             l2_len = 0; found = 1;
         }
     }
-    if (!found && (char *)data + 14 + 20 <= (char *)data_end) {
-        __u8 b14 = *((__u8 *)data + 14);
-        if ((b14 & 0xF0) == 0x40 || (b14 & 0xF0) == 0x60) {
-            l2_len = 14; found = 1;
-        }
-    }
     if (!found && (char *)data + 4 + 20 <= (char *)data_end) {
         __u8 b4 = *((__u8 *)data + 4);
         if ((b4 & 0xF0) == 0x40 || (b4 & 0xF0) == 0x60) {
             l2_len = 4; found = 1;
+        }
+    }
+    if (!found && (char *)data + 14 + 20 <= (char *)data_end) {
+        __u8 b14 = *((__u8 *)data + 14);
+        if ((b14 & 0xF0) == 0x40 || (b14 & 0xF0) == 0x60) {
+            l2_len = 14; found = 1;
         }
     }
 
@@ -210,6 +210,11 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
 
     if (!matched) return TC_ACT_OK;
 
+    if (matched_rule->match_mask & MATCH_DROP) {
+        increment_stat(STAT_DROPPED);
+        return TC_ACT_SHOT;
+    }
+
     struct packet_buffer *buf = bpf_ringbuf_reserve(&pcap_ringbuf, sizeof(struct packet_buffer), 0);
     if (!buf) return TC_ACT_OK;
 
@@ -230,10 +235,6 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     if (matched_rule->match_mask & MATCH_SNIFF) {
         increment_stat(STAT_SNIFFED);
         return TC_ACT_OK;
-    }
-    if (matched_rule->match_mask & MATCH_DROP) {
-        increment_stat(STAT_DROPPED);
-        return TC_ACT_SHOT;
     }
 
     increment_stat(STAT_DIVERTED);

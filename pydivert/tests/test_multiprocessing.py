@@ -93,7 +93,7 @@ def server_worker(stop_event, barrier, results_queue):
             results_queue.put(f"Worker Error: {e}")
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="Requires spawn start method for handle safety")
 def test_multiprocessing_no_open():
     queue = multiprocessing.Queue()
     p = multiprocessing.Process(target=run_recv_no_open, args=(queue,))
@@ -101,10 +101,10 @@ def test_multiprocessing_no_open():
     p.join()
 
     result = queue.get()
-    assert result == "WinDivert handle is not open"
+    assert result == "Divert handle is not open"
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="Requires spawn start method for handle safety")
 def test_multiprocessing_with_context_manager():
     queue = multiprocessing.Queue()
     p = multiprocessing.Process(target=run_recv_with_context_manager, args=(queue,))
@@ -114,11 +114,11 @@ def test_multiprocessing_with_context_manager():
     result = queue.get()
     # On systems without the driver, this might be an OSError.
     # On systems with the driver, it should be "Success".
-    # In neither case should it be the "WinDivert handle is not open" RuntimeError.
-    assert result != "WinDivert handle is not open"
+    # In neither case should it be the "Divert handle is not open" RuntimeError.
+    assert result != "Divert handle is not open"
 
 
-@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="WinDivert is Windows-only and uses spawn")
+@pytest.mark.skipif(multiprocessing.get_start_method() != "spawn", reason="Requires spawn start method for handle safety")
 def test_multiprocessing_integration_simple():
     stop_event = multiprocessing.Event()
     results_queue = multiprocessing.Queue()

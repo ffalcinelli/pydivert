@@ -112,7 +112,8 @@ class EBPFDivert(BaseDivert):
 
                 # Load filter rules
                 logger.debug("Transpiling filter: %s", self.filter)
-                ebpf_filter_rules = transpile_to_ebpf(self.filter, sniff=(Flag.SNIFF in self.flags), drop=(Flag.DROP in self.flags))
+                is_sniff = (Flag.SNIFF in self.flags) or (self.layer in (Layer.FLOW, Layer.SOCKET, Layer.REFLECT))
+                ebpf_filter_rules = transpile_to_ebpf(self.filter, sniff=is_sniff, drop=(Flag.DROP in self.flags))
                 rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
                 if rules_map_ptr:
                     rules_fd = bpf.bpf_map__fd(rules_map_ptr)
@@ -159,7 +160,7 @@ class EBPFDivert(BaseDivert):
                     except Exception:
                         pass
 
-                    tc_priority = 100
+                    tc_priority = 1
                     opts_ingress = BpfTcOpts(sz=ctypes.sizeof(BpfTcOpts), prog_fd=bpf.bpf_program__fd(prog_ingress), flags=0, priority=tc_priority)
                     bpf.bpf_tc_detach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress))
                     if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pydivert import WinDivert
+from pydivert import Divert
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="WinDivert is only supported on Windows")
 
@@ -17,7 +17,7 @@ class MockOverlapped:
 @patch("pydivert.windivert.byref", lambda x: x)
 @patch("pydivert.windivert.windivert_dll")
 def test_windivert_recv_buffer_reuse(wd_dll):
-    w = WinDivert()
+    w = Divert()
     w._handle = "fake_handle"
     w._is_open = True
 
@@ -51,7 +51,7 @@ def test_windivert_recv_buffer_reuse(wd_dll):
 @patch("pydivert.windivert.byref", lambda x: x)
 @patch("pydivert.windivert.windivert_dll")
 def test_windivert_recv_ex_buffer_reuse(wd_dll):
-    w = WinDivert()
+    w = Divert()
     w._handle = "fake_handle"
 
     def fake_recv_ex(handle, pPacket, packetLen, pRecvLen, flags, pAddr, pAddrLen, overlapped):

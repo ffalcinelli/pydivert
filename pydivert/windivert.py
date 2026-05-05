@@ -340,7 +340,7 @@ class WinDivert(BaseDivert):
         Receives an intercepted packet using WinDivertRecvEx.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
@@ -368,7 +368,7 @@ class WinDivert(BaseDivert):
         Injects a packet into the network stack using WinDivertSendEx.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         send_len = c_uint(0)
         raw = packet.raw
@@ -392,7 +392,7 @@ class WinDivert(BaseDivert):
         Get a WinDivert parameter.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         value = c_uint64(0)
         windivert_dll.WinDivertGetParam(self._handle, name, byref(value))
@@ -403,6 +403,6 @@ class WinDivert(BaseDivert):
         Set a WinDivert parameter.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")
 
         return windivert_dll.WinDivertSetParam(self._handle, name, value)

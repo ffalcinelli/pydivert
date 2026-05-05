@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,10 +8,11 @@ import pydivert
 from pydivert.packet import Packet
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_fallback():
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
-            pydivert.WinDivert.unregister()
+            pydivert.Divert.unregister()
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
             # On Linux/Mock, the fallback C:\Windows\System32 should be used
@@ -21,6 +23,7 @@ def test_windivert_unregister_fallback():
             assert args[1:] == ["stop", "WinDivert"]
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_success_path():
     from unittest.mock import MagicMock
 
@@ -36,7 +39,7 @@ def test_windivert_unregister_success_path():
                 mock_buf.return_value = buf_instance
 
                 with patch("ctypes.windll", mock_windll, create=True):
-                    pydivert.WinDivert.unregister()
+                    pydivert.Divert.unregister()
 
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
@@ -46,6 +49,7 @@ def test_windivert_unregister_success_path():
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_api_zero_path():
     from unittest.mock import MagicMock
 
@@ -56,7 +60,7 @@ def test_windivert_unregister_api_zero_path():
             mock_windll.kernel32.GetSystemDirectoryW.return_value = 0
 
             with patch("ctypes.windll", mock_windll, create=True):
-                pydivert.WinDivert.unregister()
+                pydivert.Divert.unregister()
 
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
@@ -66,6 +70,7 @@ def test_windivert_unregister_api_zero_path():
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_api_overflow_path():
     import ctypes.wintypes
     from unittest.mock import MagicMock
@@ -77,7 +82,7 @@ def test_windivert_unregister_api_overflow_path():
             mock_windll.kernel32.GetSystemDirectoryW.return_value = ctypes.wintypes.MAX_PATH + 1
 
             with patch("ctypes.windll", mock_windll, create=True):
-                pydivert.WinDivert.unregister()
+                pydivert.Divert.unregister()
 
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
@@ -87,6 +92,7 @@ def test_windivert_unregister_api_overflow_path():
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_attribute_error():
     with patch("pydivert.service.stop_service", return_value=False):
         with patch("subprocess.run") as mock_run:
@@ -94,7 +100,7 @@ def test_windivert_unregister_attribute_error():
             mock_windll = MagicMock(spec=[])  # No attributes allowed
 
             with patch("ctypes.windll", mock_windll, create=True):
-                pydivert.WinDivert.unregister()
+                pydivert.Divert.unregister()
 
             mock_run.assert_called_once()
             args = mock_run.call_args[0][0]
@@ -104,23 +110,25 @@ def test_windivert_unregister_attribute_error():
             assert os.path.normcase(args[0]) == os.path.normcase(expected_sc_path)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_check_filter_os_error():
     with patch("pydivert.windivert_dll.WinDivertHelperCompileFilter", side_effect=OSError("Mocked OS Error")):
-        res, pos, msg = pydivert.WinDivert.check_filter("true")
+        res, pos, msg = pydivert.Divert.check_filter("true")
         assert res is False
         assert msg == ""
 
 
 @pytest.mark.asyncio
 async def test_async_closed_handle_error():
-    w = pydivert.WinDivert()
+    w = pydivert.Divert()
     # Handle is None
-    with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
+    with pytest.raises(RuntimeError, match="Divert handle is not open"):
         await w.recv_async()
-    with pytest.raises(RuntimeError, match="WinDivert handle is not open"):
+    with pytest.raises(RuntimeError, match="Divert handle is not open"):
         await w.send_async(Packet(bytearray(20)))
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_recv_async_error_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -130,12 +138,13 @@ async def test_recv_async_error_path():
         mock_dll.GetLastError.return_value = 1234  # Not ERROR_IO_PENDING
         mock_dll.WinError.side_effect = lambda code: OSError(None, "Mocked WinError", None, code)
 
-        async with pydivert.WinDivert() as w:
+        async with pydivert.Divert() as w:
             with pytest.raises(OSError):
                 await w.recv_async()
-            assert len(w._pending_ops) == 0
+            assert len(w._impl._pending_ops) == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_send_async_error_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -145,16 +154,17 @@ async def test_send_async_error_path():
         mock_dll.GetLastError.return_value = 1234  # Not ERROR_IO_PENDING
         mock_dll.WinError.side_effect = lambda code: OSError(None, "Mocked WinError", None, code)
 
-        async with pydivert.WinDivert() as w:
+        async with pydivert.Divert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
             assert p.ipv4 is not None
             p.ipv4.packet_len = 40
             with pytest.raises(OSError):
                 await w.send_async(p)
-            assert len(w._pending_ops) == 0
+            assert len(w._impl._pending_ops) == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_recv_async_exception_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -163,12 +173,13 @@ async def test_recv_async_exception_path():
         # Raise unexpected exception during call
         mock_dll.WinDivertRecvEx.side_effect = RuntimeError("Unexpected")
 
-        async with pydivert.WinDivert() as w:
+        async with pydivert.Divert() as w:
             with pytest.raises(RuntimeError, match="Unexpected"):
                 await w.recv_async()
-            assert len(w._pending_ops) == 0
+            assert len(w._impl._pending_ops) == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_send_async_exception_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -177,33 +188,35 @@ async def test_send_async_exception_path():
         # Raise unexpected exception during call
         mock_dll.WinDivertSendEx.side_effect = RuntimeError("Unexpected")
 
-        async with pydivert.WinDivert() as w:
+        async with pydivert.Divert() as w:
             raw = bytearray(b"\x45" + b"\x00" * 39)
             p = Packet(raw)
             assert p.ipv4 is not None
             p.ipv4.packet_len = 40
             with pytest.raises(RuntimeError, match="Unexpected"):
                 await w.send_async(p)
-            assert len(w._pending_ops) == 0
+            assert len(w._impl._pending_ops) == 0
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_recv_ex_error_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
         mock_dll.WinDivertOpen.return_value = 123
         mock_dll.WinDivertRecvEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
-        w = pydivert.WinDivert()
+        w = pydivert.Divert()
         w._handle = 123
         with pytest.raises(OSError):
             w.recv_ex()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_send_ex_error_path():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
         mock_dll.WinDivertOpen.return_value = 123
         mock_dll.WinDivertSendEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
-        w = pydivert.WinDivert()
+        w = pydivert.Divert()
         w._handle = 123
         raw = bytearray(b"\x45" + b"\x00" * 19)
         p = Packet(raw)
@@ -226,9 +239,12 @@ def test_packet_is_checksum_valid_udp():
     assert not p.is_checksum_valid
 
     # Mock WinDivertHelperCalcChecksums to return success
-    with patch("pydivert.windivert_dll.WinDivertHelperCalcChecksums", return_value=1):
-        p.recalculate_checksums()
-        assert p.is_checksum_valid  # other.udp.cksum = 0 is hit here in is_checksum_valid
+    # This is also Windows-specific as it mocks windivert_dll
+    if sys.platform == "win32":
+        with patch("pydivert.windivert_dll.WinDivertHelperCalcChecksums", return_value=1):
+            p.recalculate_checksums()
+            assert p.is_checksum_valid  # other.udp.cksum = 0 is hit here in is_checksum_valid
+
 
 def test_ip_packet_len_direct_access():
     from pydivert.packet.ip import IPv4Header
@@ -239,6 +255,7 @@ def test_ip_packet_len_direct_access():
     assert header.packet_len == 20
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_dll_set_last_error_no_windll():
     from pydivert import windivert_dll
 
@@ -247,6 +264,7 @@ def test_windivert_dll_set_last_error_no_windll():
         assert windivert_dll.SetLastError(0) is None
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_recv_async_cancellation():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -275,6 +293,7 @@ async def test_recv_async_cancellation():
                 assert len(w._pending_ops) == 1
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 @pytest.mark.asyncio
 async def test_send_async_cancellation():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -307,6 +326,7 @@ async def test_send_async_cancellation():
                 assert len(w._pending_ops) == 1
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_send_ex_sync_success():
     with patch("pydivert.windivert.windivert_dll") as mock_dll:
         mock_dll.WinDivertOpen.return_value = 123
@@ -326,11 +346,13 @@ def test_ip_header_base_packet_len():
     assert header.packet_len == 20
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_is_registered_coverage():
     with patch("pydivert.service.is_registered", return_value=True):
         assert pydivert.WinDivert.is_registered() is True
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="WinDivert tests only run on Windows")
 def test_windivert_unregister_raises_on_failure():
     import subprocess
 
