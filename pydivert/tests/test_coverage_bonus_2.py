@@ -205,7 +205,7 @@ def test_recv_ex_error_path():
         mock_dll.WinDivertRecvEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
         w = pydivert.Divert()
-        w._handle = 123  # type: ignore
+        w._handle = 123
         with pytest.raises(OSError):
             w.recv_ex()
 
@@ -217,7 +217,7 @@ def test_send_ex_error_path():
         mock_dll.WinDivertSendEx.side_effect = OSError(None, "Not Pending", None, 1234)
 
         w = pydivert.Divert()
-        w._handle = 123  # type: ignore
+        w._handle = 123
         raw = bytearray(b"\x45" + b"\x00" * 19)
         p = Packet(raw)
         with pytest.raises(OSError):
