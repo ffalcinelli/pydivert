@@ -283,7 +283,7 @@ class EBPFDivert(BaseDivert):
             from pydivert.windivert_dll.structs import WinDivertAddress
 
             flow_data = WinDivertAddress._Union._Flow()
-            flow_data.Protocol = p.ip.protocol if p.ip else 0
+            flow_data.Protocol = p.protocol[0] or 0
             flow_data.LocalPort = p.src_port or 0
             flow_data.RemotePort = p.dst_port or 0
             # LocalAddr/RemoteAddr are harder as they are arrays, but we can try

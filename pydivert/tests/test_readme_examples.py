@@ -24,6 +24,7 @@
 
 import asyncio
 import socket
+import sys
 import threading
 import time
 
@@ -86,7 +87,7 @@ def test_example_modification():
         while time.time() - start < 5.0:
             try:
                 packet = w.recv(timeout=1.0)
-                if b"hello" in packet.tcp.payload:
+                if packet.tcp and b"hello" in packet.tcp.payload:
                     packet.tcp.payload = packet.tcp.payload.replace(b"hello", b"HELLO")
                 w.send(packet)
             except TimeoutError:
@@ -245,43 +246,50 @@ def test_example_sniff_mode():
     assert sniffed_packets
 
 
+def _async_example_server(port):
+    with socket.socket() as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("127.0.0.1", port))
+        s.listen(1)
+        try:
+            conn, _ = s.accept()
+            conn.recv(1024)
+            conn.close()
+        except Exception:
+            pass
+
+
+async def _async_example_diverter(port, captured, stop_event):
+    try:
+        # Use 'loopback' in filter for Windows reliability
+        filt = f"tcp.DstPort == {port}"
+        if sys.platform == "win32":
+            filt += " and loopback"
+
+        async with pydivert.Divert(filt, flags=pydivert.Flag.SNIFF) as w:
+            while not stop_event.is_set():
+                try:
+                    # Use native timeout
+                    packet = await w.recv_async(timeout=0.1)
+                    captured.append(packet)
+                    # No need to send back in SNIFF mode
+                except TimeoutError:
+                    continue
+    except (PermissionError, OSError) as e:
+        print(f"Async diverter error: {e}")
+
+
 @pytest.mark.asyncio
 async def test_example_asyncio():
     # Example: First-Class asyncio Support
     port = get_free_port()
 
-    def server():
-        with socket.socket() as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(("127.0.0.1", port))
-            s.listen(1)
-            try:
-                conn, _ = s.accept()
-                conn.recv(1024)
-                conn.close()
-            except Exception:
-                pass
-
-    threading.Thread(target=server, daemon=True).start()
+    threading.Thread(target=_async_example_server, args=(port,), daemon=True).start()
 
     captured = []
     stop_event = asyncio.Event()
 
-    async def diverter():
-        try:
-            async with pydivert.Divert(f"tcp.DstPort == {port}", flags=pydivert.Flag.SNIFF) as w:
-                while not stop_event.is_set():
-                    try:
-                        # Wait for packet with timeout to allow checking stop_event
-                        packet = await asyncio.wait_for(w.recv_async(), timeout=0.1)
-                        captured.append(packet)
-                        # No need to send back in SNIFF mode
-                    except asyncio.TimeoutError:
-                        continue
-        except (PermissionError, OSError) as e:
-            print(f"Async diverter error: {e}")
-
-    diverter_task = asyncio.create_task(diverter())
+    diverter_task = asyncio.create_task(_async_example_diverter(port, captured, stop_event))
     await asyncio.sleep(1.0)
 
     try:
@@ -319,7 +327,7 @@ def test_example_pattern_matching():
 
     from pydivert.packet.tcp import TCPHeader
 
-    p = pydivert.Packet(raw, direction=1)
+    p = pydivert.Packet(raw, direction=pydivert.Direction.INBOUND)
 
     match p:
         case pydivert.Packet(tcp=TCPHeader(dst_port=80)):

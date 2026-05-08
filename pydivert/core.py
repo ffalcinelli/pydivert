@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import sys
+from typing import Any
 
 from pydivert.base import BaseDivert
 from pydivert.consts import Flag, Layer
@@ -105,6 +106,12 @@ class Divert(BaseDivert):
 
     def __getattr__(self, name: str):
         return getattr(self._impl, name)
+
+    def __setattr__(self, name: str, value: Any):
+        if name == "_impl" or name in self.__dict__ or "_impl" not in self.__dict__:
+            super().__setattr__(name, value)
+        else:
+            setattr(self._impl, name, value)
 
     def __dir__(self) -> list[str]:
         return sorted(set(super().__dir__()) | set(dir(self._impl)))
