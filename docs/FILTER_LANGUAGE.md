@@ -39,6 +39,9 @@ Filters can target different layers. Each layer has specific fields available:
 - `Layer.SOCKET`: Captures socket-level events (bind, connect, etc.).
 - `Layer.REFLECT`: Captures reflected events.
 
+> [!NOTE]
+> On Linux, `FLOW` and `SOCKET` layers are supported in **sniff-only** mode. See the [Linux Backend Documentation](LINUX_BACKEND.md) for details.
+
 ## Protocols and Fields
 
 ### IP Layer (IPv4 and IPv6)

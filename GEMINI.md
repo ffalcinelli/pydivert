@@ -26,6 +26,7 @@ PyDivert 4.0 provides a unified interface for packet manipulation:
 - **Advanced Metadata**: Access to process IDs (PIDs), endpoint IDs, loopback status, and more.
 - **Asyncio Support**: Native asynchronous capture and injection on both platforms.
 - **Physical Verification**: Automated integration tests ensure behavioral parity between the backends.
+- **Documentation**: See [Linux Backend Guide](docs/LINUX_BACKEND.md) for implementation details.
 
 ## Development Guide
 

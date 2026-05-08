@@ -176,6 +176,8 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 - `Layer.SOCKET`: Socket-level events.
 - `Layer.REFLECT`: Reflected events.
 
+See the [Linux Backend Guide](docs/LINUX_BACKEND.md) for details on how these are implemented on Linux.
+
 ### Flags
 
 - `Flag.SNIFF`: Monitor mode (sniffing).
