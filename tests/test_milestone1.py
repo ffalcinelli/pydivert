@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+
 from pydivert.ebpf import EBPFDivert
 
 PORT = 12345

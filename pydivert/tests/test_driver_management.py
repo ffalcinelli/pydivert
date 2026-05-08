@@ -27,7 +27,7 @@ import time
 
 import pytest
 
-from pydivert import service, Divert
+from pydivert import Divert, service
 
 
 def test_is_registered_direct():

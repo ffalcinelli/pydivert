@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import pytest
 import logging
-
 import sys
+
+import pytest
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Kernel test for Linux")
 def test_ebpf_stats_increment():
-    import pydivert
-    from scapy.all import IP, UDP, send  # type: ignore
     import time
+
+    from scapy.all import IP, UDP, send  # type: ignore
+
+    import pydivert
 
     try:
         # Open a handle
@@ -46,8 +48,9 @@ def test_structured_logging(caplog):
 
 def test_type_safety_smoke():
     # Simple check to ensure classes have basic type hints (can't easily check full PEP 484 via pytest)
-    import pydivert.base
     from typing import get_type_hints
+
+    import pydivert.base
 
     hints = get_type_hints(pydivert.base.BaseDivert.__init__)
     assert "filter" in hints

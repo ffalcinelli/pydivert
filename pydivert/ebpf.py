@@ -20,13 +20,13 @@ from .bpf import (
 )
 from .consts import (
     DEFAULT_PACKET_BUFFER_SIZE,
+    LOOP_PREVENTION_MARK,
     Direction,
     Flag,
     Layer,
-    LOOP_PREVENTION_MARK,
 )
-from .packet import Packet
 from .filter import transpile_to_ebpf
+from .packet import Packet
 
 # Define SO_MARK if missing (e.g. for type checking on non-Linux)
 SO_MARK = getattr(socket, "SO_MARK", 36)

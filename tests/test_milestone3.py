@@ -2,6 +2,7 @@
 import sys
 
 import pytest
+
 from pydivert.filter import transpile_to_ebpf
 from pydivert.packet import Packet
 
@@ -22,8 +23,8 @@ def test_transpiler_extended_fields():
 
 
 def test_jit_fallback_logic():
-    from pydivert.jit import compile_filter
     from pydivert.filter import transpile_to_python
+    from pydivert.jit import compile_filter
 
     # A filter that is valid but complex
     filter_str = "tcp.SrcPort == 1234 and ip.TTL < 128"
@@ -45,9 +46,11 @@ def test_jit_fallback_logic():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Kernel test for Linux")
 def test_kernel_ttl_matching():
-    import pydivert
-    from scapy.all import IP, UDP, send  # type: ignore
     import time
+
+    from scapy.all import IP, UDP, send  # type: ignore
+
+    import pydivert
 
     try:
         # Open a handle with TTL filter
