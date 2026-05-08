@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import ctypes
-import pprint
 import socket
 import struct
-import threading
 from functools import cached_property
 from typing import Any
 
 from pydivert.consts import Direction, Layer, Protocol
-from pydivert.packet.header import Header, PayloadMixin, PortMixin
 from pydivert.packet.icmp import ICMPHeader, ICMPv4Header, ICMPv6Header
 from pydivert.packet.ip import IPHeader, IPv4Header, IPv6Header
 from pydivert.packet.tcp import TCPHeader
@@ -111,7 +108,10 @@ class Packet:
             self._populate_wd_addr()
 
     def __repr__(self) -> str:
-        return f'<Packet {self.protocol[0]} from={self.src_addr}:{self.src_port} to={self.dst_addr}:{self.dst_port} len={len(self.raw)}>'
+        return (
+            f'<Packet {self.protocol[0]} from={self.src_addr}:{self.src_port} '
+            f'to={self.dst_addr}:{self.dst_port} len={len(self.raw)}>'
+        )
 
     @property
     def raw(self) -> memoryview:
@@ -382,43 +382,55 @@ class Packet:
             self._wd_addr.u.Reflect = val
 
     @property
-    def src_addr(self) -> str | None: return self.ip.src_addr if self.ip else None
+    def src_addr(self) -> str | None:
+        return self.ip.src_addr if self.ip else None
+
     @src_addr.setter
     def src_addr(self, val: str):
-        if self.ip: self.ip.src_addr = val
+        if self.ip:
+            self.ip.src_addr = val
 
     @property
-    def dst_addr(self) -> str | None: return self.ip.dst_addr if self.ip else None
+    def dst_addr(self) -> str | None:
+        return self.ip.dst_addr if self.ip else None
+
     @dst_addr.setter
     def dst_addr(self, val: str):
-        if self.ip: self.ip.dst_addr = val
+        if self.ip:
+            self.ip.dst_addr = val
 
     @property
     def src_port(self) -> int | None:
         p = self.tcp or self.udp
         return p.src_port if p else None
+
     @src_port.setter
     def src_port(self, val: int):
         p = self.tcp or self.udp
-        if p: p.src_port = val
+        if p:
+            p.src_port = val
 
     @property
     def dst_port(self) -> int | None:
         p = self.tcp or self.udp
         return p.dst_port if p else None
+
     @dst_port.setter
     def dst_port(self, val: int):
         p = self.tcp or self.udp
-        if p: p.dst_port = val
+        if p:
+            p.dst_port = val
 
     @property
     def payload(self) -> bytes | None:
         p = self.tcp or self.udp or self.icmpv4 or self.icmpv6
         return p.payload if p else None
+
     @payload.setter
     def payload(self, val: bytes | bytearray | memoryview):
         p = self.tcp or self.udp or self.icmpv4 or self.icmpv6
-        if p: p.payload = val
+        if p:
+            p.payload = val
 
     @property
     def ip_checksum(self) -> bool:
@@ -490,18 +502,26 @@ class Packet:
         if os.name == "nt":
             # On Windows, we trust the flags in wd_addr or our internal ones
             res = True
-            if self.ipv4: res &= (self._ip_checksum or bool(self._wd_addr.IPChecksum))
-            if self.tcp: res &= (self._tcp_checksum or bool(self._wd_addr.TCPChecksum))
-            if self.udp: res &= (self._udp_checksum or bool(self._wd_addr.UDPChecksum))
-            if self.icmp: res &= self.icmp_checksum
+            if self.ipv4:
+                res &= (self._ip_checksum or bool(self._wd_addr.IPChecksum))
+            if self.tcp:
+                res &= (self._tcp_checksum or bool(self._wd_addr.TCPChecksum))
+            if self.udp:
+                res &= (self._udp_checksum or bool(self._wd_addr.UDPChecksum))
+            if self.icmp:
+                res &= self.icmp_checksum
             return res
 
         # On Linux/Other, we check our internal flags
         res = True
-        if self.ipv4: res &= self._ip_checksum
-        if self.tcp: res &= self._tcp_checksum
-        if self.udp: res &= self._udp_checksum
-        if self.icmp: res &= self.icmp_checksum
+        if self.ipv4:
+            res &= self._ip_checksum
+        if self.tcp:
+            res &= self._tcp_checksum
+        if self.udp:
+            res &= self._udp_checksum
+        if self.icmp:
+            res &= self.icmp_checksum
         return res
 
     def matches(self, filter_str: str) -> bool:
@@ -520,7 +540,14 @@ class Packet:
         addr = self._wd_addr
         # Ensure null-termination and correct encoding
         f_bytes = filter_str.encode("ascii") + b"\0"
-        return bool(WinDivertHelperEvalFilter(f_bytes, ctypes.cast(buff, ctypes.c_void_p), len(self._raw), ctypes.byref(addr)))
+        return bool(
+            WinDivertHelperEvalFilter(
+                f_bytes,
+                ctypes.cast(buff, ctypes.c_void_p),
+                len(self._raw),
+                ctypes.byref(addr),
+            )
+        )
 
     def _populate_wd_addr(self) -> None:
         address = self._wd_addr
@@ -586,8 +613,10 @@ class Packet:
                     pseudo_header = src + dst + struct.pack("!I3xB", len(l4.raw), proto)
 
                 l4.cksum = internet_checksum(pseudo_header + l4.raw)
-                if self.tcp: self._tcp_checksum = True
-                else: self._udp_checksum = True
+                if self.tcp:
+                    self._tcp_checksum = True
+                else:
+                    self._udp_checksum = True
                 count += 1
             return count
 

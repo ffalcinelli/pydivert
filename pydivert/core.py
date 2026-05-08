@@ -49,21 +49,25 @@ class Divert(BaseDivert):
 
         raise NotImplementedError(f"Unsupported platform: {sys.platform}. Divert only supports Windows and Linux.")
 
+    @staticmethod
+    def register() -> None:
+        Divert._get_implementation_class().register()
+
+    @staticmethod
+    def is_registered() -> bool:
+        return Divert._get_implementation_class().is_registered()
+
+    @staticmethod
+    def unregister() -> None:
+        Divert._get_implementation_class().unregister()
+
+    @staticmethod
+    def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
+        return Divert._get_implementation_class().check_filter(filter, layer)
+
     @classmethod
     def register_service(cls) -> None:
-        cls._get_implementation_class().register()
-
-    @classmethod
-    def is_registered(cls) -> bool:
-        return cls._get_implementation_class().is_registered()
-
-    @classmethod
-    def unregister(cls) -> None:
-        cls._get_implementation_class().unregister()
-
-    @classmethod
-    def check_filter(cls, filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
-        return cls._get_implementation_class().check_filter(filter, layer)
+        cls.register()
 
     def _open_impl(self) -> None:
         self._impl.open()

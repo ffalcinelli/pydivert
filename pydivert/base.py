@@ -58,21 +58,25 @@ class BaseDivert(abc.ABC):
         self._jit_filter: Any | None = None
 
     @staticmethod
+    @abc.abstractmethod
     def register() -> None:
         """Register the service (if applicable)."""
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def is_registered() -> bool:
         """Check if the service is registered."""
         return True
 
     @staticmethod
+    @abc.abstractmethod
     def unregister() -> None:
         """Unregister the service (if applicable)."""
         pass
 
     @staticmethod
+    @abc.abstractmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
         """Check if a filter is valid."""
         return True, 0, ""
@@ -141,7 +145,10 @@ class BaseDivert(abc.ABC):
 
     def __repr__(self) -> str:
         status = "open" if self.is_open else "closed"
-        return f'<{self.__class__.__name__} state="{status}" filter={self.filter!r} layer="{self.layer}" priority="{self.priority}" flags="{self.flags}" />'
+        return (
+            f'<{self.__class__.__name__} state="{status}" filter={self.filter!r} '
+            f'layer="{self.layer}" priority="{self.priority}" flags="{self.flags}" />'
+        )
 
     def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
@@ -160,7 +167,12 @@ class BaseDivert(abc.ABC):
                 return packet
             logger.debug("Packet dropped by JIT filter: %s", packet)
 
-    def recv_batch(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+    def recv_batch(
+        self,
+        count: int = 1,
+        bufsize: int = DEFAULT_PACKET_BUFFER_SIZE,
+        timeout: float | None = None,
+    ) -> list[Packet]:
         """
         Receives a batch of intercepted packets.
         """
@@ -192,7 +204,7 @@ class BaseDivert(abc.ABC):
         try:
             return await self.recv_async()
         except (EOFError, StopIteration, KeyboardInterrupt):
-            raise StopAsyncIteration()
+            raise StopAsyncIteration() from None
 
     async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         """
@@ -211,7 +223,12 @@ class BaseDivert(abc.ABC):
                 return packet
             logger.debug("Packet dropped by JIT filter (async): %s", packet)
 
-    async def recv_batch_async(self, count: int = 1, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> list[Packet]:
+    async def recv_batch_async(
+        self,
+        count: int = 1,
+        bufsize: int = DEFAULT_PACKET_BUFFER_SIZE,
+        timeout: float | None = None,
+    ) -> list[Packet]:
         """
         Asynchronously receives a batch of packets.
         """

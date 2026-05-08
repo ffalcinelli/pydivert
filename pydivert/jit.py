@@ -57,29 +57,29 @@ class SafeEvaluator(ast.NodeVisitor):
         raise ValueError(f"Unsupported boolean operator: {type(node.op)}")
 
     def visit_Compare(self, node):
+        import operator
+        ops_map = {
+            ast.Eq: operator.eq,
+            ast.NotEq: operator.ne,
+            ast.Lt: operator.lt,
+            ast.LtE: operator.le,
+            ast.Gt: operator.gt,
+            ast.GtE: operator.ge,
+        }
         left = self.visit(node.left)
-        for op, right_node in zip(node.ops, node.comparators):
+        for op, right_node in zip(node.ops, node.comparators, strict=True):
             right = self.visit(right_node)
-            if isinstance(op, ast.Eq):
-                if not (left == right):
-                    return False
-            elif isinstance(op, ast.NotEq):
-                if not (left != right):
-                    return False
-            elif isinstance(op, ast.Lt):
-                if not (left < right):
-                    return False
-            elif isinstance(op, ast.LtE):
-                if not (left <= right):
-                    return False
-            elif isinstance(op, ast.Gt):
-                if not (left > right):
-                    return False
-            elif isinstance(op, ast.GtE):
-                if not (left >= right):
-                    return False
-            else:
+            op_func = None
+            for ast_type, func in ops_map.items():
+                if isinstance(op, ast_type):
+                    op_func = func
+                    break
+
+            if op_func is None:
                 raise ValueError(f"Unsupported comparison operator: {type(op)}")
+
+            if not op_func(left, right):
+                return False
             left = right
         return True
 

@@ -11,11 +11,27 @@ from pydivert.consts import Param
     "method_name, args",
     [
         ("recv", []),
-        pytest.param("recv_ex", [], marks=pytest.mark.skipif(sys.platform != "win32", reason="recv_ex is Windows-only")),
+        pytest.param(
+            "recv_ex",
+            [],
+            marks=pytest.mark.skipif(sys.platform != "win32", reason="recv_ex is Windows-only"),
+        ),
         ("send", [MagicMock(spec=pydivert.Packet)]),
-        pytest.param("send_ex", [MagicMock(spec=pydivert.Packet)], marks=pytest.mark.skipif(sys.platform != "win32", reason="send_ex is Windows-only")),
-        pytest.param("get_param", [Param.QUEUE_LEN], marks=pytest.mark.skipif(sys.platform != "win32", reason="get_param is Windows-only")),
-        pytest.param("set_param", [Param.QUEUE_LEN, 1024], marks=pytest.mark.skipif(sys.platform != "win32", reason="set_param is Windows-only")),
+        pytest.param(
+            "send_ex",
+            [MagicMock(spec=pydivert.Packet)],
+            marks=pytest.mark.skipif(sys.platform != "win32", reason="send_ex is Windows-only"),
+        ),
+        pytest.param(
+            "get_param",
+            [Param.QUEUE_LEN],
+            marks=pytest.mark.skipif(sys.platform != "win32", reason="get_param is Windows-only"),
+        ),
+        pytest.param(
+            "set_param",
+            [Param.QUEUE_LEN, 1024],
+            marks=pytest.mark.skipif(sys.platform != "win32", reason="set_param is Windows-only"),
+        ),
     ],
 )
 def test_sync_methods_raise_without_open(method_name, args):

@@ -189,44 +189,64 @@ class IPv4Header(IPHeader):
         self._packet._invalidate_checksums()
 
     @property
-    def frag_offset(self) -> int: return self._view.frag_off & 0x1FFF
+    def frag_offset(self) -> int:
+        return self._view.frag_off & 0x1FFF
+
     @frag_offset.setter
     def frag_offset(self, val: int):
         self._view.frag_off = (self._view.frag_off & 0xE000) | (val & 0x1FFF)
         self._packet._invalidate_checksums()
 
     @property
-    def rf(self) -> bool: return bool(self._view.frag_off & 0x8000)
+    def rf(self) -> bool:
+        return bool(self._view.frag_off & 0x8000)
+
     @rf.setter
     def rf(self, val: bool):
-        if val: self._view.frag_off |= 0x8000
-        else: self._view.frag_off &= ~0x8000
+        if val:
+            self._view.frag_off |= 0x8000
+        else:
+            self._view.frag_off &= ~0x8000
         self._packet._invalidate_checksums()
 
     @property
-    def evil(self) -> bool: return self.rf
+    def evil(self) -> bool:
+        return self.rf
+
     @evil.setter
-    def evil(self, val: bool): self.rf = val
+    def evil(self, val: bool):
+        self.rf = val
 
     @property
-    def reserved(self) -> bool: return self.rf
+    def reserved(self) -> bool:
+        return self.rf
+
     @reserved.setter
-    def reserved(self, val: bool): self.rf = val
+    def reserved(self, val: bool):
+        self.rf = val
 
     @property
-    def df(self) -> bool: return bool(self._view.frag_off & 0x4000)
+    def df(self) -> bool:
+        return bool(self._view.frag_off & 0x4000)
+
     @df.setter
     def df(self, val: bool):
-        if val: self._view.frag_off |= 0x4000
-        else: self._view.frag_off &= ~0x4000
+        if val:
+            self._view.frag_off |= 0x4000
+        else:
+            self._view.frag_off &= ~0x4000
         self._packet._invalidate_checksums()
 
     @property
-    def mf(self) -> bool: return bool(self._view.frag_off & 0x2000)
+    def mf(self) -> bool:
+        return bool(self._view.frag_off & 0x2000)
+
     @mf.setter
     def mf(self, val: bool):
-        if val: self._view.frag_off |= 0x2000
-        else: self._view.frag_off &= ~0x2000
+        if val:
+            self._view.frag_off |= 0x2000
+        else:
+            self._view.frag_off &= ~0x2000
         self._packet._invalidate_checksums()
 
 

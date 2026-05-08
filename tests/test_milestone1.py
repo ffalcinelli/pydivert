@@ -16,7 +16,7 @@ def receive_udp():
         if PAYLOAD in data:
             print("FAILURE: Packet reached destination socket! It was not stolen.")
             return False
-    except socket.timeout:
+    except TimeoutError:
         print("SUCCESS: Packet did not reach destination socket (it was stolen).")
         return True
     finally:
@@ -32,21 +32,21 @@ def send_udp():
 
 def main():
     print("--- Starting Milestone 1 Integration Test ---")
-    
+
     recv_thread = threading.Thread(target=receive_udp)
     recv_thread.start()
 
     print("Starting eBPF packet capture on 'lo' interface...")
     captured = False
-    
+
     try:
         # For now, it ignores the filter and captures everything
         with EBPFDivert() as w:
             threading.Thread(target=send_udp).start()
-            
+
             print("Waiting for packet in pydivert...")
             start_time = time.time()
-            
+
             while time.time() - start_time < 3.0:
                 try:
                     packet = w.recv(timeout=0.5)
@@ -59,9 +59,9 @@ def main():
                     continue
     except Exception as e:
         print(f"ERROR starting EBPFDivert: {e}")
-        
+
     recv_thread.join()
-    
+
     if captured:
         print("--- Milestone 1 Test: PASSED ---")
     else:

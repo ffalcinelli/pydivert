@@ -26,7 +26,19 @@ class TCPStruct(ctypes.BigEndianStructure):
 class TCPHeader(Header, PortMixin, PayloadMixin):
     __slots__ = ("_view",)
     __match_args__ = ("src_port", "dst_port", "seq_num", "ack_num", "control_bits")
-    __repr_fields__ = ("ack_num", "cksum", "control_bits", "data_offset", "dst_port", "header_len", "payload", "payload_len", "seq_num", "src_port", "window")
+    __repr_fields__ = (
+        "ack_num",
+        "cksum",
+        "control_bits",
+        "data_offset",
+        "dst_port",
+        "header_len",
+        "payload",
+        "payload_len",
+        "seq_num",
+        "src_port",
+        "window",
+    )
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         super().__init__(packet, start)
@@ -36,35 +48,45 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
             self._view = TCPStruct()
 
     @property
-    def src_port(self) -> int: return self._view.sport
+    def src_port(self) -> int:
+        return self._view.sport
+
     @src_port.setter
     def src_port(self, val: int):
         self._view.sport = val
         self._packet._invalidate_checksums()
 
     @property
-    def dst_port(self) -> int: return self._view.dport
+    def dst_port(self) -> int:
+        return self._view.dport
+
     @dst_port.setter
     def dst_port(self, val: int):
         self._view.dport = val
         self._packet._invalidate_checksums()
 
     @property
-    def seq_num(self) -> int: return self._view.seq
+    def seq_num(self) -> int:
+        return self._view.seq
+
     @seq_num.setter
     def seq_num(self, val: int):
         self._view.seq = val
         self._packet._invalidate_checksums()
 
     @property
-    def ack_num(self) -> int: return self._view.ack
+    def ack_num(self) -> int:
+        return self._view.ack
+
     @ack_num.setter
     def ack_num(self, val: int):
         self._view.ack = val
         self._packet._invalidate_checksums()
 
     @property
-    def data_offset(self) -> int: return self._view.off_res_flags >> 12
+    def data_offset(self) -> int:
+        return self._view.off_res_flags >> 12
+
     @data_offset.setter
     def data_offset(self, val: int):
         if not (5 <= val <= 15):
@@ -93,86 +115,125 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
         self._packet._invalidate_checksums()
 
     @property
-    def ns(self) -> bool: return bool(self._view.off_res_flags & 0x0100)
+    def ns(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0100)
+
     @ns.setter
     def ns(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0100
-        else: self._view.off_res_flags &= ~0x0100
+        if val:
+            self._view.off_res_flags |= 0x0100
+        else:
+            self._view.off_res_flags &= ~0x0100
         self._packet._invalidate_checksums()
 
     @property
-    def cwr(self) -> bool: return bool(self._view.off_res_flags & 0x0080)
+    def cwr(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0080)
+
     @cwr.setter
     def cwr(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0080
-        else: self._view.off_res_flags &= ~0x0080
+        if val:
+            self._view.off_res_flags |= 0x0080
+        else:
+            self._view.off_res_flags &= ~0x0080
         self._packet._invalidate_checksums()
 
     @property
-    def ece(self) -> bool: return bool(self._view.off_res_flags & 0x0040)
+    def ece(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0040)
+
     @ece.setter
     def ece(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0040
-        else: self._view.off_res_flags &= ~0x0040
+        if val:
+            self._view.off_res_flags |= 0x0040
+        else:
+            self._view.off_res_flags &= ~0x0040
         self._packet._invalidate_checksums()
 
     @property
-    def urg(self) -> bool: return bool(self._view.off_res_flags & 0x0020)
+    def urg(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0020)
+
     @urg.setter
     def urg(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0020
-        else: self._view.off_res_flags &= ~0x0020
+        if val:
+            self._view.off_res_flags |= 0x0020
+        else:
+            self._view.off_res_flags &= ~0x0020
         self._packet._invalidate_checksums()
 
     @property
-    def ack(self) -> bool: return bool(self._view.off_res_flags & 0x0010)
+    def ack(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0010)
+
     @ack.setter
     def ack(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0010
-        else: self._view.off_res_flags &= ~0x0010
+        if val:
+            self._view.off_res_flags |= 0x0010
+        else:
+            self._view.off_res_flags &= ~0x0010
         self._packet._invalidate_checksums()
 
     @property
-    def psh(self) -> bool: return bool(self._view.off_res_flags & 0x0008)
+    def psh(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0008)
+
     @psh.setter
     def psh(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0008
-        else: self._view.off_res_flags &= ~0x0008
+        if val:
+            self._view.off_res_flags |= 0x0008
+        else:
+            self._view.off_res_flags &= ~0x0008
         self._packet._invalidate_checksums()
 
     @property
-    def rst(self) -> bool: return bool(self._view.off_res_flags & 0x0004)
+    def rst(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0004)
+
     @rst.setter
     def rst(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0004
-        else: self._view.off_res_flags &= ~0x0004
+        if val:
+            self._view.off_res_flags |= 0x0004
+        else:
+            self._view.off_res_flags &= ~0x0004
         self._packet._invalidate_checksums()
 
     @property
-    def syn(self) -> bool: return bool(self._view.off_res_flags & 0x0002)
+    def syn(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0002)
+
     @syn.setter
     def syn(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0002
-        else: self._view.off_res_flags &= ~0x0002
+        if val:
+            self._view.off_res_flags |= 0x0002
+        else:
+            self._view.off_res_flags &= ~0x0002
         self._packet._invalidate_checksums()
 
     @property
-    def fin(self) -> bool: return bool(self._view.off_res_flags & 0x0001)
+    def fin(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0001)
+
     @fin.setter
     def fin(self, val: bool):
-        if val: self._view.off_res_flags |= 0x0001
-        else: self._view.off_res_flags &= ~0x0001
+        if val:
+            self._view.off_res_flags |= 0x0001
+        else:
+            self._view.off_res_flags &= ~0x0001
         self._packet._invalidate_checksums()
 
     @property
-    def window(self) -> int: return self._view.win
+    def window(self) -> int:
+        return self._view.win
+
     @window.setter
     def window(self, val: int):
         self._view.win = val
         self._packet._invalidate_checksums()
 
     @property
-    def cksum(self) -> int: return self._view.check
+    def cksum(self) -> int:
+        return self._view.check
     @cksum.setter
     def cksum(self, val: int): self._view.check = val
 

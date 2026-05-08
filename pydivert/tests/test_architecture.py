@@ -14,6 +14,22 @@ class MockBackend(BaseDivert):
         self.recv_called = False
         self.send_called = False
 
+    @staticmethod
+    def register():
+        pass
+
+    @staticmethod
+    def is_registered():
+        return True
+
+    @staticmethod
+    def unregister():
+        pass
+
+    @staticmethod
+    def check_filter(filter, layer=Layer.NETWORK):
+        return True, 0, ""
+
     def _open_impl(self):
         self.open_called = True
 

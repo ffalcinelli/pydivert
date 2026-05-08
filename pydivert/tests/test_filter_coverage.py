@@ -35,7 +35,7 @@ def test_transpiler_errors():
     assert isinstance(transpile_to_ebpf("false"), list)
 
     # Test invalid syntax
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match=".*"):
         transpile_to_ebpf("something bogus")
 
 def test_normalize_filter():

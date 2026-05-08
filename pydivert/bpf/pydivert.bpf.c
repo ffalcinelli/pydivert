@@ -2,6 +2,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
+#define TC_ACT_UNSPEC  (-1)
 #define TC_ACT_OK      0
 #define TC_ACT_SHOT    2
 #define TC_ACT_STOLEN  4
@@ -10,7 +11,7 @@
 #define STAT_DROPPED  1
 #define STAT_SNIFFED  2
 
-struct pkt_header {
+struct pydivert_pkt_header {
     __u32 pkt_len;
     __u32 ifindex;
     __u16 direction;
@@ -18,8 +19,8 @@ struct pkt_header {
     __u32 pad;
 };
 
-struct packet_buffer {
-    struct pkt_header hdr;
+struct pydivert_packet_buffer {
+    struct pydivert_pkt_header header;
     __u8 data[2048];
 };
 
@@ -92,7 +93,7 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
     __u16 l2_len = 0;
     int found = 0;
 
-    // Detect L3 offset: try 0 (No L2), then 4 (Loopback), then 14 (Ethernet)
+    // Detect L3 offset: try 0, 4, 14
     if (data + 20 <= data_end) {
         __u8 b0 = *(__u8 *)data;
         if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
@@ -187,10 +188,12 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 }
 
 static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction) {
-    if (skb->mark == 0x4D49544D) return TC_ACT_OK;
+    if (skb->mark == 0x4D49544D) return TC_ACT_UNSPEC;
 
     // Avoid double-processing loopback: only capture on Egress (Outbound)
-    if (skb->ifindex == 1 && direction == 1) return TC_ACT_OK;
+    if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
+
+    bpf_skb_pull_data(skb, 64);
 
     __u16 l2_len = 0;
     int matched = 0;
@@ -208,21 +211,21 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
         }
     }
 
-    if (!matched) return TC_ACT_OK;
+    if (!matched) return TC_ACT_UNSPEC;
 
     if (matched_rule->match_mask & MATCH_DROP) {
         increment_stat(STAT_DROPPED);
         return TC_ACT_SHOT;
     }
 
-    struct packet_buffer *buf = bpf_ringbuf_reserve(&pcap_ringbuf, sizeof(struct packet_buffer), 0);
-    if (!buf) return TC_ACT_OK;
+    struct pydivert_packet_buffer *buf = bpf_ringbuf_reserve(&pcap_ringbuf, sizeof(struct pydivert_packet_buffer), 0);
+    if (!buf) return TC_ACT_UNSPEC;
 
-    buf->hdr.pkt_len = skb->len;
-    buf->hdr.ifindex = skb->ifindex;
-    buf->hdr.direction = (__u16)direction;
-    buf->hdr.l2_len = l2_len;
-    buf->hdr.pad = 0xDEADC0DE;
+    buf->header.pkt_len = skb->len;
+    buf->header.ifindex = skb->ifindex;
+    buf->header.direction = (__u16)direction;
+    buf->header.l2_len = l2_len;
+    buf->header.pad = 0xDEADC0DE;
 
     __u32 to_load = skb->len;
     if (to_load > 2048) to_load = 2048;
@@ -234,19 +237,19 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
 
     if (matched_rule->match_mask & MATCH_SNIFF) {
         increment_stat(STAT_SNIFFED);
-        return TC_ACT_OK;
+        return TC_ACT_UNSPEC;
     }
 
     increment_stat(STAT_DIVERTED);
     return TC_ACT_STOLEN;
 }
 
-SEC("classifier/ingress")
+SEC("tc")
 int tc_divert_ingress(struct __sk_buff *skb) {
     return process_packet(skb, 1);
 }
 
-SEC("classifier/egress")
+SEC("tc")
 int tc_divert_egress(struct __sk_buff *skb) {
     return process_packet(skb, 2);
 }

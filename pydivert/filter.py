@@ -100,10 +100,12 @@ class WinDivertTransformer(Transformer):
         # Basic equality transpilation
         if op == "==":
             rules = self._handle_port_comparison(field, val)
-            if rules: return rules
+            if rules:
+                return rules
 
             rules = self._handle_addr_comparison(field, val)
-            if rules: return rules
+            if rules:
+                return rules
 
             if field == "ip.ttl":
                 return [{"ttl": val}]
@@ -459,7 +461,7 @@ def transpile_to_rules(filter_str):
     return rules
 
 
-def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) -> list[dict[str, Any]]:
+def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) -> list[dict[str, Any]]:  # noqa: C901
     """
     Parses a WinDivert filter and returns a list of dictionaries compatible with BpfFilterRule.
     """
@@ -517,12 +519,12 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         if "srcaddr" in rule:
             addr = rule["srcaddr"]
             if ":" not in addr:
-                ebpf_rule["src_ip"] = struct.unpack("I", socket.inet_aton(addr))[0]
+                ebpf_rule["src_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_SRC_IP
         if "dstaddr" in rule:
             addr = rule["dstaddr"]
             if ":" not in addr:
-                ebpf_rule["dst_ip"] = struct.unpack("I", socket.inet_aton(addr))[0]
+                ebpf_rule["dst_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_DST_IP
         if "proto" in rule:
             proto = rule["proto"].lower()

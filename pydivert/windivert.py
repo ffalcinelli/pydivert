@@ -335,7 +335,12 @@ class WinDivert(BaseDivert):
                 self._pending_ops.remove(overlapped)
             raise
 
-    def recv_ex(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Overlapped | None = None) -> Packet | None:
+    def recv_ex(
+        self,
+        bufsize: int = DEFAULT_PACKET_BUFFER_SIZE,
+        flags: int = 0,
+        overlapped: Overlapped | None = None,
+    ) -> Packet | None:
         """
         Receives an intercepted packet using WinDivertRecvEx.
         """
@@ -352,7 +357,16 @@ class WinDivert(BaseDivert):
         recv_len = c_uint(0)
 
         try:
-            windivert_dll.WinDivertRecvEx(self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), None, byref(overlapped) if overlapped else None)
+            windivert_dll.WinDivertRecvEx(
+                self._handle,
+                packet_,
+                bufsize,
+                byref(recv_len),
+                flags,
+                byref(address),
+                None,
+                byref(overlapped) if overlapped else None,
+            )
         except OSError as e:
             if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
                 if overlapped:
@@ -376,7 +390,16 @@ class WinDivert(BaseDivert):
         wd_addr = packet.wd_addr
 
         try:
-            windivert_dll.WinDivertSendEx(self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), ctypes.sizeof(WinDivertAddress), byref(overlapped) if overlapped else None)
+            windivert_dll.WinDivertSendEx(
+                self._handle,
+                buff,
+                len(packet.raw),
+                byref(send_len),
+                flags,
+                byref(wd_addr),
+                ctypes.sizeof(WinDivertAddress),
+                byref(overlapped) if overlapped else None,
+            )
         except OSError as e:
             if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
                 if overlapped:

@@ -125,10 +125,10 @@ def generate_index_html(tags):
     with open("site/index.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-def main():
+def main():  # noqa: C901
     # Check for pdoc
     try:
-        import pdoc  # noqa: F401
+        import pdoc  # type: ignore # noqa: F401
     except ImportError:
         print("Error: 'pdoc' is not installed.")
         print("Please run the build script using: uv run --extra docs python docs/build.py")

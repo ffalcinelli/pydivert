@@ -12,6 +12,8 @@ from .structs import (
     BpfTcHook,
     BpfTcOpts,
     PerfBufferOpts,
+    PydivertPktHeader,
+    PydivertPacketBuffer,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,8 @@ __all__ = [
     "BpfTcHook",
     "BpfTcOpts",
     "BpfFilterRule",
+    "PydivertPktHeader",
+    "PydivertPacketBuffer",
     "PerfBufferOpts",
     "PERF_BUF_CB",
     "RINGBUF_CB",

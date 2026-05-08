@@ -27,11 +27,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
-
 import pydivert
 import pydivert.windivert_dll
 from pydivert.windivert_dll import Overlapped, WinDivertAddress
+
+pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="WinDivert only supported on Windows")
 
 
 @pytest.fixture

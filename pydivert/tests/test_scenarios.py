@@ -5,7 +5,7 @@ import threading
 import time
 
 import pytest
-from scapy.all import ICMP, IP
+from scapy.all import ICMP, IP  # type: ignore
 
 import pydivert
 from pydivert.consts import Direction
@@ -50,7 +50,7 @@ def test_scenario_drop_tcp(echo_server):
     # Start Divert and DON'T re-inject packets (effectively dropping them)
     def divert_and_drop():
         with pydivert.Divert(filter_str) as w:
-            for packet in w:
+            for _ in w:
                 # Just receive and do nothing (drop)
                 pass
 

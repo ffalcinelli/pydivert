@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import socket
 import sys
 
 import pytest
@@ -50,16 +51,13 @@ def test_ebpf_send_errors():
         # Test ipv6 send error if ipv6 sock not available
         p6 = pydivert.Packet(b"`" + b"\x00" * 39) # dummy IPv6
         p6.dst_addr = "::1"
-        orig_sock6 = w._impl._raw_sock6
-        w._impl._raw_sock6 = None
+        orig_sock6 = w._impl._raw_sock6  # type: ignore
+        w._impl._raw_sock6 = None  # type: ignore
         # Mocking an ipv6 packet properly for the property
-        p6._address_family = socket.AF_INET6
+        p6._address_family = socket.AF_INET6  # type: ignore
         with pytest.raises(OSError, match="IPv6 raw socket not available"):
             w.send(p6)
-        w._impl._raw_sock6 = orig_sock6
-
-import socket  # needed for AF_INET6
-
+        w._impl._raw_sock6 = orig_sock6  # type: ignore
 
 def test_ebpf_flags():
     # Test flags
@@ -85,6 +83,6 @@ def test_ebpf_close_cleanup():
     w.open()
     # Mocking missing attributes to test hasattr checks in close()
     impl = w._impl
-    impl._hooks.clear()
+    impl._hooks.clear()  # type: ignore
     w.close()
     assert not w.is_open
