@@ -58,6 +58,7 @@ class SafeEvaluator(ast.NodeVisitor):
 
     def visit_Compare(self, node):
         import operator
+
         ops_map = {
             ast.Eq: operator.eq,
             ast.NotEq: operator.ne,

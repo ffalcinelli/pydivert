@@ -27,6 +27,7 @@ def test_windivert_legacy_instantiation():
         with pytest.raises((NotImplementedError, OSError)):
             pydivert.WinDivert()
 
+
 def test_ebpf_divert_availability():
     """
     Verifies that EBPFDivert is available on Linux and behaves correctly on Windows.
@@ -43,7 +44,9 @@ def test_ebpf_divert_availability():
     else:
         with pytest.raises((NotImplementedError, ImportError, OSError)):
             from pydivert.ebpf import EBPFDivert
+
             EBPFDivert()
+
 
 def test_facade_routing():
     """

@@ -31,9 +31,6 @@ import pydivert
 # see <https://www.gnu.org/licenses/>.
 
 
-
-
-
 def get_free_port(proto=socket.SOCK_STREAM):
     with socket.socket(socket.AF_INET, proto) as s:
         s.bind(("127.0.0.1", 0))

@@ -35,9 +35,6 @@ from pydivert.consts import Direction, Protocol
 # see <https://www.gnu.org/licenses/>.
 
 
-
-
-
 def p(raw):
     return pydivert.Packet(raw, (0, 0), Direction.OUTBOUND)
 

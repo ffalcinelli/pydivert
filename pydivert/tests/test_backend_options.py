@@ -15,6 +15,7 @@ def test_divert_kwargs_ignored_by_backend():
     except TypeError as e:
         pytest.fail(f"Divert raised TypeError with unknown kwargs: {e}")
 
+
 @pytest.mark.skipif(sys.platform != "linux", reason="eBPF only on Linux")
 def test_ebpf_interfaces_option():
     """Test that EBPFDivert respects the 'interfaces' option."""
@@ -28,18 +29,20 @@ def test_ebpf_interfaces_option():
     mock_libbpf.bpf_tc_hook_create.return_value = 0
     mock_libbpf.bpf_tc_attach.return_value = 0
 
-    with patch("pydivert.ebpf.libbpf", mock_libbpf), \
-         patch("socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0"), (3, "eth1")]):
-
+    with (
+        patch("pydivert.ebpf.libbpf", mock_libbpf),
+        patch("socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0"), (3, "eth1")]),
+    ):
         # Test with specific interface
         d = EBPFDivert(filter="true", interfaces=["eth0"])
 
         with patch.object(d, "_ring_callback", MagicMock()):
-             d._open_impl()
+            d._open_impl()
 
         # Each interface gets 2 hooks (ingress/egress)
         # Since we specified ["eth0"], only eth0 should be hooked
         assert len(d._hooks) == 2
+
 
 @pytest.mark.skipif(sys.platform != "linux", reason="eBPF only on Linux")
 def test_ebpf_no_interfaces_option():
@@ -54,13 +57,14 @@ def test_ebpf_no_interfaces_option():
     mock_libbpf.bpf_tc_hook_create.return_value = 0
     mock_libbpf.bpf_tc_attach.return_value = 0
 
-    with patch("pydivert.ebpf.libbpf", mock_libbpf), \
-         patch("socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0")]):
-
+    with (
+        patch("pydivert.ebpf.libbpf", mock_libbpf),
+        patch("socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0")]),
+    ):
         d = EBPFDivert(filter="true")
 
         with patch.object(d, "_ring_callback", MagicMock()):
-             d._open_impl()
+            d._open_impl()
 
         # 2 interfaces * 2 hooks = 4 hooks
         assert len(d._hooks) == 4

@@ -169,14 +169,15 @@ class WinDivert(BaseDivert):
                 if error == windivert_dll.ERROR_IO_PENDING:
                     # Wait for completion or timeout
                     wait_res = windivert_dll.WaitForSingleObject(self._event, int(timeout * 1000))
-                    if wait_res == 0: # SUCCESS
+                    if wait_res == 0:  # SUCCESS
                         from pydivert.windivert_dll import windll
+
                         windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(recv_len), False)
-                    elif wait_res == 0x00000102: # WAIT_TIMEOUT
+                    elif wait_res == 0x00000102:  # WAIT_TIMEOUT
                         # Cancel the pending operation
                         windivert_dll.windll.kernel32.CancelIoEx(self._handle, byref(overlapped))
                         raise TimeoutError()
-                    elif wait_res != 0: # WAIT_FAILED or other
+                    elif wait_res != 0:  # WAIT_FAILED or other
                         raise windivert_dll.WinError(windivert_dll.GetLastError())
                 else:
                     raise windivert_dll.WinError(error)
@@ -223,7 +224,7 @@ class WinDivert(BaseDivert):
                         try:
                             await asyncio.wait_for(
                                 loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE),
-                                timeout
+                                timeout,
                             )
                         except asyncio.TimeoutError:
                             # Cancel the pending overlapped I/O on the handle
@@ -368,7 +369,7 @@ class WinDivert(BaseDivert):
                 byref(overlapped) if overlapped else None,
             )
         except OSError as e:
-            if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
+            if getattr(e, "winerror", None) == 997:  # ERROR_IO_PENDING
                 if overlapped:
                     overlapped._packet_buffer = packet_
                     overlapped._address = address
@@ -401,7 +402,7 @@ class WinDivert(BaseDivert):
                 byref(overlapped) if overlapped else None,
             )
         except OSError as e:
-            if getattr(e, "winerror", None) == 997: # ERROR_IO_PENDING
+            if getattr(e, "winerror", None) == 997:  # ERROR_IO_PENDING
                 if overlapped:
                     overlapped._packet_raw = buff
                     overlapped._address = wd_addr

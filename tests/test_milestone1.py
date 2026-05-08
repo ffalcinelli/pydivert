@@ -6,6 +6,7 @@ from pydivert.ebpf import EBPFDivert
 PORT = 12345
 PAYLOAD = b"MILESTONE1_PAYLOAD"
 
+
 def receive_udp():
     """Tries to receive the packet on the destination port."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -23,12 +24,14 @@ def receive_udp():
         sock.close()
     return False
 
+
 def send_udp():
     """Sends the UDP packet to the destination port."""
-    time.sleep(1) # wait for capture to start
+    time.sleep(1)  # wait for capture to start
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(PAYLOAD, ("127.0.0.1", PORT))
     sock.close()
+
 
 def main():
     print("--- Starting Milestone 1 Integration Test ---")
@@ -66,6 +69,7 @@ def main():
         print("--- Milestone 1 Test: PASSED ---")
     else:
         print("--- Milestone 1 Test: FAILED ---")
+
 
 if __name__ == "__main__":
     main()

@@ -13,11 +13,8 @@ from .bpf import (
     LIBBPF_PRINT_CB,
     RINGBUF_CB,
     BpfFilterRule,
-    BpfMap,
-    BpfObject,
     BpfTcHook,
     BpfTcOpts,
-    PydivertPktHeader,
     PydivertPacketBuffer,
     libbpf,
 )
@@ -136,9 +133,7 @@ class EBPFDivert(BaseDivert):
                     raise RuntimeError("pcap_ringbuf map missing.")
 
                 self._cb = RINGBUF_CB(self._ring_callback)
-                self._ringbuf = bpf.ring_buffer__new(
-                    bpf.bpf_map__fd(map_ptr), self._cb, None, None
-                )
+                self._ringbuf = bpf.ring_buffer__new(bpf.bpf_map__fd(map_ptr), self._cb, None, None)
                 if not self._ringbuf:
                     raise RuntimeError("Failed to create ring buffer.")
 
@@ -147,15 +142,9 @@ class EBPFDivert(BaseDivert):
 
                 # Load filter rules
                 logger.debug("Transpiling filter: %s", self.filter)
-                is_sniff = (Flag.SNIFF in self.flags) or (
-                    self.layer in (Layer.FLOW, Layer.SOCKET, Layer.REFLECT)
-                )
-                ebpf_filter_rules = transpile_to_ebpf(
-                    self.filter, sniff=is_sniff, drop=(Flag.DROP in self.flags)
-                )
-                rules_map_ptr = bpf.bpf_object__find_map_by_name(
-                    self._obj, b"filter_rules"
-                )
+                is_sniff = (Flag.SNIFF in self.flags) or (self.layer in (Layer.FLOW, Layer.SOCKET, Layer.REFLECT))
+                ebpf_filter_rules = transpile_to_ebpf(self.filter, sniff=is_sniff, drop=(Flag.DROP in self.flags))
+                rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
                 if rules_map_ptr:
                     rules_fd = bpf.bpf_map__fd(rules_map_ptr)
 
@@ -163,9 +152,7 @@ class EBPFDivert(BaseDivert):
                     empty_rule = BpfFilterRule()
                     for i in range(64):
                         key = ctypes.c_uint32(i)
-                        bpf.bpf_map_update_elem(
-                            rules_fd, ctypes.byref(key), ctypes.byref(empty_rule), 0
-                        )
+                        bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(empty_rule), 0)
 
                     # Fill map
                     for i, rule in enumerate(ebpf_filter_rules[:64]):
@@ -183,17 +170,11 @@ class EBPFDivert(BaseDivert):
                             tcp_flags=rule["tcp_flags"],
                             tcp_flags_mask=rule["tcp_flags_mask"],
                         )
-                        bpf.bpf_map_update_elem(
-                            rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0
-                        )
+                        bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)
 
                 # Attach TC hooks
-                prog_ingress = bpf.bpf_object__find_program_by_name(
-                    self._obj, b"tc_divert_ingress"
-                )
-                prog_egress = bpf.bpf_object__find_program_by_name(
-                    self._obj, b"tc_divert_egress"
-                )
+                prog_ingress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_ingress")
+                prog_egress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_egress")
 
                 if not prog_ingress or not prog_egress:
                     raise RuntimeError("Failed to find BPF programs.")
@@ -210,9 +191,7 @@ class EBPFDivert(BaseDivert):
                     logger.debug("Attaching TC hooks to %s (%d)", ifname, ifindex)
 
                     # Ingress
-                    hook_ingress = BpfTcHook(
-                        sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1
-                    )
+                    hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
                     except Exception:
@@ -224,18 +203,11 @@ class EBPFDivert(BaseDivert):
                         flags=0,
                         priority=tc_priority,
                     )
-                    if (
-                        bpf.bpf_tc_attach(
-                            ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)
-                        )
-                        == 0
-                    ):
+                    if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:
                         self._hooks.append((hook_ingress, opts_ingress))
 
                     # Egress
-                    hook_egress = BpfTcHook(
-                        sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2
-                    )
+                    hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
                     except Exception:
@@ -247,33 +219,20 @@ class EBPFDivert(BaseDivert):
                         flags=0,
                         priority=tc_priority,
                     )
-                    if (
-                        bpf.bpf_tc_attach(
-                            ctypes.byref(hook_egress), ctypes.byref(opts_egress)
-                        )
-                        == 0
-                    ):
+                    if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
                         self._hooks.append((hook_egress, opts_egress))
 
                 if not self._hooks:
                     raise RuntimeError("Failed to attach eBPF hooks to any interface.")
 
             if Flag.RECV_ONLY not in self.flags:
-                self._raw_sock = socket.socket(
-                    socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW
-                )
-                self._raw_sock.setsockopt(
-                    socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK
-                )
+                self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+                self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
                 self._raw_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
                 try:
-                    self._raw_sock6 = socket.socket(
-                        socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW
-                    )
-                    self._raw_sock6.setsockopt(
-                        socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK
-                    )
+                    self._raw_sock6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
+                    self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
                     if hasattr(socket, "IPV6_HDRINCL"):
                         self._raw_sock6.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HDRINCL, 1)
                 except OSError:
@@ -305,9 +264,7 @@ class EBPFDivert(BaseDivert):
                 b"\x00\x00\x00\x02",
             ):
                 actual_l2_len = 4
-            elif pkt_len > 14 and (
-                raw_frame[14] == 0x45 or (raw_frame[14] & 0xF0) == 0x60
-            ):
+            elif pkt_len > 14 and (raw_frame[14] == 0x45 or (raw_frame[14] & 0xF0) == 0x60):
                 actual_l2_len = 14
 
         p = Packet(
@@ -318,12 +275,7 @@ class EBPFDivert(BaseDivert):
         )
 
         # Basic loopback detection based on IP addresses
-        if (
-            p.src_addr == "127.0.0.1"
-            or p.dst_addr == "127.0.0.1"
-            or p.src_addr == "::1"
-            or p.dst_addr == "::1"
-        ):
+        if p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1" or p.src_addr == "::1" or p.dst_addr == "::1":
             p.is_loopback = True
 
         if self.layer == Layer.FLOW:
@@ -343,7 +295,7 @@ class EBPFDivert(BaseDivert):
     def _close_impl(self):
         # Signal that we are closing
         self._is_open = False
-        
+
         # Cancel any pending futures
         if hasattr(self, "_recv_futures") and self._recv_futures:
             for fut in self._recv_futures:
@@ -367,7 +319,7 @@ class EBPFDivert(BaseDivert):
                     self._ringbuf = None
                     time.sleep(0.05)
                     bpf.ring_buffer__free(ringbuf)
-                    
+
                 bpf.bpf_object__close(self._obj)
             self._obj = None
             if self._raw_sock:
@@ -377,9 +329,7 @@ class EBPFDivert(BaseDivert):
                 self._raw_sock6.close()
                 self._raw_sock6 = None
 
-    def _recv_impl(
-        self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None
-    ) -> Packet:
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -397,9 +347,7 @@ class EBPFDivert(BaseDivert):
 
         return self._queue.pop(0)
 
-    def _recv_batch_impl(
-        self, count: int, bufsize: int, timeout: float | None
-    ) -> list[Packet]:
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")
 
@@ -459,11 +407,7 @@ class EBPFDivert(BaseDivert):
         # Choose socket and possibly bind to interface
         sock = self._raw_sock6 if packet.ipv6 else self._raw_sock
         if not sock:
-            msg = (
-                "IPv6 raw socket not available"
-                if packet.ipv6
-                else "IPv4 raw socket not available"
-            )
+            msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
             raise OSError(errno.EAFNOSUPPORT, msg)
 
         # For loopback re-injection, some kernels require explicit binding or
@@ -479,9 +423,7 @@ class EBPFDivert(BaseDivert):
 
         return sock.sendto(packet.raw, (dst_addr, 0))
 
-    async def _recv_async_impl(
-        self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None
-    ) -> Packet:
+    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         import asyncio
 
         if Flag.SEND_ONLY in self.flags:
@@ -497,9 +439,7 @@ class EBPFDivert(BaseDivert):
 
         return await asyncio.to_thread(self._send_impl, packet, recalculate_checksum)
 
-    async def _recv_batch_async_impl(
-        self, count: int, bufsize: int, timeout: float | None
-    ) -> list[Packet]:
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         packets = []
         try:
             p = await self._recv_async_impl(bufsize, timeout)

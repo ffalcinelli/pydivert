@@ -1,4 +1,3 @@
-
 import pytest
 
 from pydivert import Divert, Flag

@@ -101,13 +101,17 @@ def test_example_modification():
 def flow_layer_diverter(port, stop_event, events):
     try:
         print(f"Flow diverter starting for port {port}")
-        with pydivert.Divert(f"tcp.DstPort == {port} or tcp.SrcPort == {port}", layer=Layer.FLOW, flags=Flag.RECV_ONLY) as w:
+        with pydivert.Divert(
+            f"tcp.DstPort == {port} or tcp.SrcPort == {port}", layer=Layer.FLOW, flags=Flag.RECV_ONLY
+        ) as w:
             while not stop_event.is_set():
-
                 try:
                     event = w.recv(timeout=0.1)
                     if event.flow:
-                        print(f"Captured flow: LPort={event.flow.LocalPort}, RPort={event.flow.RemotePort}, Proto={event.flow.Protocol}")
+                        print(
+                            f"Captured flow: LPort={event.flow.LocalPort}, "
+                            f"RPort={event.flow.RemotePort}, Proto={event.flow.Protocol}"
+                        )
                     if event.flow and (event.flow.LocalPort == port or event.flow.RemotePort == port):
                         print("Found our flow!")
                         events.append(event)
@@ -314,6 +318,7 @@ def test_example_pattern_matching():
     raw[22:24] = b"\x00\x50"  # port 80
 
     from pydivert.packet.tcp import TCPHeader
+
     p = pydivert.Packet(raw, direction=1)
 
     match p:

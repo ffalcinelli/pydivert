@@ -31,9 +31,6 @@ import pydivert
 # see <https://www.gnu.org/licenses/>.
 
 
-
-
-
 def test_ipv6_traffic_class_flow_label_integration():
     """
     Integration test for IPv6 traffic_class and flow_label.

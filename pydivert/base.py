@@ -115,8 +115,13 @@ class BaseDivert(abc.ABC):
 
         self._open_impl()
         self._is_open = True
-        logger.info("Divert handle opened (filter=%r, layer=%s, priority=%d, flags=%s)",
-                    self.filter, self.layer, self.priority, self.flags)
+        logger.info(
+            "Divert handle opened (filter=%r, layer=%s, priority=%d, flags=%s)",
+            self.filter,
+            self.layer,
+            self.priority,
+            self.flags,
+        )
         return self
 
     def close(self) -> None:

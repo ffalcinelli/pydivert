@@ -31,9 +31,6 @@ import pydivert
 # see <https://www.gnu.org/licenses/>.
 
 
-
-
-
 def run_recv_no_open(queue):
     try:
         w = pydivert.Divert("false")

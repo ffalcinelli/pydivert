@@ -95,12 +95,14 @@ def test_base_state_management():
     with pytest.raises(RuntimeError, match="not open"):
         w.close()
 
+
 def test_base_properties():
     w = MockBackend(filter="tcp", layer=Layer.NETWORK, priority=100, flags=Flag.SNIFF)
     assert w.filter == "tcp"
     assert w.layer == Layer.NETWORK
     assert w.priority == 100
     assert w.flags == Flag.SNIFF
+
 
 @pytest.mark.asyncio
 async def test_base_async_state_management():

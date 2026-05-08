@@ -21,7 +21,7 @@ def test_external_traffic_capture():
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                 s.settimeout(1.0)
                 # DNS query for example.com (simplified)
-                dns_query = b'\xaa\xaa\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01'
+                dns_query = b"\xaa\xaa\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01"
                 try:
                     s.sendto(dns_query, ("8.8.8.8", 53))
                 except OSError as e:
@@ -37,7 +37,7 @@ def test_external_traffic_capture():
 
     except (PermissionError, OSError) as e:
         if "WinError 10042" in str(e) or "privileges" in str(e).lower() or "root" in str(e).lower():
-             pytest.skip(f"Test requires administrator/root privileges: {e}")
+            pytest.skip(f"Test requires administrator/root privileges: {e}")
         raise
     except ImportError:
         pytest.skip("Required dependencies missing.")

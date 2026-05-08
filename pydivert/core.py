@@ -42,9 +42,11 @@ class Divert(BaseDivert):
     def _get_implementation_class() -> type[BaseDivert]:
         if sys.platform == "win32":
             from pydivert.windivert import WinDivert
+
             return WinDivert
         if sys.platform.startswith("linux"):
             from pydivert.ebpf import EBPFDivert
+
             return EBPFDivert
 
         raise NotImplementedError(f"Unsupported platform: {sys.platform}. Divert only supports Windows and Linux.")

@@ -100,9 +100,7 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
 
     @reserved.setter
     def reserved(self, val: int):
-        self._view.off_res_flags = ((self.data_offset << 12) |
-                                    ((val & 0x07) << 9) |
-                                    (self.control_bits))
+        self._view.off_res_flags = (self.data_offset << 12) | ((val & 0x07) << 9) | (self.control_bits)
         self._packet._invalidate_checksums()
 
     @property
@@ -234,11 +232,15 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
     @property
     def cksum(self) -> int:
         return self._view.check
+
     @cksum.setter
-    def cksum(self, val: int): self._view.check = val
+    def cksum(self, val: int):
+        self._view.check = val
 
     @property
-    def urg_ptr(self) -> int: return self._view.urg_ptr
+    def urg_ptr(self) -> int:
+        return self._view.urg_ptr
+
     @urg_ptr.setter
     def urg_ptr(self, val: int):
         self._view.urg_ptr = val

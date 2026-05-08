@@ -19,6 +19,7 @@ class BpfTcHook(ctypes.Structure):
         ("reserved", ctypes.c_uint * 24),
     ]
 
+
 class BpfTcOpts(ctypes.Structure):
     _fields_ = [
         ("sz", ctypes.c_size_t),

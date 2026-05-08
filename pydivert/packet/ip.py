@@ -114,14 +114,17 @@ class IPv4Header(IPHeader):
     def hdr_len(self, val: int) -> None:
         if not (5 <= val <= 15):
             raise ValueError("IP header length must be between 5 and 15")
-        self._view.v_ihl = (0x40 | (val & 0x0F))
+        self._view.v_ihl = 0x40 | (val & 0x0F)
         self._packet._invalidate_checksums()
 
     @property
-    def header_len(self) -> int: return self.hdr_len * 4
+    def header_len(self) -> int:
+        return self.hdr_len * 4
 
     @property
-    def tos(self) -> int: return self._view.tos
+    def tos(self) -> int:
+        return self._view.tos
+
     @tos.setter
     def tos(self, val: int):
         self._view.tos = val
@@ -136,9 +139,12 @@ class IPv4Header(IPHeader):
         self.tos = (val << 2) | self.ecn
 
     @property
-    def dscp(self) -> int: return self.diff_serv
+    def dscp(self) -> int:
+        return self.diff_serv
+
     @dscp.setter
-    def dscp(self, val: int): self.diff_serv = val
+    def dscp(self, val: int):
+        self.diff_serv = val
 
     @property
     def ecn(self) -> int:
@@ -149,40 +155,53 @@ class IPv4Header(IPHeader):
         self.tos = (self.diff_serv << 2) | (val & 0x03)
 
     @property
-    def packet_len(self) -> int: return self._view.len
+    def packet_len(self) -> int:
+        return self._view.len
+
     @packet_len.setter
     def packet_len(self, val: int):
         self._view.len = val
         self._packet._invalidate_checksums()
 
     @property
-    def ident(self) -> int: return self._view.id
+    def ident(self) -> int:
+        return self._view.id
+
     @ident.setter
     def ident(self, val: int):
         self._view.id = val
         self._packet._invalidate_checksums()
 
     @property
-    def ttl(self) -> int: return self._view.ttl
+    def ttl(self) -> int:
+        return self._view.ttl
+
     @ttl.setter
     def ttl(self, val: int):
         self._view.ttl = val
         self._packet._invalidate_checksums()
 
     @property
-    def protocol(self) -> int: return self._view.proto
+    def protocol(self) -> int:
+        return self._view.proto
+
     @protocol.setter
     def protocol(self, val: int):
         self._view.proto = val
         self._packet._invalidate_checksums()
 
     @property
-    def cksum(self) -> int: return self._view.check
+    def cksum(self) -> int:
+        return self._view.check
+
     @cksum.setter
-    def cksum(self, val: int): self._view.check = val
+    def cksum(self, val: int):
+        self._view.check = val
 
     @property
-    def flags(self) -> int: return self._view.frag_off >> 13
+    def flags(self) -> int:
+        return self._view.frag_off >> 13
+
     @flags.setter
     def flags(self, val: int):
         self._view.frag_off = (val << 13) | (self._view.frag_off & 0x1FFF)
@@ -258,26 +277,35 @@ class IPv6Header(IPHeader):
     __repr_fields__ = ("dst_addr", "hop_limit", "next_hdr", "payload_len", "src_addr")
 
     @property
-    def payload_len(self) -> int: return self._view.payload_len
+    def payload_len(self) -> int:
+        return self._view.payload_len
+
     @payload_len.setter
     def payload_len(self, val: int):
         self._view.payload_len = val
         self._packet._invalidate_checksums()
 
     @property
-    def packet_len(self) -> int: return self.payload_len + 40
+    def packet_len(self) -> int:
+        return self.payload_len + 40
+
     @packet_len.setter
-    def packet_len(self, val: int): self.payload_len = val - 40
+    def packet_len(self, val: int):
+        self.payload_len = val - 40
 
     @property
-    def next_hdr(self) -> int: return self._view.next_hdr
+    def next_hdr(self) -> int:
+        return self._view.next_hdr
+
     @next_hdr.setter
     def next_hdr(self, val: int):
         self._view.next_hdr = val
         self._packet._invalidate_checksums()
 
     @property
-    def hop_limit(self) -> int: return self._view.hop_limit
+    def hop_limit(self) -> int:
+        return self._view.hop_limit
+
     @hop_limit.setter
     def hop_limit(self, val: int):
         self._view.hop_limit = val
@@ -289,7 +317,7 @@ class IPv6Header(IPHeader):
 
     @traffic_class.setter
     def traffic_class(self, val: int):
-        self._view.v_tc_fl = (0x60000000 | (val << 20) | (self._view.v_tc_fl & 0x000FFFFF))
+        self._view.v_tc_fl = 0x60000000 | (val << 20) | (self._view.v_tc_fl & 0x000FFFFF)
         self._packet._invalidate_checksums()
 
     @property
@@ -318,6 +346,9 @@ class IPv6Header(IPHeader):
         self.traffic_class = (val << 2) | self.ecn
 
     @property
-    def dscp(self) -> int: return self.diff_serv
+    def dscp(self) -> int:
+        return self.diff_serv
+
     @dscp.setter
-    def dscp(self, val: int): self.diff_serv = val
+    def dscp(self, val: int):
+        self.diff_serv = val

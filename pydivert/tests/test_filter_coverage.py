@@ -22,11 +22,12 @@ def test_transpiler_basic():
         "true",
         "ipv6",
         "ipv6.SrcAddr == ::1",
-        "ipv6.DstAddr == 2001:db8::1"
+        "ipv6.DstAddr == 2001:db8::1",
     ]
     for f in filters:
         rules = transpile_to_ebpf(f)
         assert isinstance(rules, list)
+
 
 def test_transpiler_errors():
     # Test supported filters (no longer raising)
@@ -38,15 +39,19 @@ def test_transpiler_errors():
     with pytest.raises(Exception, match=".*"):
         transpile_to_ebpf("something bogus")
 
+
 def test_normalize_filter():
     from pydivert.filter import normalize_filter
+
     assert "ip.SrcAddr" in normalize_filter("ip.src == 127.0.0.1")
     assert "tcp.SrcPort" in normalize_filter("tcp.port == 80")
     assert "true" == normalize_filter("true")
     assert "(ip.SrcAddr == 1.1.1.1 || ip.DstAddr == 1.1.1.1)" in normalize_filter("ip.addr == 1.1.1.1")
 
+
 def test_transpile_to_python():
     from pydivert.filter import transpile_to_python
+
     expr = transpile_to_python("tcp and tcp.DstPort == 80")
     assert "packet.tcp" in expr
     assert "packet.dst_port == 80" in expr

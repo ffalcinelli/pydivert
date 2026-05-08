@@ -33,30 +33,39 @@ class UDPHeader(Header, PortMixin, PayloadMixin):
             self._view = UDPStruct()
 
     @property
-    def src_port(self) -> int: return self._view.sport
+    def src_port(self) -> int:
+        return self._view.sport
+
     @src_port.setter
     def src_port(self, val: int):
         self._view.sport = val
         self._packet._invalidate_checksums()
 
     @property
-    def dst_port(self) -> int: return self._view.dport
+    def dst_port(self) -> int:
+        return self._view.dport
+
     @dst_port.setter
     def dst_port(self, val: int):
         self._view.dport = val
         self._packet._invalidate_checksums()
 
     @property
-    def payload_len(self) -> int: return self._view.len - 8
+    def payload_len(self) -> int:
+        return self._view.len - 8
+
     @payload_len.setter
     def payload_len(self, val: int):
         self._view.len = val + 8
         self._packet._invalidate_checksums()
 
     @property
-    def cksum(self) -> int: return self._view.check
+    def cksum(self) -> int:
+        return self._view.check
+
     @cksum.setter
-    def cksum(self, val: int): self._view.check = val
+    def cksum(self, val: int):
+        self._view.check = val
 
     @property
     def payload(self) -> bytes:

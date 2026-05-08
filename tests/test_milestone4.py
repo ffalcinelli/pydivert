@@ -3,6 +3,8 @@ import pytest
 import logging
 
 import sys
+
+
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Kernel test for Linux")
 def test_ebpf_stats_increment():
     import pydivert
@@ -16,7 +18,7 @@ def test_ebpf_stats_increment():
             initial_stats = w.stats()
 
             # Send 5 packets
-            packet = IP(dst="127.0.0.1")/UDP(sport=1234, dport=9999)
+            packet = IP(dst="127.0.0.1") / UDP(sport=1234, dport=9999)
             for _ in range(5):
                 send(packet, verbose=False, iface="lo")
 
@@ -30,6 +32,7 @@ def test_ebpf_stats_increment():
     except (ImportError, PermissionError):
         pytest.skip("EBPF/Scapy not available or permission denied")
 
+
 def test_structured_logging(caplog):
     caplog.set_level(logging.DEBUG, logger="pydivert.capture")
 
@@ -40,10 +43,12 @@ def test_structured_logging(caplog):
 
     assert "Test log entry" in caplog.text
 
+
 def test_type_safety_smoke():
     # Simple check to ensure classes have basic type hints (can't easily check full PEP 484 via pytest)
     import pydivert.base
     from typing import get_type_hints
+
     hints = get_type_hints(pydivert.base.BaseDivert.__init__)
     assert "filter" in hints
     assert "layer" in hints

@@ -18,6 +18,7 @@ class ICMPStruct(ctypes.BigEndianStructure):
         ("data", ctypes.c_uint32),
     ]
 
+
 class ICMPHeader(Header, PayloadMixin):
     __slots__ = ("_view",)
     __match_args__ = ("type", "code", "cksum")
@@ -32,23 +33,30 @@ class ICMPHeader(Header, PayloadMixin):
             self._view = ICMPStruct()
 
     @property
-    def type(self) -> int: return self._view.type
+    def type(self) -> int:
+        return self._view.type
+
     @type.setter
     def type(self, val: int):
         self._view.type = val
         self._packet._invalidate_checksums()
 
     @property
-    def code(self) -> int: return self._view.code
+    def code(self) -> int:
+        return self._view.code
+
     @code.setter
     def code(self, val: int):
         self._view.code = val
         self._packet._invalidate_checksums()
 
     @property
-    def cksum(self) -> int: return self._view.check
+    def cksum(self) -> int:
+        return self._view.check
+
     @cksum.setter
-    def cksum(self, val: int): self._view.check = val
+    def cksum(self, val: int):
+        self._view.check = val
 
 
 class ICMPv4Header(ICMPHeader):

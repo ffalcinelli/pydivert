@@ -79,7 +79,7 @@ class Packet:
             self._ip_checksum = bool(wd_addr.IPChecksum)
             self._tcp_checksum = bool(wd_addr.TCPChecksum)
             self._udp_checksum = bool(wd_addr.UDPChecksum)
-            self._icmp_checksum = True # WinDivert doesn't have a separate ICMP flag, assume True
+            self._icmp_checksum = True  # WinDivert doesn't have a separate ICMP flag, assume True
             self._layer = wd_addr.Layer
             self._event = wd_addr.Event
             self._flow = wd_addr.u.Flow if self._layer == Layer.FLOW else None
@@ -109,8 +109,8 @@ class Packet:
 
     def __repr__(self) -> str:
         return (
-            f'<Packet {self.protocol[0]} from={self.src_addr}:{self.src_port} '
-            f'to={self.dst_addr}:{self.dst_port} len={len(self.raw)}>'
+            f"<Packet {self.protocol[0]} from={self.src_addr}:{self.src_port} "
+            f"to={self.dst_addr}:{self.dst_port} len={len(self.raw)}>"
         )
 
     @property
@@ -173,11 +173,11 @@ class Packet:
                 if len(self._raw) < offset + 2:
                     break
                 next_proto = self._raw[offset]
-                if proto == 44: # Fragment Header is fixed 8 bytes
+                if proto == 44:  # Fragment Header is fixed 8 bytes
                     hdr_len = 8
-                elif proto == 51: # AH Header length is in 4-byte units, -2
+                elif proto == 51:  # AH Header length is in 4-byte units, -2
                     hdr_len = (self._raw[offset + 1] + 2) * 4
-                else: # Others use 8-byte units
+                else:  # Others use 8-byte units
                     hdr_len = (self._raw[offset + 1] + 1) * 8
 
                 proto = next_proto
@@ -264,9 +264,12 @@ class Packet:
         self._wd_addr.Loopback = 1 if val else 0
 
     @property
-    def loopback(self) -> bool: return self.is_loopback
+    def loopback(self) -> bool:
+        return self.is_loopback
+
     @loopback.setter
-    def loopback(self, val: bool) -> None: self.is_loopback = val
+    def loopback(self, val: bool) -> None:
+        self.is_loopback = val
 
     @property
     def is_impostor(self) -> bool:
@@ -279,9 +282,12 @@ class Packet:
         self._wd_addr.Impostor = 1 if val else 0
 
     @property
-    def impostor(self) -> bool: return self.is_impostor
+    def impostor(self) -> bool:
+        return self.is_impostor
+
     @impostor.setter
-    def impostor(self, val: bool) -> None: self.is_impostor = val
+    def impostor(self, val: bool) -> None:
+        self.is_impostor = val
 
     @property
     def is_sniffed(self) -> bool:
@@ -294,9 +300,12 @@ class Packet:
         self._wd_addr.Sniffed = 1 if val else 0
 
     @property
-    def sniffed(self) -> bool: return self.is_sniffed
+    def sniffed(self) -> bool:
+        return self.is_sniffed
+
     @sniffed.setter
-    def sniffed(self, val: bool) -> None: self.is_sniffed = val
+    def sniffed(self, val: bool) -> None:
+        self.is_sniffed = val
 
     @property
     def is_inbound(self) -> bool:
@@ -327,6 +336,7 @@ class Packet:
         self._wd_addr.Layer = val
         # Clear union when layer changes
         import ctypes
+
         ctypes.memset(ctypes.byref(self._wd_addr.u), 0, ctypes.sizeof(self._wd_addr.u))
         # Sync back the relevant fields for the new layer
         if val in (Layer.NETWORK, Layer.NETWORK_FORWARD):
@@ -436,8 +446,10 @@ class Packet:
     def ip_checksum(self) -> bool:
         """True if the IP checksum is valid."""
         import os
+
         if os.name != "nt" and self.ipv4:
             from pydivert.util import internet_checksum
+
             ihl = self.ipv4.hdr_len * 4
             return internet_checksum(self._raw[:ihl]) == 0
         return self._ip_checksum or bool(self._wd_addr.IPChecksum)
@@ -451,6 +463,7 @@ class Packet:
     def tcp_checksum(self) -> bool:
         """True if the TCP checksum is valid."""
         import os
+
         if os.name == "nt":
             return self._tcp_checksum or bool(self._wd_addr.TCPChecksum)
         return self._tcp_checksum
@@ -464,6 +477,7 @@ class Packet:
     def udp_checksum(self) -> bool:
         """True if the UDP checksum is valid."""
         import os
+
         if os.name == "nt":
             return self._udp_checksum or bool(self._wd_addr.UDPChecksum)
         return self._udp_checksum
@@ -477,6 +491,7 @@ class Packet:
     def icmp_checksum(self) -> bool:
         """True if the ICMP checksum is valid."""
         from pydivert.util import internet_checksum
+
         if self.icmp:
             return internet_checksum(self.icmp.raw) == 0
         return self._icmp_checksum
@@ -499,15 +514,16 @@ class Packet:
     def is_checksum_valid(self) -> bool:
         """True if all present checksums are valid."""
         import os
+
         if os.name == "nt":
             # On Windows, we trust the flags in wd_addr or our internal ones
             res = True
             if self.ipv4:
-                res &= (self._ip_checksum or bool(self._wd_addr.IPChecksum))
+                res &= self._ip_checksum or bool(self._wd_addr.IPChecksum)
             if self.tcp:
-                res &= (self._tcp_checksum or bool(self._wd_addr.TCPChecksum))
+                res &= self._tcp_checksum or bool(self._wd_addr.TCPChecksum)
             if self.udp:
-                res &= (self._udp_checksum or bool(self._wd_addr.UDPChecksum))
+                res &= self._udp_checksum or bool(self._wd_addr.UDPChecksum)
             if self.icmp:
                 res &= self.icmp_checksum
             return res
@@ -530,6 +546,7 @@ class Packet:
         (Only supported on Windows)
         """
         import sys
+
         if sys.platform != "win32":
             raise NotImplementedError("matches() is only supported on Windows.")
         self._populate_wd_addr()
@@ -578,10 +595,12 @@ class Packet:
 
     def recalculate_checksums(self, flags: int = 0) -> int:
         import os
+
         if os.name != "nt":
             # Recalculate all present checksums
             count = 0
             from pydivert.util import internet_checksum
+
             if self.ipv4:
                 ihl = self.ipv4.hdr_len * 4
                 self.ipv4.cksum = 0
@@ -592,11 +611,12 @@ class Packet:
             if self.icmp:
                 self.icmp.cksum = 0
                 self.icmp.cksum = internet_checksum(self.icmp.raw)
-                self._icmp_checksum = True # Even if not explicitly checked in is_checksum_valid yet
+                self._icmp_checksum = True  # Even if not explicitly checked in is_checksum_valid yet
                 count += 1
 
             # For TCP/UDP we need pseudo-header logic.
             import socket
+
             l4 = self.tcp or self.udp
             if l4:
                 l4.cksum = 0
@@ -622,15 +642,14 @@ class Packet:
 
         self._populate_wd_addr()
         from pydivert import windivert_dll
+
         buff = (ctypes.c_char * len(self._raw)).from_buffer(self._raw)
         addr = self._wd_addr
         # Set checksum flags so the helper knows what to calculate
         addr.IPChecksum = 1
         addr.TCPChecksum = 1
         addr.UDPChecksum = 1
-        res = windivert_dll.WinDivertHelperCalcChecksums(
-            ctypes.byref(buff), len(self._raw), ctypes.byref(addr), flags
-        )
+        res = windivert_dll.WinDivertHelperCalcChecksums(ctypes.byref(buff), len(self._raw), ctypes.byref(addr), flags)
         if res:
             self._ip_checksum = bool(addr.IPChecksum) or (res > 0)
             self._tcp_checksum = bool(addr.TCPChecksum) or (res > 0)

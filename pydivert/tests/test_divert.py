@@ -33,8 +33,6 @@ from .fixtures import windivert_handle as w
 # see <https://www.gnu.org/licenses/>.
 
 
-
-
 assert scenario, w  # keep fixtures
 
 
