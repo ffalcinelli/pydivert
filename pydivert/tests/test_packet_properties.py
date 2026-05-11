@@ -15,17 +15,20 @@ st_ipv6 = st.ip_addresses(v=6).map(str)
 st_port = st.integers(min_value=0, max_value=65535)
 st_payload = st.binary(min_size=0, max_size=1500)
 
+
 def create_base_ipv4_tcp():
     raw = bytearray(b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
     raw += b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x00\x00\x00\x00"
     return Packet(raw)
 
+
 def create_base_ipv6_udp():
-    raw = bytearray(b"\x60\x00\x00\x00\x00\x08\x11\x40") # IPv6, next hdr UDP (17=0x11)
+    raw = bytearray(b"\x60\x00\x00\x00\x00\x08\x11\x40")  # IPv6, next hdr UDP (17=0x11)
     raw += socket.inet_pton(socket.AF_INET6, "::1")
     raw += socket.inet_pton(socket.AF_INET6, "::1")
-    raw += b"\x00\x00\x00\x00\x00\x08\x00\x00" # UDP header (len 8)
+    raw += b"\x00\x00\x00\x00\x00\x08\x00\x00"  # UDP header (len 8)
     return Packet(raw)
+
 
 @given(src=st_ipv4, dst=st_ipv4)
 def test_ipv4_address_property(src, dst):
@@ -35,6 +38,7 @@ def test_ipv4_address_property(src, dst):
     assert p.src_addr == src
     assert p.dst_addr == dst
     assert p.address_family == socket.AF_INET
+
 
 @given(src=st_ipv6, dst=st_ipv6)
 def test_ipv6_address_property(src, dst):
@@ -48,6 +52,7 @@ def test_ipv6_address_property(src, dst):
     assert p.dst_addr == expected_dst
     assert p.address_family == socket.AF_INET6
 
+
 @given(src_p=st_port, dst_p=st_port)
 def test_tcp_port_property(src_p, dst_p):
     p = create_base_ipv4_tcp()
@@ -55,6 +60,7 @@ def test_tcp_port_property(src_p, dst_p):
     p.dst_port = dst_p
     assert p.src_port == src_p
     assert p.dst_port == dst_p
+
 
 @given(src_p=st_port, dst_p=st_port)
 def test_udp_port_property(src_p, dst_p):
@@ -64,6 +70,7 @@ def test_udp_port_property(src_p, dst_p):
     assert p.src_port == src_p
     assert p.dst_port == dst_p
 
+
 @given(payload=st_payload)
 def test_payload_property(payload):
     p = create_base_ipv4_tcp()
@@ -72,6 +79,7 @@ def test_payload_property(payload):
     # Check that IP length was updated
     assert p.ipv4.packet_len == 40 + len(payload)
 
+
 @given(payload=st_payload)
 def test_checksum_recalculation_ipv4_tcp(payload):
     p = create_base_ipv4_tcp()
@@ -79,12 +87,14 @@ def test_checksum_recalculation_ipv4_tcp(payload):
     p.recalculate_checksums()
     assert p.is_checksum_valid
 
+
 @given(payload=st_payload)
 def test_checksum_recalculation_ipv6_udp(payload):
     p = create_base_ipv6_udp()
     p.payload = payload
     p.recalculate_checksums()
     assert p.is_checksum_valid
+
 
 @given(loopback=st.booleans(), impostor=st.booleans(), outbound=st.booleans())
 def test_packet_metadata_properties(loopback, impostor, outbound):
