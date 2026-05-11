@@ -1,3 +1,8 @@
+Version 3.1.2
+    - Documentation: Added Snyk security badge to README.
+    - CI/CD: Updated GitHub Actions workflows and refined security mandates.
+    - Maintenance: General dependency updates and minor improvements.
+
 Version 3.1.1
     - Performance Optimization: Added caching for WinDivertAddress in the Packet class to reduce overhead during metadata access.
     - Security & Reliability: Improved driver service management by ensuring WinDivert service stop failures are properly handled.
