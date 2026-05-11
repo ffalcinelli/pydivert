@@ -15,6 +15,7 @@ SERVICE_STOP = 0x0020
 # Service Control Codes
 SERVICE_CONTROL_STOP = 0x00000001
 
+
 class SERVICE_STATUS(ctypes.Structure):
     _fields_ = [
         ("dwServiceType", DWORD),
@@ -25,6 +26,7 @@ class SERVICE_STATUS(ctypes.Structure):
         ("dwCheckPoint", DWORD),
         ("dwWaitHint", DWORD),
     ]
+
 
 def _get_advapi32():
     try:  # pragma: no cover
@@ -46,6 +48,7 @@ def _get_advapi32():
     except (AttributeError, OSError):  # pragma: no cover
         return None
 
+
 def is_registered(service_name: str = "WinDivert") -> bool:
     """
     Check if the service is currently installed on the system using Win32 API.
@@ -66,6 +69,7 @@ def is_registered(service_name: str = "WinDivert") -> bool:
         return False
     finally:
         advapi32.CloseServiceHandle(scm)
+
 
 def stop_service(service_name: str = "WinDivert") -> bool:
     """

@@ -33,6 +33,7 @@ def test_is_registered_direct():
     reg = service.is_registered()
     assert isinstance(reg, bool)
 
+
 def test_register():
     # Clean state
     if WinDivert.is_registered():
@@ -52,6 +53,7 @@ def test_register():
         assert WinDivert.is_registered()
 
     assert WinDivert.is_registered()
+
 
 def test_unregister():
     # Ensure registered

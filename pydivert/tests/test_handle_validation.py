@@ -7,14 +7,17 @@ from pydivert.consts import Param
 from pydivert.windivert import WinDivert
 
 
-@pytest.mark.parametrize("method_name, args", [
-    ("recv", []),
-    ("recv_ex", []),
-    ("send", [MagicMock(spec=pydivert.Packet)]),
-    ("send_ex", [MagicMock(spec=pydivert.Packet)]),
-    ("get_param", [Param.QUEUE_LEN]),
-    ("set_param", [Param.QUEUE_LEN, 1024]),
-])
+@pytest.mark.parametrize(
+    "method_name, args",
+    [
+        ("recv", []),
+        ("recv_ex", []),
+        ("send", [MagicMock(spec=pydivert.Packet)]),
+        ("send_ex", [MagicMock(spec=pydivert.Packet)]),
+        ("get_param", [Param.QUEUE_LEN]),
+        ("set_param", [Param.QUEUE_LEN, 1024]),
+    ],
+)
 def test_sync_methods_raise_without_open(method_name, args):
     w = WinDivert("false")
     method = getattr(w, method_name)
