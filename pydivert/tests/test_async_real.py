@@ -1,6 +1,8 @@
 import asyncio
 import socket
+
 import pytest
+
 import pydivert
 
 

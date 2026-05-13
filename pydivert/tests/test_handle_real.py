@@ -1,4 +1,5 @@
 import pytest
+
 import pydivert
 from pydivert.packet import Packet
 

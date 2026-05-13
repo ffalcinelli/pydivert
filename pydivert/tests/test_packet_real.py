@@ -1,5 +1,7 @@
 import socket
+
 import pytest
+
 import pydivert
 
 

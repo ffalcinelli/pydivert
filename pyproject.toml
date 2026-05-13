@@ -59,7 +59,6 @@ docs = [
 ]
 lint = [
     "ruff>=0.1.0",
-    "isort>=5.13.0",
 ]
 typecheck = [
     "ty",
@@ -82,13 +81,12 @@ select = [
     "C",  # flake8-comprehensions
     "B",  # flake8-bugbear
     "UP", # pyupgrade
+    "I",  # isort
 ]
 ignore = []
 
-[tool.isort]
-profile = "black"
-line_length = 120
-known_first_party = ["pydivert"]
+[tool.ruff.lint.isort]
+known-first-party = ["pydivert"]
 
 [tool.ty.environment]
 python-platform = "win32"
