@@ -466,7 +466,25 @@ class Packet:
 
         if os.name == "nt":
             return self._tcp_checksum or bool(self._wd_addr.TCPChecksum)
-        return self._tcp_checksum
+
+        if not self.tcp:
+            return self._tcp_checksum
+
+        from pydivert.util import internet_checksum
+
+        l4 = self.tcp
+        proto = 6
+        pseudo_header = b""
+        if self.ipv4:
+            src = socket.inet_aton(self.src_addr)
+            dst = socket.inet_aton(self.dst_addr)
+            pseudo_header = struct.pack("!4s4sBBH", src, dst, 0, proto, len(l4.raw))
+        elif self.ipv6:
+            src = socket.inet_pton(socket.AF_INET6, self.src_addr)
+            dst = socket.inet_pton(socket.AF_INET6, self.dst_addr)
+            pseudo_header = src + dst + struct.pack("!I3xB", len(l4.raw), proto)
+
+        return internet_checksum(pseudo_header + l4.raw) == 0
 
     @tcp_checksum.setter
     def tcp_checksum(self, val: bool) -> None:
@@ -480,7 +498,25 @@ class Packet:
 
         if os.name == "nt":
             return self._udp_checksum or bool(self._wd_addr.UDPChecksum)
-        return self._udp_checksum
+
+        if not self.udp:
+            return self._udp_checksum
+
+        from pydivert.util import internet_checksum
+
+        l4 = self.udp
+        proto = 17
+        pseudo_header = b""
+        if self.ipv4:
+            src = socket.inet_aton(self.src_addr)
+            dst = socket.inet_aton(self.dst_addr)
+            pseudo_header = struct.pack("!4s4sBBH", src, dst, 0, proto, len(l4.raw))
+        elif self.ipv6:
+            src = socket.inet_pton(socket.AF_INET6, self.src_addr)
+            dst = socket.inet_pton(socket.AF_INET6, self.dst_addr)
+            pseudo_header = src + dst + struct.pack("!I3xB", len(l4.raw), proto)
+
+        return internet_checksum(pseudo_header + l4.raw) == 0
 
     @udp_checksum.setter
     def udp_checksum(self, val: bool) -> None:
@@ -490,9 +526,11 @@ class Packet:
     @property
     def icmp_checksum(self) -> bool:
         """True if the ICMP checksum is valid."""
-        from pydivert.util import internet_checksum
+        import os
 
-        if self.icmp:
+        if os.name != "nt" and self.icmp:
+            from pydivert.util import internet_checksum
+
             return internet_checksum(self.icmp.raw) == 0
         return self._icmp_checksum
 
