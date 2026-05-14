@@ -20,7 +20,9 @@ jobs:
             # Remove broken Google Chrome repository to avoid GPG errors
             sudo rm -f /etc/apt/sources.list.d/google*.list
             sudo apt-get update
-            sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) \
+            # Use DEBIAN_FRONTEND=noninteractive to avoid hangs on service restart prompts
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                                   clang llvm libbpf-dev linux-headers-$(uname -r) \
                                    linux-tools-common linux-tools-$(uname -r) \
                                    gcc-multilib
       - run:
