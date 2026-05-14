@@ -5,7 +5,45 @@ on:
     tags: [ 'v*' ]
 
 jobs:
+  wait-for-circleci:
+    name: Wait for CircleCI
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: read
+    steps:
+      - name: Wait for CircleCI to pass
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const maxAttempts = 30;
+            const delay = 20000; // 20 seconds
+
+            for (let i = 0; i < maxAttempts; i++) {
+              const { data: statuses } = await github.rest.repos.listCommitStatusesForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: context.sha,
+              });
+
+              const status = statuses.find(s => s.context.includes('circleci'));
+              
+              if (status) {
+                if (status.state === 'success') {
+                  console.log('CircleCI passed!');
+                  return;
+                }
+                if (status.state === 'failure' || status.state === 'error') {
+                  throw new Error(`CircleCI failed with state: ${status.state}`);
+                }
+              }
+
+              console.log(`Waiting for CircleCI... (Attempt ${i + 1}/${maxAttempts})`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+            throw new Error(`Timeout waiting for CircleCI`);
+
   lint:
+    needs: wait-for-circleci
     runs-on: ubuntu-latest
     permissions:
       contents: read
