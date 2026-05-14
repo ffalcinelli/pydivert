@@ -17,8 +17,12 @@ jobs:
       - run:
           name: Install system dependencies
           command: |
+            # Remove broken Google Chrome repository to avoid GPG errors
+            sudo rm -f /etc/apt/sources.list.d/google*.list
             sudo apt-get update
-            sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool gcc-multilib
+            sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) \
+                                   linux-tools-common linux-tools-$(uname -r) \
+                                   gcc-multilib
       - run:
           name: Install uv
           command: |
