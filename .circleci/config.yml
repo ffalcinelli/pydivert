@@ -38,15 +38,19 @@ jobs:
       - run:
           name: Prepare eBPF
           command: |
+            uname -a
+            ls -l /sys/kernel/btf/vmlinux || echo "BTF not found"
             sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
+            ls -l pydivert/bpf/vmlinux.h
             clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
+            ls -l pydivert/bpf/pydivert.bpf.o
       - run:
           name: Configure loopback
           command: sudo ethtool -K lo rx off tx off || true
       - run:
           name: Run tests
           command: |
-            sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+            sudo -E PYDIVERT_DEBUG_BPF=1 .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
       - run:
           name: Upload coverage
           command: |

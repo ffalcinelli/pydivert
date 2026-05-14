@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 
 # Silence libbpf's confusing warnings (like exclusivity flag on TC)
 def _libbpf_print(level, format_str, args):
-    # Enable for debugging
-    # print(f"libbpf: {format_str.decode('utf-8', 'replace').strip()}")
+    if os.environ.get("PYDIVERT_DEBUG_BPF") == "1":
+        print(f"libbpf: {format_str.decode('utf-8', 'replace').strip()}")
     return 0
 
 
