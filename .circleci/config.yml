@@ -1,0 +1,56 @@
+version: 2.1
+
+parameters:
+  python_version:
+    type: string
+    default: "3.12"
+
+jobs:
+  test-linux:
+    parameters:
+      py_version:
+        type: string
+    machine:
+      image: ubuntu-2204:2024.01.1
+    steps:
+      - checkout
+      - run:
+          name: Install system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool gcc-multilib
+      - run:
+          name: Install uv
+          command: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+      - run:
+          name: Install Python and dependencies
+          command: |
+            uv python install << parameters.py_version >>
+            uv sync --extra test --extra linux
+      - run:
+          name: Prepare eBPF
+          command: |
+            sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
+            clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
+      - run:
+          name: Configure loopback
+          command: sudo ethtool -K lo rx off tx off || true
+      - run:
+          name: Run tests
+          command: |
+            sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+      - run:
+          name: Upload coverage
+          command: |
+            bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test-linux:
+          matrix:
+            parameters:
+              py_version: ["3.10", "3.11", "3.12", "3.13"]
