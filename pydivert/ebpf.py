@@ -148,14 +148,14 @@ class EBPFDivert(BaseDivert):
                 if rules_map_ptr:
                     rules_fd = bpf.bpf_map__fd(rules_map_ptr)
 
-                    # Clear map (up to 64 rules)
+                    # Clear map (up to 16 rules unrolled in C)
                     empty_rule = BpfFilterRule()
-                    for i in range(64):
+                    for i in range(16):
                         key = ctypes.c_uint32(i)
                         bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(empty_rule), 0)
 
                     # Fill map
-                    for i, rule in enumerate(ebpf_filter_rules[:64]):
+                    for i, rule in enumerate(ebpf_filter_rules[:16]):
                         key = ctypes.c_uint32(i)
                         c_rule = BpfFilterRule(
                             src_ip=rule["src_ip"],

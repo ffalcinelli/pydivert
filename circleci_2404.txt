@@ -1,0 +1,11 @@
+Linux ip-10-0-97-215 6.14.0-1012-aws #12~24.04.1-Ubuntu SMP Fri Aug 15 00:16:05 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+-r--r--r-- 1 root root 6782376 May 15 04:47 /sys/kernel/btf/vmlinux
+^@^@WARNING: bpftool not found for kernel 6.14.0-1012
+
+  You may need to install the following packages for this specific kernel:
+    linux-tools-6.14.0-1012-aws
+    linux-cloud-tools-6.14.0-1012-aws
+
+  You may also want to install one of the following packages to keep up to date:
+    linux-tools-aws
+    linux-cloud-tools-aws

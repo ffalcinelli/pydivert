@@ -24,9 +24,10 @@ jobs:
             sudo apt-get update
             # Use DEBIAN_FRONTEND=noninteractive to avoid hangs on service restart prompts
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                                   clang llvm libbpf-dev linux-headers-$(uname -r) \
-                                   linux-tools-common linux-tools-$(uname -r) \
-                                   gcc-multilib
+                                   clang llvm libbpf-dev linux-headers-$(uname -r) gcc-multilib
+            # Standalone bpftool is available in Ubuntu 24.04+; fallback to kernel-tools for 22.04
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y bpftool || \
+                   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y linux-tools-common linux-tools-$(uname -r)
       - run:
           name: Install uv
           command: |
@@ -52,7 +53,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            sudo -E PYDIVERT_DEBUG_BPF=1 .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+            sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
       - run:
           name: Upload coverage
           command: |

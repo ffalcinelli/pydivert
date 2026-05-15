@@ -4,27 +4,9 @@
 Vagrant.configure("2") do |config|
   config.vm.synced_folder ".", "/pydivert"
 
-  # --- Linux VMs (eBPF support) ---
-  config.vm.define "linux-2404" do |linux|
-    linux.vm.box = "bento/ubuntu-24.04"
-    linux.vm.hostname = "pydivert-linux-2404"
-    linux.vm.provider "virtualbox" do |vb|
-      vb.memory = "2048"
-      vb.cpus = 2
-    end
-    linux.vm.provision "shell", inline: <<-SHELL
-      apt-get update
-      apt-get install -y python3-pip python3-venv libbpf-dev clang llvm libelf-dev
-      curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
-      cd /pydivert
-      uv sync --extra test --extra linux
-    SHELL
-
-    linux.vm.provision "test-linux", type: "shell", path: "scripts/run-tests-linux.sh", run: "never"
-  end
-
+  # --- Linux VM (eBPF support) ---
   config.vm.define "linux-2204" do |linux|
-    linux.vm.box = "bento/ubuntu-22.04"
+    linux.vm.box = "ubuntu/jammy64"
     linux.vm.hostname = "pydivert-linux-2204"
     linux.vm.provider "virtualbox" do |vb|
       vb.memory = "2048"

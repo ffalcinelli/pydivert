@@ -200,7 +200,7 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     struct filter_rule *matched_rule = NULL;
 
     #pragma unroll
-    for (__u32 i = 0; i < 32; i++) {
+    for (__u32 i = 0; i < 16; i++) {
         __u32 key = i;
         struct filter_rule *rule = bpf_map_lookup_elem(&filter_rules, &key);
         if (!rule || rule->match_mask == 0) break;
