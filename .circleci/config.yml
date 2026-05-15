@@ -10,8 +10,10 @@ jobs:
     parameters:
       py_version:
         type: string
+      os_image:
+        type: string
     machine:
-      image: ubuntu-2204:2024.01.1
+      image: << parameters.os_image >>
     steps:
       - checkout
       - run:
@@ -64,3 +66,4 @@ workflows:
           matrix:
             parameters:
               py_version: ["3.10", "3.11", "3.12", "3.13"]
+              os_image: ["ubuntu-2204:2024.01.1", "ubuntu-2404:current"]

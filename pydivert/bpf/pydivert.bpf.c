@@ -244,12 +244,12 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     return TC_ACT_STOLEN;
 }
 
-SEC("tc")
+SEC("classifier")
 int tc_divert_ingress(struct __sk_buff *skb) {
     return process_packet(skb, 1);
 }
 
-SEC("tc")
+SEC("classifier")
 int tc_divert_egress(struct __sk_buff *skb) {
     return process_packet(skb, 2);
 }
