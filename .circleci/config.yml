@@ -1,0 +1,19 @@
+version: 2.1
+
+# This configuration is intended to disable CircleCI builds and checks for this repository.
+# All jobs and workflows have been removed or set to do nothing.
+
+jobs:
+  disabled:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - run:
+          name: "CircleCI is disabled"
+          command: echo "CircleCI builds and checks are disabled for this project."
+
+workflows:
+  version: 2
+  disable-workflow:
+    jobs:
+      - disabled
