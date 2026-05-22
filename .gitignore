@@ -48,3 +48,4 @@ coverage*
 linux_ssh_config
 windows_ssh_config
 gha-creds-*.json
+.antigravitycli/

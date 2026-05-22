@@ -526,9 +526,7 @@ class Packet:
     @property
     def icmp_checksum(self) -> bool:
         """True if the ICMP checksum is valid."""
-        import os
-
-        if os.name != "nt" and self.icmp:
+        if self.icmp:
             from pydivert.util import internet_checksum
 
             return internet_checksum(self.icmp.raw) == 0

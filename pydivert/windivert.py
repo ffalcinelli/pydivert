@@ -232,6 +232,8 @@ class WinDivert(BaseDivert):
                             raise TimeoutError() from None
                     else:
                         await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+                    from pydivert.windivert_dll import windll
+                    windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(recv_len), False)
                 else:
                     raise windivert_dll.WinError(error)
             self._pending_ops.remove(overlapped)
@@ -324,6 +326,8 @@ class WinDivert(BaseDivert):
                 if error == windivert_dll.ERROR_IO_PENDING:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+                    from pydivert.windivert_dll import windll
+                    windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(send_len), False)
                 else:
                     raise windivert_dll.WinError(error)
 
