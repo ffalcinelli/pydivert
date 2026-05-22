@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,10 +13,12 @@ os.chdir(root)
 
 
 def get_tags():
-    """Retrieve and sort all tags starting with 'v'."""
+    """Retrieve and sort all tags starting with 'v' that follow a strict version pattern."""
     try:
         output = subprocess.check_output(["git", "tag", "-l", "v*"]).decode("utf-8")
-        tags = [t.strip() for t in output.split("\n") if t.strip()]
+        # Strict validation: only accept tags that match ^v\d+(\.\d+)*$
+        tag_pattern = re.compile(r"^v\d+(\.\d+)*$")
+        tags = [t.strip() for t in output.split("\n") if t.strip() and tag_pattern.match(t.strip())]
 
         def sort_key(tag):
             # Parse version into integer tuple for proper sorting (e.g. v3.1.0 -> (3, 1, 0))
@@ -137,7 +140,6 @@ def main():  # noqa: C901
         print("Error: 'pdoc' is not installed.")
         print("Please run the build script using: uv run --extra docs python docs/build.py")
         sys.exit(1)
-
     site_dir = os.path.join(root, "site")
     if os.path.exists(site_dir):
         shutil.rmtree(site_dir)
@@ -175,7 +177,10 @@ def main():  # noqa: C901
                     shutil.rmtree(out_dir)
             finally:
                 if os.path.exists(wt_dir):
-                    subprocess.run(["git", "worktree", "remove", "-f", wt_dir], check=False, capture_output=True)
+                    # Use shutil.rmtree for safe directory removal
+                    shutil.rmtree(wt_dir, ignore_errors=True)
+                    # Prune the git worktree list without using dynamic paths in the command
+                    subprocess.run(["git", "worktree", "prune"], check=False, capture_output=True)
 
     # Build the latest (main) documentation
     print("Building latest documentation (current branch)...")

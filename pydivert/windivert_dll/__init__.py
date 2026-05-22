@@ -53,8 +53,12 @@ try:
         c_uint64,
         c_void_p,
     )
-    from ctypes import WinDLL as _WinDLL
-    from ctypes import windll as _windll
+    from ctypes import (
+        WinDLL as _WinDLL,
+    )
+    from ctypes import (
+        windll as _windll,
+    )
 
     windll = _windll
     WinDLL = _WinDLL
