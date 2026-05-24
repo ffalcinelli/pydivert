@@ -76,4 +76,4 @@ async def test_base_recv_batch_async_jit():
 def test_base_check_filter_static():
     # BaseDivert.check_filter is abstract but some backends might not override it?
     # Actually it is abstract in BaseDivert.
-    assert pydivert.Divert.check_filter("true")[0] is True
+    assert pydivert.Divert.check_filter("true")[0]

@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 import ctypes
 import errno
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import pydivert
 import pydivert.ebpf
+
+pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="eBPF only supported on Linux")
 
 
 def test_ebpf_unsupported_layer():
