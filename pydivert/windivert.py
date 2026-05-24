@@ -250,7 +250,7 @@ class WinDivert(BaseDivert):
         packets = []
         for i in range(count):
             try:
-                t = timeout if i == 0 else 0.001
+                t = timeout if i == 0 else 0.2
                 packets.append(await self._recv_async_impl(bufsize, t))
             except (TimeoutError, Exception):
                 break
