@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import pytest
 import pydivert.jit
 from pydivert import Packet
+
 
 def test_jit_comprehensive_evaluation():
     """
     Test all AST node visitors in jit.py to reach 100% coverage.
     """
-    raw = (b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01" +
-           b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00")
+    raw = (
+        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
+        + b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
+    )
     packet = Packet(raw)
 
     # Constant, Name, and basic bool
@@ -55,11 +57,12 @@ def test_jit_comprehensive_evaluation():
 
     # Error handling and unsupported nodes
     assert pydivert.jit.compile_filter("invalid + syntax")(packet) is False  # SyntaxError handled
-    
+
     # Test that evaluation failures (like unsupported ops) return False
     # (SafeEvaluator.generic_visit raises ValueError, compile_filter catches it)
-    assert pydivert.jit.compile_filter("1 ** 2")(packet) is False 
+    assert pydivert.jit.compile_filter("1 ** 2")(packet) is False
     assert pydivert.jit.compile_filter("unknown_name")(packet) is False
+
 
 def test_jit_malformed_attribute():
     packet = Packet(b"too short")

@@ -331,7 +331,6 @@ def test_example_pattern_matching():
     raw[9] = 6
     raw[22:24] = b"\x00\x50"  # port 80
 
-
     from pydivert.packet.tcp import TCPHeader
 
     p = pydivert.Packet(raw, direction=pydivert.Direction.INBOUND)

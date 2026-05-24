@@ -126,4 +126,6 @@ exclude_lines = [
 ]
 
 [dependency-groups]
-dev = []
+dev = [
+    "pre-commit",
+]

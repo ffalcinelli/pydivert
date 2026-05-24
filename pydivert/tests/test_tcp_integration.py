@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-import pytest
+
 import pydivert
-import socket
-import threading
+
 
 def test_tcp_properties_and_flags():
     """
@@ -11,8 +10,10 @@ def test_tcp_properties_and_flags():
     # Minimal setup to avoid scenario fixture conflicts
     with pydivert.Divert("tcp", interfaces=["lo"]) as w:
         # Create a dummy TCP packet
-        raw = (b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01" +
-               b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00")
+        raw = (
+            b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
+            + b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
+        )
         packet = pydivert.Packet(raw)
         assert packet.tcp is not None
 
@@ -58,22 +59,28 @@ def test_tcp_properties_and_flags():
         packet.dst_addr = "127.0.0.1"
         w.send(packet)
 
+
 def test_tcp_ipv6_payload_len():
     """
     Test TCP payload_len property on IPv6 packets.
     """
     # Dummy IPv6 TCP packet
-    raw = (b"\x60\x00\x00\x00\x00\x14\x06\x40" + b"\x00"*16 + b"\x00"*15 + b"\x01" +
-           b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00")
+    raw = (
+        b"\x60\x00\x00\x00\x00\x14\x06\x40"
+        + b"\x00" * 16
+        + b"\x00" * 15
+        + b"\x01"
+        + b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
+    )
     packet = pydivert.Packet(raw)
     assert packet.ipv6 is not None
     assert packet.tcp is not None
     # IPv6 payload_len is 20, TCP header is 20, so TCP payload is 0 in this dummy
     assert packet.tcp.payload_len == 0
-    
+
     # Add some payload
     packet.raw = packet.raw.tobytes() + b"payload"
     # Need to update IPv6 payload_len manually or via recalculate_checksums?
     # Actually payload_len property uses packet.raw length for IPv6 fallback or packet.ipv6.payload_len
-    packet.ipv6.payload_len = 27 # 20 (tcp) + 7 (payload)
+    packet.ipv6.payload_len = 27  # 20 (tcp) + 7 (payload)
     assert packet.tcp.payload_len == 7
