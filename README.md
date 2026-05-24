@@ -1,7 +1,7 @@
 # PyDivert
 
 [![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
-[![circleci](https://circleci.com/gh/ffalcinelli/pydivert.svg?style=svg)](https://circleci.com/gh/ffalcinelli/pydivert)
+[![circleci](https://circleci.com/gh/ffalcinelli/pydivert.svg?style=shield)](https://circleci.com/gh/ffalcinelli/pydivert)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/main.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![latest_release](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 [![docs](https://img.shields.io/badge/docs-pdoc-blue.svg)](https://ffalcinelli.github.io/pydivert/)
