@@ -57,9 +57,10 @@ jobs:
       - run:
           name: Upload coverage
           command: |
+            sudo chown $(whoami):$(whoami) coverage.xml
             curl -Os https://cli.codecov.io/latest/linux/codecov
             chmod +x codecov
-            ./codecov upload-process -t ${CODECOV_TOKEN} -f coverage.xml
+            ./codecov --verbose upload-process -t ${CODECOV_TOKEN} -f coverage.xml --fail-on-error
 
 workflows:
   version: 2
