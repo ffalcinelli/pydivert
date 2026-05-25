@@ -28,7 +28,6 @@ class BpfTcOpts(ctypes.Structure):
         ("prog_id", ctypes.c_uint32),
         ("handle", ctypes.c_uint32),
         ("priority", ctypes.c_uint32),
-        ("padding", ctypes.c_uint32),
     ]
 
 

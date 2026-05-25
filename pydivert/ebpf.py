@@ -114,7 +114,7 @@ class EBPFDivert(BaseDivert):
             transpile_to_ebpf(filter)
             return True, 0, ""
         except Exception as e:
-            return False, 0, str(e)
+            return False, -1, str(e)
 
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
@@ -307,10 +307,7 @@ class EBPFDivert(BaseDivert):
             bpf = cast(Any, libbpf)
             if self._obj is not True and self._obj:
                 for hook, opts in self._hooks:
-                    try:
-                        bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
-                    except Exception:
-                        pass
+                    bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
                 self._hooks.clear()
 
                 if self._ringbuf:
