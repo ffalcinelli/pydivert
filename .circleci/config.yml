@@ -17,6 +17,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Fix host resolution
+          command: |
+            echo "127.0.0.1 $(hostname)" | sudo tee -a /etc/hosts
+      - run:
           name: Install system dependencies
           command: |
             # Remove broken Google Chrome repository to avoid GPG errors
@@ -57,13 +61,10 @@ jobs:
       - run:
           name: Upload coverage
           command: |
-            # Fix "sudo: unable to resolve host" warning which can cause delays and network issues
-            sudo sed -i "s/127.0.0.1 localhost/127.0.0.1 localhost $(hostname)/" /etc/hosts
             sudo chown $(whoami):$(whoami) coverage.xml
-            # Use retries for downloading the CLI to handle transient network errors
-            curl --retry 3 -Os https://cli.codecov.io/latest/linux/codecov
-            chmod +x codecov
-            ./codecov --verbose upload-process -t ${CODECOV_TOKEN} -f coverage.xml --fail-on-error
+            # Use uv to install and run the modern codecov-cli for better reliability in CI
+            uv pip install codecov-cli --quiet
+            .venv/bin/codecovcli --verbose upload-process -t ${CODECOV_TOKEN} -f coverage.xml --fail-on-error
 
 workflows:
   version: 2
