@@ -57,8 +57,11 @@ jobs:
       - run:
           name: Upload coverage
           command: |
+            # Fix "sudo: unable to resolve host" warning which can cause delays and network issues
+            sudo sed -i "s/127.0.0.1 localhost/127.0.0.1 localhost $(hostname)/" /etc/hosts
             sudo chown $(whoami):$(whoami) coverage.xml
-            curl -Os https://cli.codecov.io/latest/linux/codecov
+            # Use retries for downloading the CLI to handle transient network errors
+            curl --retry 3 -Os https://cli.codecov.io/latest/linux/codecov
             chmod +x codecov
             ./codecov --verbose upload-process -t ${CODECOV_TOKEN} -f coverage.xml --fail-on-error
 
