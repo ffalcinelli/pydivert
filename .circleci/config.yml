@@ -59,11 +59,16 @@ jobs:
           command: |
             sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
       - run:
+          name: Cleanup eBPF
+          command: |
+            # Use the newly implemented unregister() for emergency cleanup
+            .venv/bin/python -c "import pydivert; pydivert.Divert.unregister()"
+          when: always
+      - run:
           name: Upload coverage
           command: |
             sudo chown $(whoami):$(whoami) coverage.xml
-            # Use uv to install and run the modern codecov-cli for better reliability in CI
-            uv pip install codecov-cli --quiet
+            # codecov-cli is installed as part of the 'test' extra in the previous step
             .venv/bin/codecovcli --verbose upload-process -t ${CODECOV_TOKEN} -f coverage.xml --fail-on-error
 
 workflows:

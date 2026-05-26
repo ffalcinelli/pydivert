@@ -71,6 +71,13 @@ struct {
     __type(value, __u64);
 } stats_map SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u32);
+} config_map SEC(".maps");
+
 static __always_inline void increment_stat(__u32 key) {
     __u64 *val = bpf_map_lookup_elem(&stats_map, &key);
     if (val) {
@@ -132,7 +139,7 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 
         __u8 ihl = (*(__u8 *)l3_ptr) & 0x0F;
         if (ihl < 5) return 0;
-        
+
         void *transport_ptr = (char *)l3_ptr + (ihl * 4);
 
         if (proto == IPPROTO_TCP) {
@@ -178,7 +185,7 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
     if ((rule->match_mask & MATCH_DIRECTION) && direction != rule->direction) return 0;
     if ((rule->match_mask & MATCH_TTL) && ttl != rule->ttl) return 0;
     if ((rule->match_mask & MATCH_TCP_FLAGS) && (tcp_flags & rule->tcp_flags_mask) != rule->tcp_flags) return 0;
-    
+
     if (rule->match_mask & MATCH_LOOPBACK) {
         int is_lo = (skb->ifindex == 1);
         if (is_lo != rule->loopback) return 0;
@@ -188,7 +195,18 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 }
 
 static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction) {
-    if (skb->mark == 0x4D49544D) return TC_ACT_UNSPEC;
+    __u32 key = 0;
+    __u32 *my_prio_ptr = bpf_map_lookup_elem(&config_map, &key);
+    __u32 my_prio = my_prio_ptr ? *my_prio_ptr : 0;
+
+    // LOOP_PREVENTION_MARK mask: 0x4D490000 | priority
+    if ((skb->mark & 0xFFFF0000) == 0x4D490000) {
+        __u16 inject_prio = skb->mark & 0xFFFF;
+        // Ignore if we injected it, or if our priority is higher/equal (lower/equal integer)
+        // than the injector's priority. This allows lower priority handles (higher integer)
+        // to see reinjected packets.
+        if (my_prio <= inject_prio) return TC_ACT_UNSPEC;
+    }
 
     // Avoid double-processing loopback: only capture on Egress (Outbound)
     if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
@@ -232,7 +250,7 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     if (to_load > 0) {
         bpf_skb_load_bytes(skb, 0, buf->data, ((to_load - 1) & 0x7FF) + 1);
     }
-    
+
     bpf_ringbuf_submit(buf, 0);
 
     if (matched_rule->match_mask & MATCH_SNIFF) {

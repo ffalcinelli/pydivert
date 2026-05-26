@@ -15,6 +15,8 @@
 ## Features
 
 - **Cross-Platform**: Unified API for Windows (WinDivert) and Linux (eBPF).
+- **Seamless Multi-Handle Support**: Run multiple PyDivert applications simultaneously with kernel-level priority chaining on both platforms.
+- **Unified Filter Language**: Use the same WinDivert-style filter strings on both Windows and Linux.
 - **Capture** network packets matching a specific filter.
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.

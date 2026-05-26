@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     int prog_fd = bpf_program__fd(prog);
 
     printf("Running eBPF C Tests...\n");
-    
+
     // Case 1: Match and Divert
     update_rule(map_fd, 0, 80, MATCH_DST_PORT);
     test_packet(prog_fd, "Match and Divert", 4, 80);
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     // Case 4: No Match
     update_rule(map_fd, 0, 80, MATCH_DST_PORT);
     test_packet(prog_fd, "No Match (different port)", 0, 8080);
-    
+
     printf("All eBPF C Tests passed!\n");
     bpf_object__close(obj);
     return 0;

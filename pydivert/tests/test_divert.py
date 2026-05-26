@@ -183,7 +183,6 @@ def test_packet_cutoff(scenario):
 
 
 def test_check_filter():
-
     res, pos, msg = Divert.check_filter("true")
     assert res
     assert pos == 0

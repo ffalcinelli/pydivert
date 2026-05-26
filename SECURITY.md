@@ -49,5 +49,3 @@ We follow a responsible disclosure policy:
 3.  Work on a fix.
 4.  Release a new version with the fix.
 5.  Publicly disclose the vulnerability (e.g., via GitHub Security Advisories) after a fix is available and users have had time to update.
-
-

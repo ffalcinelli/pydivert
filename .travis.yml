@@ -21,10 +21,10 @@ script:
   # Generate headers and compile eBPF
   - sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
   - clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
-  
+
   # Network setup
   - sudo ethtool -K lo rx off tx off || true
-  
+
   # Run the test suite
   - sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
 
