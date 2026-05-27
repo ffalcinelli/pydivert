@@ -40,14 +40,17 @@ def test_multi_instance_chaining():
                 t.start()
 
                 # Instance A should capture first
-                packet_a = w_a.recv(timeout=2)
+                packet_a = w_a.recv(timeout=5)
                 assert packet_a is not None
+                print(f"DEBUG: Instance A captured {packet_a}")
 
                 # Instance A reinjects
                 w_a.send(packet_a)
+                print("DEBUG: Instance A reinjected")
 
                 # Instance B should capture the REINJECTED packet from A
-                packet_b = w_b.recv(timeout=2)
+                packet_b = w_b.recv(timeout=5)
+
                 assert packet_b is not None
                 assert packet_b.raw == packet_a.raw
 

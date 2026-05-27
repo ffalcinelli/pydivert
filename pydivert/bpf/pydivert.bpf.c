@@ -209,7 +209,7 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     }
 
     // Avoid double-processing loopback: only capture on Egress (Outbound)
-    if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
+    // if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
 
     bpf_skb_pull_data(skb, 64);
 

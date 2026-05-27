@@ -89,6 +89,8 @@ class EBPFDivert(BaseDivert):
         self._queue: list[Packet] = []
         self._hooks: list[tuple[BpfTcHook, BpfTcOpts]] = []
         self._interfaces = kwargs.get("interfaces", None)
+        self._tc_priority = 0
+        self._mark = 0
 
     @staticmethod
     def register() -> None:
@@ -202,6 +204,11 @@ class EBPFDivert(BaseDivert):
                 # Map WinDivert priority range (30000 to -30000) to TC range (1 to 65535)
                 # WinDivert: 30000 -> TC: 1, 0 -> TC: 30001, -30000 -> TC: 60001
                 self._tc_priority = 30001 - self.priority
+
+            self._mark = 0x4D490000 | (self._tc_priority & 0xFFFF)
+            logger.debug(
+                "EBPFDivert priority=%d -> tc_priority=%d, mark=0x%08x", self.priority, self._tc_priority, self._mark
+            )
 
             if Flag.SEND_ONLY not in self.flags:
                 logger.debug("Loading BPF object: %s", obj_path)
@@ -321,8 +328,6 @@ class EBPFDivert(BaseDivert):
                     raise RuntimeError("Failed to attach eBPF hooks to any interface.")
 
             if Flag.RECV_ONLY not in self.flags:
-                # We use a unique mark per priority to allow lower-priority handles to capture our injections
-                self._mark = 0x4D490000 | (self._tc_priority & 0xFFFF)
                 self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
                 self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self._mark)
                 self._raw_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
