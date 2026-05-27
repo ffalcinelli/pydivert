@@ -71,6 +71,13 @@ struct {
     __type(value, __u64);
 } stats_map SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u32);
+} config_map SEC(".maps");
+
 static __always_inline void increment_stat(__u32 key) {
     __u64 *val = bpf_map_lookup_elem(&stats_map, &key);
     if (val) {
@@ -98,31 +105,24 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
         __u8 b0 = *(__u8 *)data;
         if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
             l2_len = 0; found = 1;
-        }
-    }
-    if (!found && (char *)data + 4 + 20 <= (char *)data_end) {
-        __u8 b4 = *((__u8 *)data + 4);
-        if ((b4 & 0xF0) == 0x40 || (b4 & 0xF0) == 0x60) {
-            l2_len = 4; found = 1;
-        }
-    }
-    if (!found && (char *)data + 14 + 20 <= (char *)data_end) {
-        __u8 b14 = *((__u8 *)data + 14);
-        if ((b14 & 0xF0) == 0x40 || (b14 & 0xF0) == 0x60) {
-            l2_len = 14; found = 1;
+        } else if (data + 24 <= data_end) {
+            b0 = *(__u8 *)(data + 4);
+            if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
+                l2_len = 4; found = 1;
+            } else if (data + 34 <= data_end) {
+                b0 = *(__u8 *)(data + 14);
+                if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
+                    l2_len = 14; found = 1;
+                }
+            }
         }
     }
 
-    if (!found) {
-        if (rule->match_mask == MATCH_ENABLED) return 1;
-        return 0;
-    }
-
+    if (!found) return 0;
     *l2_len_out = l2_len;
-    void *l3_ptr = (char *)data + l2_len;
-    __u8 ver = (*(__u8 *)l3_ptr) >> 4;
+    void *l3_ptr = data + l2_len;
 
-    if (ver == 4) {
+    if ((*(__u8 *)l3_ptr & 0xF0) == 0x40) {
         struct iphdr *ip = l3_ptr;
         if ((void *)(ip + 1) > data_end) return 0;
         src_ip = bpf_ntohl(ip->saddr);
@@ -132,42 +132,24 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 
         __u8 ihl = (*(__u8 *)l3_ptr) & 0x0F;
         if (ihl < 5) return 0;
-        
+
         void *transport_ptr = (char *)l3_ptr + (ihl * 4);
 
         if (proto == IPPROTO_TCP) {
             struct tcphdr *tcp = transport_ptr;
-            if ((void *)(tcp + 1) <= data_end) {
-                src_port = bpf_ntohs(tcp->source);
-                dst_port = bpf_ntohs(tcp->dest);
-                tcp_flags = *((__u8 *)tcp + 13);
-            }
+            if ((void *)(tcp + 1) > data_end) return 0;
+            src_port = bpf_ntohs(tcp->source);
+            dst_port = bpf_ntohs(tcp->dest);
+            tcp_flags = ((__u8 *)tcp)[13];
         } else if (proto == IPPROTO_UDP) {
             struct udphdr *udp = transport_ptr;
-            if ((void *)(udp + 1) <= data_end) {
-                src_port = bpf_ntohs(udp->source);
-                dst_port = bpf_ntohs(udp->dest);
-            }
+            if ((void *)(udp + 1) > data_end) return 0;
+            src_port = bpf_ntohs(udp->source);
+            dst_port = bpf_ntohs(udp->dest);
         }
-    } else if (ver == 6) {
-        struct ipv6hdr *ip6 = l3_ptr;
-        if ((void *)(ip6 + 1) > data_end) return 0;
-        proto = ip6->nexthdr;
-        ttl = ip6->hop_limit;
-        if (proto == IPPROTO_TCP) {
-            struct tcphdr *tcp = (void *)(ip6 + 1);
-            if ((void *)(tcp + 1) <= data_end) {
-                src_port = bpf_ntohs(tcp->source);
-                dst_port = bpf_ntohs(tcp->dest);
-                tcp_flags = *((__u8 *)tcp + 13);
-            }
-        } else if (proto == IPPROTO_UDP) {
-            struct udphdr *udp = (void *)(ip6 + 1);
-            if ((void *)(udp + 1) <= data_end) {
-                src_port = bpf_ntohs(udp->source);
-                dst_port = bpf_ntohs(udp->dest);
-            }
-        }
+    } else {
+        // IPv6 not fully implemented in matches_rule for now
+        return 0;
     }
 
     if ((rule->match_mask & MATCH_SRC_IP) && src_ip != rule->src_ip) return 0;
@@ -188,10 +170,21 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 }
 
 static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction) {
-    if (skb->mark == 0x4D49544D) return TC_ACT_UNSPEC;
+    __u32 key = 0;
+    __u32 *my_prio_ptr = bpf_map_lookup_elem(&config_map, &key);
+    __u32 my_prio = my_prio_ptr ? *my_prio_ptr : 0;
+
+    // LOOP_PREVENTION_MARK mask: 0x4D490000 | priority
+    if ((skb->mark & 0xFFFF0000) == 0x4D490000) {
+        __u16 inject_prio = skb->mark & 0xFFFF;
+        // Ignore if we injected it, or if our priority is higher/equal (lower/equal integer)
+        // than the injector's priority. This allows lower priority handles (higher integer)
+        // to see reinjected packets.
+        if (my_prio <= inject_prio) return TC_ACT_UNSPEC;
+    }
 
     // Avoid double-processing loopback: only capture on Egress (Outbound)
-    if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
+    // if (skb->ifindex == 1 && direction == 1) return TC_ACT_UNSPEC;
 
     bpf_skb_pull_data(skb, 64);
 
@@ -200,7 +193,7 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     struct filter_rule *matched_rule = NULL;
 
     #pragma unroll
-    for (__u32 i = 0; i < 32; i++) {
+    for (__u32 i = 0; i < 16; i++) {
         __u32 key = i;
         struct filter_rule *rule = bpf_map_lookup_elem(&filter_rules, &key);
         if (!rule || rule->match_mask == 0) break;
@@ -244,12 +237,12 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     return TC_ACT_STOLEN;
 }
 
-SEC("tc")
+SEC("classifier")
 int tc_divert_ingress(struct __sk_buff *skb) {
     return process_packet(skb, 1);
 }
 
-SEC("tc")
+SEC("classifier")
 int tc_divert_egress(struct __sk_buff *skb) {
     return process_packet(skb, 2);
 }

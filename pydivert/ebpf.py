@@ -20,7 +20,6 @@ from .bpf import (
 )
 from .consts import (
     DEFAULT_PACKET_BUFFER_SIZE,
-    LOOP_PREVENTION_MARK,
     Direction,
     Flag,
     Layer,
@@ -36,8 +35,8 @@ logger = logging.getLogger(__name__)
 
 # Silence libbpf's confusing warnings (like exclusivity flag on TC)
 def _libbpf_print(level, format_str, args):
-    # Enable for debugging
-    # print(f"libbpf: {format_str.decode('utf-8', 'replace').strip()}")
+    if os.environ.get("PYDIVERT_DEBUG_BPF") == "1":
+        print(f"libbpf: {format_str.decode('utf-8', 'replace').strip()}")
     return 0
 
 
@@ -90,6 +89,8 @@ class EBPFDivert(BaseDivert):
         self._queue: list[Packet] = []
         self._hooks: list[tuple[BpfTcHook, BpfTcOpts]] = []
         self._interfaces = kwargs.get("interfaces", None)
+        self._tc_priority = 0
+        self._mark = 0
 
     @staticmethod
     def register() -> None:
@@ -103,8 +104,58 @@ class EBPFDivert(BaseDivert):
 
     @staticmethod
     def unregister() -> None:
-        """eBPF backend does not require explicit unregistration."""
-        pass
+        """
+        Forcefully removes all PyDivert-related eBPF hooks from all network interfaces.
+        This provides parity with WinDivert.unregister() and can be used for emergency cleanup.
+        """
+        import json
+        import os
+        import subprocess
+
+        try:
+            interfaces = os.listdir("/sys/class/net")
+        except OSError:
+            return
+
+        for ifname in interfaces:
+            for hook in ["ingress", "egress"]:
+                try:
+                    # Query existing filters on the interface
+                    output = subprocess.check_output(
+                        ["sudo", "tc", "-j", "filter", "show", "dev", ifname, hook],
+                        stderr=subprocess.DEVNULL,
+                    )
+                    if not output:
+                        continue
+                    filters = json.loads(output)
+                    for f in filters:
+                        # Identify PyDivert filters by the BPF program name
+                        options = f.get("options", {})
+                        bpf_name = options.get("bpf_name", "")
+                        if "tc_divert_ingre" in bpf_name or "tc_divert_egres" in bpf_name:
+                            pref = f.get("pref")
+                            handle = options.get("handle")
+                            if pref and handle:
+                                # Surgical deletion of the specific filter
+                                subprocess.run(
+                                    [
+                                        "sudo",
+                                        "tc",
+                                        "filter",
+                                        "del",
+                                        "dev",
+                                        ifname,
+                                        hook,
+                                        "pref",
+                                        str(pref),
+                                        "handle",
+                                        str(handle),
+                                        "bpf",
+                                    ],
+                                    check=False,
+                                )
+                except Exception:
+                    continue
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
@@ -114,18 +165,64 @@ class EBPFDivert(BaseDivert):
             transpile_to_ebpf(filter)
             return True, 0, ""
         except Exception as e:
-            return False, 0, str(e)
+            return False, -1, str(e)
+
+    @staticmethod
+    def _get_next_priority() -> int:
+        """Find the highest existing PyDivert TC priority and return the next one."""
+        import json
+        import subprocess
+
+        max_prio = 29999
+        try:
+            # Check loopback interface as a reference
+            output = subprocess.check_output(
+                ["sudo", "tc", "-j", "filter", "show", "dev", "lo", "ingress"],
+                stderr=subprocess.DEVNULL,
+            )
+            if output:
+                filters = json.loads(output)
+                for f in filters:
+                    options = f.get("options", {})
+                    if "tc_divert" in options.get("bpf_name", ""):
+                        max_prio = max(max_prio, f.get("pref", 0))
+        except Exception:
+            pass
+        return max_prio + 1
 
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
             bpf = cast(Any, libbpf)
             obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
 
+            # In Windows, priority 0 means default.
+            # In TC, priority 1 is highest. We map our priority to TC priority.
+            # If priority is 0, we use a default priority that allows multiple handles.
+            if self.priority == 0:
+                self._tc_priority = self._get_next_priority()
+            else:
+                # Map WinDivert priority range (30000 to -30000) to TC range (1 to 65535)
+                # WinDivert: 30000 -> TC: 1, 0 -> TC: 30001, -30000 -> TC: 60001
+                self._tc_priority = 30001 - self.priority
+
+            self._mark = 0x4D490000 | (self._tc_priority & 0xFFFF)
+            logger.debug(
+                "EBPFDivert priority=%d -> tc_priority=%d, mark=0x%08x", self.priority, self._tc_priority, self._mark
+            )
+
             if Flag.SEND_ONLY not in self.flags:
                 logger.debug("Loading BPF object: %s", obj_path)
                 self._obj = bpf.bpf_object__open_file(obj_path.encode(), None)
                 if not self._obj or bpf.bpf_object__load(self._obj) != 0:
                     raise RuntimeError("Failed to load BPF object.")
+
+                # Update config map with our priority
+                config_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"config_map")
+                if config_map_ptr:
+                    config_fd = bpf.bpf_map__fd(config_map_ptr)
+                    key = ctypes.c_uint32(0)
+                    val = ctypes.c_uint32(self._tc_priority)
+                    bpf.bpf_map_update_elem(config_fd, ctypes.byref(key), ctypes.byref(val), 0)
 
                 # Ringbuf
                 map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"pcap_ringbuf")
@@ -148,14 +245,14 @@ class EBPFDivert(BaseDivert):
                 if rules_map_ptr:
                     rules_fd = bpf.bpf_map__fd(rules_map_ptr)
 
-                    # Clear map (up to 64 rules)
+                    # Clear map (up to 16 rules unrolled in C)
                     empty_rule = BpfFilterRule()
-                    for i in range(64):
+                    for i in range(16):
                         key = ctypes.c_uint32(i)
                         bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(empty_rule), 0)
 
                     # Fill map
-                    for i, rule in enumerate(ebpf_filter_rules[:64]):
+                    for i, rule in enumerate(ebpf_filter_rules[:16]):
                         key = ctypes.c_uint32(i)
                         c_rule = BpfFilterRule(
                             src_ip=rule["src_ip"],
@@ -179,11 +276,6 @@ class EBPFDivert(BaseDivert):
                 if not prog_ingress or not prog_egress:
                     raise RuntimeError("Failed to find BPF programs.")
 
-                # In Windows, priority 0 means default.
-                # In TC, priority 1 is highest. We map our priority to TC priority.
-                # If priority is 0, we use a default priority that allows multiple handles.
-                tc_priority = self.priority if self.priority > 0 else 100
-
                 for ifindex, ifname in socket.if_nameindex():
                     if self._interfaces is not None and ifname not in self._interfaces:
                         continue
@@ -201,10 +293,15 @@ class EBPFDivert(BaseDivert):
                         sz=ctypes.sizeof(BpfTcOpts),
                         prog_fd=bpf.bpf_program__fd(prog_ingress),
                         flags=0,
-                        priority=tc_priority,
+                        priority=self._tc_priority,
                     )
                     if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:
-                        self._hooks.append((hook_ingress, opts_ingress))
+                        # Copy the objects to ensure they are not overwritten in the loop
+                        h = BpfTcHook()
+                        ctypes.memmove(ctypes.byref(h), ctypes.byref(hook_ingress), ctypes.sizeof(BpfTcHook))
+                        o = BpfTcOpts()
+                        ctypes.memmove(ctypes.byref(o), ctypes.byref(opts_ingress), ctypes.sizeof(BpfTcOpts))
+                        self._hooks.append((h, o))
 
                     # Egress
                     hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
@@ -217,22 +314,27 @@ class EBPFDivert(BaseDivert):
                         sz=ctypes.sizeof(BpfTcOpts),
                         prog_fd=bpf.bpf_program__fd(prog_egress),
                         flags=0,
-                        priority=tc_priority,
+                        priority=self._tc_priority,
                     )
                     if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
-                        self._hooks.append((hook_egress, opts_egress))
+                        # Copy the objects to ensure they are not overwritten in the loop
+                        h = BpfTcHook()
+                        ctypes.memmove(ctypes.byref(h), ctypes.byref(hook_egress), ctypes.sizeof(BpfTcHook))
+                        o = BpfTcOpts()
+                        ctypes.memmove(ctypes.byref(o), ctypes.byref(opts_egress), ctypes.sizeof(BpfTcOpts))
+                        self._hooks.append((h, o))
 
                 if not self._hooks:
                     raise RuntimeError("Failed to attach eBPF hooks to any interface.")
 
             if Flag.RECV_ONLY not in self.flags:
                 self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-                self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
+                self._raw_sock.setsockopt(socket.SOL_SOCKET, SO_MARK, self._mark)
                 self._raw_sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
                 try:
                     self._raw_sock6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
-                    self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, LOOP_PREVENTION_MARK)
+                    self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, self._mark)
                     if hasattr(socket, "IPV6_HDRINCL"):
                         self._raw_sock6.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HDRINCL, 1)
                 except OSError:
@@ -307,10 +409,9 @@ class EBPFDivert(BaseDivert):
             bpf = cast(Any, libbpf)
             if self._obj is not True and self._obj:
                 for hook, opts in self._hooks:
-                    try:
-                        bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
-                    except Exception:
-                        pass
+                    # To detach, handle and priority must be set to exactly what they were during attach
+                    # We ensure this by memmoving the state immediately after attachment.
+                    bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
                 self._hooks.clear()
 
                 if self._ringbuf:
