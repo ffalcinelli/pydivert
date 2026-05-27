@@ -69,7 +69,8 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool gcc-multilib
+        sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) gcc-multilib
+        sudo apt-get install -y bpftool || sudo apt-get install -y linux-tools-common linux-tools-generic
 
     - name: Generate vmlinux.h
       run: sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
@@ -87,16 +88,20 @@ jobs:
         enable-cache: true
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: uv sync --extra test --extra linux
-    
+
     - name: Configure loopback
       run: sudo ethtool -K lo rx off tx off || true
 
     - name: Run tests
       run: sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
-    
+
+    - name: Cleanup eBPF hooks
+      if: always()
+      run: sudo -E .venv/bin/python -c "import pydivert; pydivert.Divert.unregister()"
+
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
       with:
