@@ -66,22 +66,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) gcc-multilib
-        sudo apt-get install -y bpftool || sudo apt-get install -y linux-tools-common linux-tools-generic
-
-    - name: Generate vmlinux.h
-      run: sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
-
-    - name: Compile eBPF object
-      run: clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
-
-    - name: Compile and run eBPF C tests
-      run: |
-        gcc -o pydivert/bpf/test_bpf pydivert/bpf/test_bpf.c -lbpf
-        sudo ./pydivert/bpf/test_bpf pydivert/bpf/pydivert.bpf.o
+        sudo apt-get install -y bpftool || sudo apt-get install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || true
 
     - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
       with:
@@ -92,6 +82,19 @@ jobs:
     - name: Install dependencies
       run: uv sync --extra test --extra linux
 
+    - name: Generate vmlinux.h
+      run: |
+        # Use provided vmlinux.h if bpftool fails to generate it
+        sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h || echo "bpftool failed to generate vmlinux.h, using existing one if present"
+
+    - name: Compile eBPF object
+      run: clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
+
+    - name: Compile and run eBPF C tests
+      run: |
+        gcc -o pydivert/bpf/test_bpf pydivert/bpf/test_bpf.c -lbpf
+        sudo ./pydivert/bpf/test_bpf pydivert/bpf/test_bpf.o
+
     - name: Configure loopback
       run: sudo ethtool -K lo rx off tx off || true
 
@@ -100,7 +103,10 @@ jobs:
 
     - name: Cleanup eBPF hooks
       if: always()
-      run: sudo -E .venv/bin/python -c "import pydivert; pydivert.Divert.unregister()"
+      run: |
+        if [ -f .venv/bin/python ]; then
+          sudo -E .venv/bin/python -c "import pydivert; pydivert.Divert.unregister()" || true
+        fi
 
     - name: Upload coverage
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
