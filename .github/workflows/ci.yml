@@ -84,8 +84,13 @@ jobs:
 
     - name: Generate vmlinux.h
       run: |
-        # Use provided vmlinux.h if bpftool fails to generate it
-        sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h || echo "bpftool failed to generate vmlinux.h, using existing one if present"
+        if sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h.tmp 2>/dev/null; then
+          mv vmlinux.h.tmp pydivert/bpf/vmlinux.h
+          echo "Successfully regenerated vmlinux.h"
+        else
+          echo "bpftool failed to generate vmlinux.h, using bundled version"
+          rm -f vmlinux.h.tmp
+        fi
 
     - name: Compile eBPF object
       run: clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
