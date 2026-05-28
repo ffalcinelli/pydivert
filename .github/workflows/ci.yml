@@ -98,7 +98,7 @@ jobs:
     - name: Compile and run eBPF C tests
       run: |
         gcc -o pydivert/bpf/test_bpf pydivert/bpf/test_bpf.c -lbpf
-        sudo ./pydivert/bpf/test_bpf pydivert/bpf/test_bpf.o
+        sudo ./pydivert/bpf/test_bpf pydivert/bpf/pydivert.bpf.o
 
     - name: Configure loopback
       run: sudo ethtool -K lo rx off tx off || true
