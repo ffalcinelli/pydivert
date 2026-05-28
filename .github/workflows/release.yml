@@ -77,11 +77,9 @@ jobs:
         enable-cache: true
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
-
     - name: Install dependencies
       run: |
         uv sync --extra test
-
     - name: Run tests
       run: |
         uv run pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
