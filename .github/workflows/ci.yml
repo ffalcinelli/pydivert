@@ -71,7 +71,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) gcc-multilib
-        sudo apt-get install -y bpftool || sudo apt-get install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || true
+        sudo apt-get install -y bpftool linux-tools-common linux-tools-generic linux-tools-$(uname -r) || true
 
     - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
       with:
