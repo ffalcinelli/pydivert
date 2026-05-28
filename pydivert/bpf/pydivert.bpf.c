@@ -105,24 +105,31 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
         __u8 b0 = *(__u8 *)data;
         if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
             l2_len = 0; found = 1;
-        } else if (data + 24 <= data_end) {
-            b0 = *(__u8 *)(data + 4);
-            if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
-                l2_len = 4; found = 1;
-            } else if (data + 34 <= data_end) {
-                b0 = *(__u8 *)(data + 14);
-                if ((b0 & 0xF0) == 0x40 || (b0 & 0xF0) == 0x60) {
-                    l2_len = 14; found = 1;
-                }
-            }
+        }
+    }
+    if (!found && (char *)data + 4 + 20 <= (char *)data_end) {
+        __u8 b4 = *((__u8 *)data + 4);
+        if ((b4 & 0xF0) == 0x40 || (b4 & 0xF0) == 0x60) {
+            l2_len = 4; found = 1;
+        }
+    }
+    if (!found && (char *)data + 14 + 20 <= (char *)data_end) {
+        __u8 b14 = *((__u8 *)data + 14);
+        if ((b14 & 0xF0) == 0x40 || (b14 & 0xF0) == 0x60) {
+            l2_len = 14; found = 1;
         }
     }
 
-    if (!found) return 0;
-    *l2_len_out = l2_len;
-    void *l3_ptr = data + l2_len;
+    if (!found) {
+        if (rule->match_mask == MATCH_ENABLED) return 1;
+        return 0;
+    }
 
-    if ((*(__u8 *)l3_ptr & 0xF0) == 0x40) {
+    *l2_len_out = l2_len;
+    void *l3_ptr = (char *)data + l2_len;
+    __u8 ver = (*(__u8 *)l3_ptr) >> 4;
+
+    if (ver == 4) {
         struct iphdr *ip = l3_ptr;
         if ((void *)(ip + 1) > data_end) return 0;
         src_ip = bpf_ntohl(ip->saddr);
@@ -137,19 +144,37 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
 
         if (proto == IPPROTO_TCP) {
             struct tcphdr *tcp = transport_ptr;
-            if ((void *)(tcp + 1) > data_end) return 0;
-            src_port = bpf_ntohs(tcp->source);
-            dst_port = bpf_ntohs(tcp->dest);
-            tcp_flags = ((__u8 *)tcp)[13];
+            if ((void *)(tcp + 1) <= data_end) {
+                src_port = bpf_ntohs(tcp->source);
+                dst_port = bpf_ntohs(tcp->dest);
+                tcp_flags = *((__u8 *)tcp + 13);
+            }
         } else if (proto == IPPROTO_UDP) {
             struct udphdr *udp = transport_ptr;
-            if ((void *)(udp + 1) > data_end) return 0;
-            src_port = bpf_ntohs(udp->source);
-            dst_port = bpf_ntohs(udp->dest);
+            if ((void *)(udp + 1) <= data_end) {
+                src_port = bpf_ntohs(udp->source);
+                dst_port = bpf_ntohs(udp->dest);
+            }
         }
-    } else {
-        // IPv6 not fully implemented in matches_rule for now
-        return 0;
+    } else if (ver == 6) {
+        struct ipv6hdr *ip6 = l3_ptr;
+        if ((void *)(ip6 + 1) > data_end) return 0;
+        proto = ip6->nexthdr;
+        ttl = ip6->hop_limit;
+        if (proto == IPPROTO_TCP) {
+            struct tcphdr *tcp = (void *)(ip6 + 1);
+            if ((void *)(tcp + 1) <= data_end) {
+                src_port = bpf_ntohs(tcp->source);
+                dst_port = bpf_ntohs(tcp->dest);
+                tcp_flags = *((__u8 *)tcp + 13);
+            }
+        } else if (proto == IPPROTO_UDP) {
+            struct udphdr *udp = (void *)(ip6 + 1);
+            if ((void *)(udp + 1) <= data_end) {
+                src_port = bpf_ntohs(udp->source);
+                dst_port = bpf_ntohs(udp->dest);
+            }
+        }
     }
 
     if ((rule->match_mask & MATCH_SRC_IP) && src_ip != rule->src_ip) return 0;
@@ -160,7 +185,7 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
     if ((rule->match_mask & MATCH_DIRECTION) && direction != rule->direction) return 0;
     if ((rule->match_mask & MATCH_TTL) && ttl != rule->ttl) return 0;
     if ((rule->match_mask & MATCH_TCP_FLAGS) && (tcp_flags & rule->tcp_flags_mask) != rule->tcp_flags) return 0;
-    
+
     if (rule->match_mask & MATCH_LOOPBACK) {
         int is_lo = (skb->ifindex == 1);
         if (is_lo != rule->loopback) return 0;
@@ -225,7 +250,7 @@ static __always_inline int process_packet(struct __sk_buff *skb, __u8 direction)
     if (to_load > 0) {
         bpf_skb_load_bytes(skb, 0, buf->data, ((to_load - 1) & 0x7FF) + 1);
     }
-    
+
     bpf_ringbuf_submit(buf, 0);
 
     if (matched_rule->match_mask & MATCH_SNIFF) {

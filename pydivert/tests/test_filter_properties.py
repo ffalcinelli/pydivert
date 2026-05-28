@@ -14,7 +14,7 @@ def test_check_filter_robustness(filter_str, layer):
     # It might return False, but not crash
     try:
         res, pos, msg = pydivert.WinDivert.check_filter(filter_str, layer)
-        assert isinstance(res, (bool, int))
+        assert isinstance(res, bool | int)
         assert isinstance(pos, int)
         assert isinstance(msg, str)
     except (OSError, FileNotFoundError):

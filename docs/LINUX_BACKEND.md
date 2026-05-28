@@ -8,7 +8,15 @@ On Linux, PyDivert attaches eBPF programs to the **Traffic Control (TC)** subsys
 
 - **Ingress**: Captured using a TC ingress hook.
 - **Egress**: Captured using a TC egress hook.
-- **Loop Prevention**: Packets re-injected by PyDivert are marked with a special socket mark (`SO_MARK`) to prevent them from being captured again in an infinite loop.
+- **Loop Prevention**: Packets re-injected by PyDivert are marked with a priority-aware socket mark (`SO_MARK`). This allows lower-priority handles to capture packets re-injected by higher-priority handles, matching WinDivert's multi-handle semantics.
+
+## Multi-Instance Support
+
+PyDivert on Linux supports multiple concurrent instances by leveraging the kernel's native **TC Chaining**.
+
+- **Priority Chaining**: When multiple handles are opened, the kernel executes their BPF programs sequentially based on their priority.
+- **Dynamic Priorities**: If you use the default priority (`0`), PyDivert automatically assigns a unique TC priority that places the new instance after existing ones.
+- **Surgical Cleanup**: Calling `Divert.unregister()` (or closing a handle) only removes the specific eBPF filters created by PyDivert, leaving other network software's TC configurations intact.
 
 ## Layer Translation
 

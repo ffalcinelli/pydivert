@@ -1,0 +1,32 @@
+language: python
+os: linux
+dist: jammy  # Ubuntu 22.04
+virt: vm     # CRITICAL: Request a full VM, not an LXD container
+python:
+  - "3.10"
+  - "3.11"
+  - "3.12"
+  - "3.13"
+
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install -y clang llvm libbpf-dev linux-headers-$(uname -r) bpftool gcc-multilib
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  - export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+
+install:
+  - uv sync --extra test --extra linux
+
+script:
+  # Generate headers and compile eBPF
+  - sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > pydivert/bpf/vmlinux.h
+  - clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
+
+  # Network setup
+  - sudo ethtool -K lo rx off tx off || true
+
+  # Run the test suite
+  - sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

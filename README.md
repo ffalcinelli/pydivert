@@ -1,6 +1,7 @@
 # PyDivert
 
-[![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
+[![github-actions](https://img.shields.io/github/actions/workflow/status/ffalcinelli/pydivert/ci.yml)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
+[![circleci](https://circleci.com/gh/ffalcinelli/pydivert.svg?style=shield)](https://circleci.com/gh/ffalcinelli/pydivert)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/main.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![latest_release](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 [![docs](https://img.shields.io/badge/docs-pdoc-blue.svg)](https://ffalcinelli.github.io/pydivert/)
@@ -14,6 +15,8 @@
 ## Features
 
 - **Cross-Platform**: Unified API for Windows (WinDivert) and Linux (eBPF).
+- **Seamless Multi-Handle Support**: Run multiple PyDivert applications simultaneously with kernel-level priority chaining on both platforms.
+- **Unified Filter Language**: Use the same WinDivert-style filter strings on both Windows and Linux.
 - **Capture** network packets matching a specific filter.
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.

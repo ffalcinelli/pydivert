@@ -74,7 +74,7 @@ def internet_checksum(data):
     """
     Calculates the 16-bit one's complement sum of the given data (RFC 1071).
     """
-    if not isinstance(data, (bytes, bytearray)):
+    if not isinstance(data, bytes | bytearray):
         data = bytes(data)
 
     if len(data) % 2 == 1:

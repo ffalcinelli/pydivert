@@ -108,8 +108,13 @@ class Packet:
             self._populate_wd_addr()
 
     def __repr__(self) -> str:
+        proto, _ = self.protocol
+        try:
+            proto_name = Protocol(proto).name if proto is not None else "Unknown"
+        except ValueError:
+            proto_name = str(proto)
         return (
-            f"<Packet {self.protocol[0]} from={self.src_addr}:{self.src_port} "
+            f"<Packet {proto_name} from={self.src_addr}:{self.src_port} "
             f"to={self.dst_addr}:{self.dst_port} len={len(self.raw)}>"
         )
 
@@ -228,7 +233,9 @@ class Packet:
         return self._interface
 
     @interface.setter
-    def interface(self, val: tuple[int, int]) -> None:
+    def interface(self, val: int | tuple[int, int]) -> None:
+        if isinstance(val, int):
+            val = (val, 0)
         self._interface = val
         if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
             self._wd_addr.u.Network.IfIdx, self._wd_addr.u.Network.SubIfIdx = val
@@ -526,9 +533,7 @@ class Packet:
     @property
     def icmp_checksum(self) -> bool:
         """True if the ICMP checksum is valid."""
-        import os
-
-        if os.name != "nt" and self.icmp:
+        if self.icmp:
             from pydivert.util import internet_checksum
 
             return internet_checksum(self.icmp.raw) == 0

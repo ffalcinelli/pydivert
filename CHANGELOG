@@ -5,6 +5,15 @@ Version 4.0.0
     - Packet Modification: Support for intercepting, modifying, and reinjecting packets on both operating systems.
     - Unified API: The EBPFDivert class provides the same interface as WinDivert for seamless cross-platform development.
 
+Version 3.1.3
+    - Security: Fixed a potential command injection vulnerability in the documentation build script (`docs/build.py`).
+    - Security: Implemented strict regex validation for git tags to prevent malicious tag names from affecting the build process.
+
+Version 3.1.2
+    - Documentation: Added Snyk security badge to README.
+    - CI/CD: Updated GitHub Actions workflows and refined security mandates.
+    - Maintenance: General dependency updates and minor improvements.
+
 Version 3.1.1
     - Performance Optimization: Added caching for WinDivertAddress in the Packet class to reduce overhead during metadata access.
     - Security & Reliability: Improved driver service management by ensuring WinDivert service stop failures are properly handled.

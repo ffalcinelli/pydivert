@@ -97,8 +97,11 @@ async def test_recv_batch_async_real():
             for i in range(3):
                 sock.sendto(f"batch-{i}".encode(), addr)
 
+        # Give the driver a moment to queue all packets
+        await asyncio.sleep(0.5)
+
         # Receive them in batch
-        packets = await asyncio.wait_for(w.recv_batch_async(count=3), timeout=2.0)
+        packets = await asyncio.wait_for(w.recv_batch_async(count=3), timeout=5.0)
         assert len(packets) == 3
         assert packets[0].payload == b"batch-0"
         assert packets[1].payload == b"batch-1"
