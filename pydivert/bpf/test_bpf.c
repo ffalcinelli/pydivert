@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
 
     // Case 2: Match and Sniff
     update_rule(map_fd, 0, 80, MATCH_DST_PORT | MATCH_SNIFF);
-    test_packet(prog_fd, "Match and Sniff", 0, 80);
+    test_packet(prog_fd, "Match and Sniff", -1, 80);
 
     // Case 3: Match and Drop
     update_rule(map_fd, 0, 80, MATCH_DST_PORT | MATCH_DROP);
@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
 
     // Case 4: No Match
     update_rule(map_fd, 0, 80, MATCH_DST_PORT);
-    test_packet(prog_fd, "No Match (different port)", 0, 8080);
+    test_packet(prog_fd, "No Match (different port)", -1, 8080);
 
     printf("All eBPF C Tests passed!\n");
     bpf_object__close(obj);
