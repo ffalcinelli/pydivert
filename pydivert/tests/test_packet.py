@@ -94,7 +94,9 @@ def test_payload_modification_different_length():
     packet.payload = b"defgh"
     assert packet.payload == b"defgh"
     assert len(packet.raw) == 33
+    assert packet.ipv4 is not None
     assert packet.ipv4.packet_len == 33
+    assert packet.udp is not None
     assert packet.udp.payload_len == 5
 
 
@@ -107,6 +109,7 @@ def test_checksum_recalculation():
     p = pydivert.Packet(raw)
     p.recalculate_checksums()
     assert p.is_checksum_valid
+    assert p.ipv4 is not None
     p.ipv4.ttl = (p.ipv4.ttl + 1) % 256
     assert not p.is_checksum_valid
     p.recalculate_checksums()

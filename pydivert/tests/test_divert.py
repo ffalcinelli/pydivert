@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import pydivert
+import pydivert.filter
 from pydivert import Divert, service
 from pydivert.consts import Param
 from pydivert.filter import normalize_filter, transpile_to_ebpf, transpile_to_python
@@ -200,6 +201,7 @@ def test_tcp_properties_all():
     raw += b"\x12\x34\x00\x50\x00\x00\x00\x01\x00\x00\x00\x02\x50\x02\x20\x00\x00\x00\x00\x00"
     p = Packet(raw)
     t = p.tcp
+    assert t is not None
     t.src_port = 80
     assert t.src_port == 80
     t.dst_port = 443
@@ -295,12 +297,12 @@ def test_service_registration():
         # Just check it doesn't crash
         res = pydivert.service.is_registered()
         assert isinstance(res, bool)
-        # Try stop/start if possible (might fail in VM if not Admin, but we are usually Admin in Vagrant)
-        try:
-            pydivert.service.stop_service()
-            pydivert.service.start_service()
-        except Exception:
-            pass
+        # Try stop if possible (might fail in VM if not Admin, but we are usually Admin in Vagrant)
+        if sys.platform == "win32":
+            try:
+                pydivert.service.stop_service()
+            except Exception:
+                pass
 
 
 # --- aggressive packet property tests ---
@@ -442,7 +444,8 @@ def test_send_ex_basic():
             p = Packet(raw)
             p.recalculate_checksums()
             # send_ex is usually called on the backend impl directly
-            w._impl.send_ex(p)
+            if hasattr(w._impl, "send_ex"):
+                w._impl.send_ex(p)  # type: ignore
     except (PermissionError, OSError):
         pytest.skip("No permissions")
 

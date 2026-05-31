@@ -98,7 +98,7 @@ def test_ebpf_not_equal_integration():
     import threading
     import time
 
-    from scapy.all import IP, TCP, send
+    from scapy.all import IP, TCP, send  # type: ignore
 
     import pydivert
 

@@ -2,9 +2,13 @@
 import logging
 from typing import Any
 
-from lark import Lark, Transformer
+from lark import Lark, Transformer, UnexpectedInput
 
 logger = logging.getLogger(__name__)
+
+
+class FilterSyntaxError(ValueError):
+    """Raised when a WinDivert filter string has invalid syntax."""
 
 
 WINDIVERT_GRAMMAR = r"""
@@ -491,13 +495,16 @@ def transpile_to_rules(filter_str):
     """
     Parses a WinDivert filter and returns a list of rule components for backends.
     """
-    parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
-    tree = parser.parse(filter_str)
-    transformer = WinDivertTransformer()
-    rules = transformer.transform(tree)
-    if not isinstance(rules, list):
-        rules = [rules]
-    return rules
+    try:
+        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
+        tree = parser.parse(filter_str)
+        transformer = WinDivertTransformer()
+        rules = transformer.transform(tree)
+        if not isinstance(rules, list):
+            rules = [rules]
+        return rules
+    except UnexpectedInput as e:
+        raise FilterSyntaxError(str(e)) from e
 
 
 def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) -> list[dict[str, Any]]:  # noqa: C901
