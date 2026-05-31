@@ -1,10 +1,16 @@
+import ctypes
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+import pydivert
 from pydivert import Divert, service
 from pydivert.consts import Param
+from pydivert.filter import normalize_filter, transpile_to_ebpf, transpile_to_python
+from pydivert.jit import compile_filter
+from pydivert.packet import Packet
+from pydivert.util import fromhex, internet_checksum
 
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
@@ -82,16 +88,6 @@ def test_params_mock():
         mock_dll.WinDivertGetParam.side_effect = side_effect
         assert w.get_param(Param.QUEUE_LEN) == 512
 
-
-import sys
-
-import pydivert
-from pydivert.filter import normalize_filter, transpile_to_ebpf, transpile_to_python
-from pydivert.jit import compile_filter
-from pydivert.packet import Packet
-from pydivert.util import fromhex, internet_checksum
-
-# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 
 # --- Divert closed handle errors ---
 
@@ -359,7 +355,7 @@ def test_filter_transpiler_errors():
     from pydivert.filter import transpile_to_rules
 
     # Test invalid syntax
-    with pytest.raises(Exception):
+    with pytest.raises(pydivert.filter.FilterSyntaxError):
         transpile_to_rules("!!!")
 
     # Test edge case field names

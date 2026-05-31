@@ -155,6 +155,3 @@ def test_flags_behavior():
                 w.send(pydivert.Packet(b"E" + b"\x00" * 19))
     except (PermissionError, OSError):
         pytest.skip("Insufficient privileges")
-
-
-import pytest

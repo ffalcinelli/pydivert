@@ -27,28 +27,27 @@ class SafeEvaluator(ast.NodeVisitor):
         return self.visit(node.body)
 
     def visit_BinOp(self, node):
+        import ast
+
+        ops_map = {
+            ast.Add: lambda a, b: a + b,
+            ast.Sub: lambda a, b: a - b,
+            ast.Mult: lambda a, b: a * b,
+            ast.Div: lambda a, b: a / b,
+            ast.Mod: lambda a, b: a % b,
+            ast.BitAnd: lambda a, b: a & b,
+            ast.BitOr: lambda a, b: a | b,
+            ast.BitXor: lambda a, b: a ^ b,
+            ast.LShift: lambda a, b: a << b,
+            ast.RShift: lambda a, b: a >> b,
+        }
         left = self.visit(node.left)
         right = self.visit(node.right)
-        if isinstance(node.op, ast.Add):
-            return left + right
-        if isinstance(node.op, ast.Sub):
-            return left - right
-        if isinstance(node.op, ast.Mult):
-            return left * right
-        if isinstance(node.op, ast.Div):
-            return left / right
-        if isinstance(node.op, ast.Mod):
-            return left % right
-        if isinstance(node.op, ast.BitAnd):
-            return left & right
-        if isinstance(node.op, ast.BitOr):
-            return left | right
-        if isinstance(node.op, ast.BitXor):
-            return left ^ right
-        if isinstance(node.op, ast.LShift):
-            return left << right
-        if isinstance(node.op, ast.RShift):
-            return left >> right
+
+        op_func = ops_map.get(type(node.op))
+        if op_func:
+            return op_func(left, right)
+
         raise ValueError(f"Unsupported binary operator: {type(node.op)}")
 
     def visit_BoolOp(self, node):
