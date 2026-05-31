@@ -149,14 +149,14 @@ class Packet:
     @cached_property
     def ipv4(self) -> IPv4Header | None:
         """The IPv4 header (if present)."""
-        if len(self._raw) >= 1 and (self._raw[0] & 0xF0) == 0x40:
+        if len(self._raw) >= 4 and (self._raw[0] & 0xF0) == 0x40:
             return IPv4Header(self)
         return None
 
     @cached_property
     def ipv6(self) -> IPv6Header | None:
         """The IPv6 header (if present)."""
-        if len(self._raw) >= 1 and (self._raw[0] & 0xF0) == 0x60:
+        if len(self._raw) >= 4 and (self._raw[0] & 0xF0) == 0x60:
             return IPv6Header(self)
         return None
 

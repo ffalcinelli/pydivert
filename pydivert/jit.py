@@ -37,6 +37,18 @@ class SafeEvaluator(ast.NodeVisitor):
             return left * right
         if isinstance(node.op, ast.Div):
             return left / right
+        if isinstance(node.op, ast.Mod):
+            return left % right
+        if isinstance(node.op, ast.BitAnd):
+            return left & right
+        if isinstance(node.op, ast.BitOr):
+            return left | right
+        if isinstance(node.op, ast.BitXor):
+            return left ^ right
+        if isinstance(node.op, ast.LShift):
+            return left << right
+        if isinstance(node.op, ast.RShift):
+            return left >> right
         raise ValueError(f"Unsupported binary operator: {type(node.op)}")
 
     def visit_BoolOp(self, node):
@@ -66,6 +78,10 @@ class SafeEvaluator(ast.NodeVisitor):
             ast.LtE: operator.le,
             ast.Gt: operator.gt,
             ast.GtE: operator.ge,
+            ast.Is: operator.is_,
+            ast.IsNot: operator.is_not,
+            ast.In: lambda a, b: a in b,
+            ast.NotIn: lambda a, b: a not in b,
         }
         left = self.visit(node.left)
         for op, right_node in zip(node.ops, node.comparators, strict=True):
@@ -123,6 +139,20 @@ class SafeEvaluator(ast.NodeVisitor):
 
     def visit_Constant(self, node):
         return node.value
+
+    def visit_List(self, node):
+        return [self.visit(elt) for elt in node.elts]
+
+    def visit_Tuple(self, node):
+        return tuple(self.visit(elt) for elt in node.elts)
+
+    def visit_Set(self, node):
+        return {self.visit(elt) for elt in node.elts}
+
+    def visit_Subscript(self, node):
+        value = self.visit(node.value)
+        sl = self.visit(node.slice)
+        return value[sl]
 
     def visit_Call(self, node):
         func = self.visit(node.func)

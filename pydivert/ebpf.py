@@ -56,21 +56,6 @@ class EBPFDivert(BaseDivert):
     Linux implementation of the Divert interface using **eBPF**.
     """
 
-    # Re-expose members for documentation since BaseDivert is internal
-    recv = BaseDivert.recv
-    recv_async = BaseDivert.recv_async
-    recv_batch = BaseDivert.recv_batch
-    recv_batch_async = BaseDivert.recv_batch_async
-    send = BaseDivert.send
-    send_async = BaseDivert.send_async
-    stats = BaseDivert.stats
-    filter = BaseDivert.filter
-    layer = BaseDivert.layer
-    priority = BaseDivert.priority
-    flags = BaseDivert.flags
-    open = BaseDivert.open
-    close = BaseDivert.close
-
     def __init__(
         self,
         filter: str = "true",
@@ -260,6 +245,7 @@ class EBPFDivert(BaseDivert):
                             src_port=rule["src_port"],
                             dst_port=rule["dst_port"],
                             match_mask=rule["match_mask"],
+                            invert_mask=rule["invert_mask"],
                             proto=rule["proto"],
                             direction=rule["direction"],
                             loopback=rule["loopback"],
@@ -551,3 +537,30 @@ class EBPFDivert(BaseDivert):
             if not packets:
                 raise
         return packets
+
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        packets = []
+        try:
+            p = self._recv_impl(bufsize, timeout)
+            packets.append(p)
+            while len(packets) < count and self._queue:
+                packets.append(self._queue.pop(0))
+        except (TimeoutError, Exception):
+            if not packets:
+                raise
+        return packets
+
+    def _send_batch_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        count = 0
+        for p in packets:
+            try:
+                if self._send_impl(p, recalculate_checksum) > 0:
+                    count += 1
+            except Exception:
+                continue
+        return count
+
+    async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        import asyncio
+
+        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)

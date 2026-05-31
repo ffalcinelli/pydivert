@@ -18,7 +18,9 @@ class Divert(BaseDivert):
     recv_batch = BaseDivert.recv_batch
     recv_batch_async = BaseDivert.recv_batch_async
     send = BaseDivert.send
+    send_batch = BaseDivert.send_batch
     send_async = BaseDivert.send_async
+    send_batch_async = BaseDivert.send_batch_async
     stats = BaseDivert.stats
     filter = BaseDivert.filter
     layer = BaseDivert.layer
@@ -93,8 +95,14 @@ class Divert(BaseDivert):
     def _send_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
         return self._impl._send_impl(packet, recalculate_checksum)
 
+    def _send_batch_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        return self._impl._send_batch_impl(packets, recalculate_checksum)
+
     async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
         return await self._impl._send_async_impl(packet, recalculate_checksum)
+
+    async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        return await self._impl._send_batch_async_impl(packets, recalculate_checksum)
 
     def _stats_impl(self) -> dict[str, int]:
         return self._impl._stats_impl()

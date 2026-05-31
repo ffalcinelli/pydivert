@@ -7,6 +7,9 @@ echo "Compiling eBPF program..."
 cd /pydivert
 clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
 
+echo "Ensuring dependencies are up to date..."
+uv sync --extra test
+
 echo "Running tests with coverage..."
 export COVERAGE_FILE=.coverage.linux
 uv run pytest --cov=pydivert --cov-config=.coveragerc pydivert/tests
