@@ -4,12 +4,6 @@ import pytest
 from pydivert.filter import transpile_to_ebpf
 
 
-def import_scapy():
-    import importlib.util
-
-    return importlib.util.find_spec("scapy") is not None
-
-
 def test_transpile_not_tcp():
     # not tcp -> should match all non-TCP protocols
     rules = transpile_to_ebpf("not tcp")
@@ -93,26 +87,37 @@ def test_transpile_not_syn():
     assert found_not_syn
 
 
-@pytest.mark.skipif(not import_scapy(), reason="Scapy not installed")
 def test_ebpf_not_equal_integration():
+    import socket
     import threading
     import time
-
-    from scapy.all import IP, TCP, send  # type: ignore
 
     import pydivert
 
     # Filter out our specific test port, but only for our specific source port
     # to avoid capturing background noise or replies.
-    f = "tcp.SrcPort == 1000 and tcp.DstPort != 1234"
+    f = "udp.SrcPort == 1000 and udp.DstPort != 1234"
     with pydivert.Divert(f) as w:
 
         def send_packets():
             time.sleep(0.5)
             # This should be captured (port 80 != 1234, sport == 1000)
-            send(IP(dst="127.0.0.1") / TCP(sport=1000, dport=80), verbose=False)
+            try:
+                s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s1.bind(("127.0.0.1", 1000))
+                s1.sendto(b"test", ("127.0.0.1", 80))
+                s1.close()
+            except Exception:
+                pass
+
             # This should NOT be captured (port 1234 == 1234)
-            send(IP(dst="127.0.0.1") / TCP(sport=1000, dport=1234), verbose=False)
+            try:
+                s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s2.bind(("127.0.0.1", 1000))
+                s2.sendto(b"test", ("127.0.0.1", 1234))
+                s2.close()
+            except Exception:
+                pass
 
         t = threading.Thread(target=send_packets)
         t.start()
