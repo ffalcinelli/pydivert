@@ -53,21 +53,6 @@ class WinDivert(BaseDivert):
     A WinDivert handle that can be used to capture packets.
     """
 
-    # Re-expose members for documentation since BaseDivert is internal
-    recv = BaseDivert.recv
-    recv_async = BaseDivert.recv_async
-    recv_batch = BaseDivert.recv_batch
-    recv_batch_async = BaseDivert.recv_batch_async
-    send = BaseDivert.send
-    send_async = BaseDivert.send_async
-    stats = BaseDivert.stats
-    filter = BaseDivert.filter
-    layer = BaseDivert.layer
-    priority = BaseDivert.priority
-    flags = BaseDivert.flags
-    open = BaseDivert.open
-    close = BaseDivert.close
-
     def __init__(
         self,
         filter: str = "true",
@@ -105,9 +90,9 @@ class WinDivert(BaseDivert):
         """
         Unregisters the WinDivert service.
         """
-        if not service.stop_service():
-            # Fallback to sc.exe if direct Win32 API fails
-            try:
+        try:
+            if not service.stop_service():
+                # Fallback to sc.exe if direct Win32 API fails
                 import ctypes.wintypes
 
                 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
@@ -116,11 +101,14 @@ class WinDivert(BaseDivert):
                     system32 = buf.value
                 else:
                     system32 = "C:\\Windows\\System32"
-            except (AttributeError, OSError, ImportError):
-                system32 = "C:\\Windows\\System32"
 
-            sc_path = os.path.join(system32, "sc.exe")
-            subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True, check=True)
+                sc_path = os.path.join(system32, "sc.exe")
+                # Don't check for error, it might already be stopped or not exist
+                subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True, check=False)
+                # Also try to delete it to ensure a clean state
+                subprocess.run([sc_path, "delete", "WinDivert"], capture_output=True, check=False)
+        except Exception as e:
+            logger.warning("WinDivert.unregister failed: %s", e)
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
@@ -436,3 +424,26 @@ class WinDivert(BaseDivert):
             raise RuntimeError("Divert handle is not open")
 
         return windivert_dll.WinDivertSetParam(self._handle, name, value)
+
+    def _stats_impl(self) -> dict[str, int]:
+        return {
+            "queue_len": self.get_param(Param.QUEUE_LEN),
+            "queue_time": self.get_param(Param.QUEUE_TIME),
+            "queue_size": self.get_param(Param.QUEUE_SIZE),
+        }
+
+    def _send_batch_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        count = 0
+        for p in packets:
+            try:
+                if self._send_impl(p, recalculate_checksum) > 0:
+                    count += 1
+            except Exception:
+                continue
+        return count
+
+    async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        # For now, use thread pool for batch send as well
+        import asyncio
+
+        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)

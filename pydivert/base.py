@@ -86,20 +86,36 @@ class BaseDivert(abc.ABC):
         """The filter string."""
         return self._filter
 
+    @filter.setter
+    def filter(self, value: str):
+        self._filter = value
+
     @property
     def layer(self) -> Layer:
         """The layer."""
         return self._layer
+
+    @layer.setter
+    def layer(self, value: Layer):
+        self._layer = value
 
     @property
     def priority(self) -> int:
         """The priority."""
         return self._priority
 
+    @priority.setter
+    def priority(self, value: int):
+        self._priority = value
+
     @property
     def flags(self) -> Flag:
         """The flags."""
         return self._flags
+
+    @flags.setter
+    def flags(self, value: Flag):
+        self._flags = value
 
     @property
     def is_open(self) -> bool:
@@ -273,6 +289,20 @@ class BaseDivert(abc.ABC):
         logger.debug("Packet injected: %d bytes", sent_len)
         return sent_len
 
+    def send_batch(self, packets: list[Packet], recalculate_checksum: bool = True) -> int:
+        """
+        Injects a batch of packets into the network stack.
+        """
+        if not self._is_open:
+            raise RuntimeError("Divert handle is not open")
+
+        if Flag.RECV_ONLY in self.flags:
+            raise OSError(errno.EACCES, "Handle is recv-only")
+
+        count = self._send_batch_impl(packets, recalculate_checksum)
+        logger.debug("Batch injected: %d packets", count)
+        return count
+
     async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         """
         Asynchronous version of send().
@@ -286,6 +316,20 @@ class BaseDivert(abc.ABC):
         sent_len = await self._send_async_impl(packet, recalculate_checksum)
         logger.debug("Packet injected (async): %d bytes", sent_len)
         return sent_len
+
+    async def send_batch_async(self, packets: list[Packet], recalculate_checksum: bool = True) -> int:
+        """
+        Asynchronously injects a batch of packets.
+        """
+        if not self._is_open:
+            raise RuntimeError("Divert handle is not open")
+
+        if Flag.RECV_ONLY in self.flags:
+            raise OSError(errno.EACCES, "Handle is recv-only")
+
+        count = await self._send_batch_async_impl(packets, recalculate_checksum)
+        logger.debug("Batch injected (async): %d packets", count)
+        return count
 
     @abc.abstractmethod
     def _open_impl(self) -> None:
@@ -316,7 +360,15 @@ class BaseDivert(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def _send_batch_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
+        pass
+
+    @abc.abstractmethod
     async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool) -> int:
+        pass
+
+    @abc.abstractmethod
+    async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
         pass
 
     @abc.abstractmethod

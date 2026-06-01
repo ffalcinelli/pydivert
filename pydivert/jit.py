@@ -27,16 +27,27 @@ class SafeEvaluator(ast.NodeVisitor):
         return self.visit(node.body)
 
     def visit_BinOp(self, node):
+        import ast
+
+        ops_map = {
+            ast.Add: lambda a, b: a + b,
+            ast.Sub: lambda a, b: a - b,
+            ast.Mult: lambda a, b: a * b,
+            ast.Div: lambda a, b: a / b,
+            ast.Mod: lambda a, b: a % b,
+            ast.BitAnd: lambda a, b: a & b,
+            ast.BitOr: lambda a, b: a | b,
+            ast.BitXor: lambda a, b: a ^ b,
+            ast.LShift: lambda a, b: a << b,
+            ast.RShift: lambda a, b: a >> b,
+        }
         left = self.visit(node.left)
         right = self.visit(node.right)
-        if isinstance(node.op, ast.Add):
-            return left + right
-        if isinstance(node.op, ast.Sub):
-            return left - right
-        if isinstance(node.op, ast.Mult):
-            return left * right
-        if isinstance(node.op, ast.Div):
-            return left / right
+
+        op_func = ops_map.get(type(node.op))
+        if op_func:
+            return op_func(left, right)
+
         raise ValueError(f"Unsupported binary operator: {type(node.op)}")
 
     def visit_BoolOp(self, node):
@@ -66,6 +77,10 @@ class SafeEvaluator(ast.NodeVisitor):
             ast.LtE: operator.le,
             ast.Gt: operator.gt,
             ast.GtE: operator.ge,
+            ast.Is: operator.is_,
+            ast.IsNot: operator.is_not,
+            ast.In: lambda a, b: a in b,
+            ast.NotIn: lambda a, b: a not in b,
         }
         left = self.visit(node.left)
         for op, right_node in zip(node.ops, node.comparators, strict=True):
@@ -123,6 +138,20 @@ class SafeEvaluator(ast.NodeVisitor):
 
     def visit_Constant(self, node):
         return node.value
+
+    def visit_List(self, node):
+        return [self.visit(elt) for elt in node.elts]
+
+    def visit_Tuple(self, node):
+        return tuple(self.visit(elt) for elt in node.elts)
+
+    def visit_Set(self, node):
+        return {self.visit(elt) for elt in node.elts}
+
+    def visit_Subscript(self, node):
+        value = self.visit(node.value)
+        sl = self.visit(node.slice)
+        return value[sl]
 
     def visit_Call(self, node):
         func = self.visit(node.func)

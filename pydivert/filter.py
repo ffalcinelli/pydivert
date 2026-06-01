@@ -2,9 +2,13 @@
 import logging
 from typing import Any
 
-from lark import Lark, Transformer
+from lark import Lark, Transformer, UnexpectedInput
 
 logger = logging.getLogger(__name__)
+
+
+class FilterSyntaxError(ValueError):
+    """Raised when a WinDivert filter string has invalid syntax."""
 
 
 WINDIVERT_GRAMMAR = r"""
@@ -60,16 +64,91 @@ class WinDivertTransformer(Transformer):
     def __init__(self):
         super().__init__()
 
-    def expression(self, children):
-        return children[0]  # pragma: no cover
+    def field_access(self, children):
+        name = str(children[0]).lower()
+        # Keywords that are valid rules on their own
+        if name == "ip":
+            return [{"proto": "ip"}]
+        if name == "tcp":
+            return [{"proto": "tcp"}]
+        if name == "udp":
+            return [{"proto": "udp"}]
+        if name == "icmp":
+            return [{"proto": "icmp"}]
+        if name == "inbound":
+            return [{"direction": "inbound"}]
+        if name == "outbound":
+            return [{"direction": "outbound"}]
+        if name == "loopback":
+            return [{"loopback": True}]
 
-    def logic_or(self, children):
-        # children is [list_of_dicts, operator, list_of_dicts, ...]
+        # TCP Flags as keywords
+        if name in ("tcp.syn", "tcp.ack", "tcp.fin", "tcp.rst", "tcp.psh", "tcp.urg"):
+            flag = name.split(".")[1]
+            return [{"proto": "tcp", flag: True}]
+
+        # Other names are just strings to be used in comparisons
+        return name
+
+    def value(self, children):
+        return str(children[0])
+
+    def true_val(self, _):
+        return [{}]
+
+    def false_val(self, _):
+        return [{"false": True}]
+
+    def expression(self, children):
+        return children[0]
+
+    def ternary(self, children):
+        # We simplify ternary for eBPF by just returning both possible rules
+        # (effectively an OR of both branches)
         rules = []
         for child in children:
             if isinstance(child, list):
                 rules.extend(child)
         return rules
+
+    def parenthesized(self, children):
+        return children[0]
+
+    def _negate_rules(self, rules: list[dict]) -> list[dict]:
+        """
+        Negates a list of rules (OR of ANDs) by applying De Morgan's laws.
+        Returns a new list of rules representing the negation.
+        """
+        if not rules:
+            return [{}]
+        if rules == [{}]:
+            return [{"false": True}]
+
+        negated_clauses = []
+        for rule in rules:
+            negated_clause = []
+            for k, v in rule.items():
+                if k == "false":
+                    negated_clause.append({})
+                elif k.startswith("!"):
+                    negated_clause.append({k[1:]: v})
+                else:
+                    negated_clause.append({f"!{k}": v})
+            negated_clauses.append(negated_clause)
+
+        result = [{}]
+        for clause_list in negated_clauses:
+            new_result = []
+            for existing_rule in result:
+                for clause in clause_list:
+                    merged = existing_rule.copy()
+                    merged.update(clause)
+                    new_result.append(merged)
+            result = new_result
+        return result
+
+    def not_expr(self, children):
+        return self._negate_rules(children[0])
 
     def logic_and(self, children):
         # We want the Cartesian product of all lists of rules
@@ -86,6 +165,14 @@ class WinDivertTransformer(Transformer):
             result_rules = new_result
         return result_rules
 
+    def logic_or(self, children):
+        # children is [list_of_dicts, operator, list_of_dicts, ...]
+        rules = []
+        for child in children:
+            if isinstance(child, list):
+                rules.extend(child)
+        return rules
+
     def comparison(self, children):
         left, op, right = children
         # field_access for simple names might return a list of rules
@@ -98,17 +185,15 @@ class WinDivertTransformer(Transformer):
         val = str(right)
 
         # Basic equality transpilation
-        if op == "==":
+        if op == "==" or op == "!=":
             rules = self._handle_port_comparison(field, val)
-            if rules:
-                return rules
+            if not rules:
+                rules = self._handle_addr_comparison(field, val)
+            if not rules and field == "ip.ttl":
+                rules = [{"ttl": val}]
 
-            rules = self._handle_addr_comparison(field, val)
             if rules:
-                return rules
-
-            if field == "ip.ttl":
-                return [{"ttl": val}]
+                return rules if op == "==" else self._negate_rules(rules)
 
         # For other operators or fields, we return an empty dict to allow user-space filtering
         return [{}]
@@ -162,48 +247,6 @@ class WinDivertTransformer(Transformer):
             for r in res:
                 r["loopback"] = True
         return res
-
-    def field_access(self, children):
-        name = str(children[0]).lower()
-        # Keywords that are valid rules on their own
-        if name == "ip":
-            return [{"proto": "ip"}]
-        if name == "tcp":
-            return [{"proto": "tcp"}]
-        if name == "udp":
-            return [{"proto": "udp"}]
-        if name == "icmp":
-            return [{"proto": "icmp"}]
-        if name == "inbound":
-            return [{"direction": "inbound"}]
-        if name == "outbound":
-            return [{"direction": "outbound"}]
-        if name == "loopback":
-            return [{"loopback": True}]
-
-        # TCP Flags as keywords
-        if name in ("tcp.syn", "tcp.ack", "tcp.fin", "tcp.rst", "tcp.psh", "tcp.urg"):
-            flag = name.split(".")[1]
-            return [{"proto": "tcp", flag: True}]
-
-        # Other names are just strings to be used in comparisons
-        return name
-
-    def value(self, children):
-        return str(children[0])
-
-    def true_val(self, _):
-        return {}  # pragma: no cover
-
-    def false_val(self, _):
-        return {"false": True}  # pragma: no cover
-
-    def parenthesized(self, children):
-        return children[0]
-
-    def not_expr(self, children):
-        # 'NOT' is hard to transpile to simple firewall rules for complex cases
-        return {}  # pragma: no cover
 
 
 class LegacyTransformer(Transformer):
@@ -452,13 +495,16 @@ def transpile_to_rules(filter_str):
     """
     Parses a WinDivert filter and returns a list of rule components for backends.
     """
-    parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
-    tree = parser.parse(filter_str)
-    transformer = WinDivertTransformer()
-    rules = transformer.transform(tree)
-    if not isinstance(rules, list):
-        rules = [rules]
-    return rules
+    try:
+        parser = Lark(WINDIVERT_GRAMMAR, start="start", parser="lalr")
+        tree = parser.parse(filter_str)
+        transformer = WinDivertTransformer()
+        rules = transformer.transform(tree)
+        if not isinstance(rules, list):
+            rules = [rules]
+        return rules
+    except UnexpectedInput as e:
+        raise FilterSyntaxError(str(e)) from e
 
 
 def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) -> list[dict[str, Any]]:  # noqa: C901
@@ -494,6 +540,19 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
     ebpf_rules = []
 
     for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+
+        # Check for contradictions (e.g. proto == tcp and !proto == tcp)
+        contradiction = False
+        for k, v in rule.items():
+            if not k.startswith("!"):
+                if f"!{k}" in rule and rule[f"!{k}"] == v:
+                    contradiction = True
+                    break
+        if contradiction:
+            continue
+
         ebpf_rule = {
             "src_ip": 0,
             "dst_ip": 0,
@@ -506,6 +565,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
             "tcp_flags": 0,
             "tcp_flags_mask": 0,
             "match_mask": MATCH_ENABLED,
+            "invert_mask": 0,
         }
 
         if sniff:
@@ -516,51 +576,102 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         if "false" in rule:
             ebpf_rule["match_mask"] |= MATCH_FALSE
 
-        if "srcaddr" in rule:
-            addr = rule["srcaddr"]
+        # srcaddr
+        val = rule.get("srcaddr")
+        not_val = rule.get("!srcaddr")
+        if val is not None or not_val is not None:
+            addr = val if val is not None else not_val
             if ":" not in addr:
                 ebpf_rule["src_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_SRC_IP
-        if "dstaddr" in rule:
-            addr = rule["dstaddr"]
+                if val is None:
+                    ebpf_rule["invert_mask"] |= MATCH_SRC_IP
+
+        # dstaddr
+        val = rule.get("dstaddr")
+        not_val = rule.get("!dstaddr")
+        if val is not None or not_val is not None:
+            addr = val if val is not None else not_val
             if ":" not in addr:
                 ebpf_rule["dst_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
                 ebpf_rule["match_mask"] |= MATCH_DST_IP
-        if "proto" in rule:
-            proto = rule["proto"].lower()
+                if val is None:
+                    ebpf_rule["invert_mask"] |= MATCH_DST_IP
+
+        # proto
+        val = rule.get("proto")
+        not_val = rule.get("!proto")
+        if val is not None or not_val is not None:
+            proto = (val if val is not None else not_val).lower()
             ebpf_rule["proto"] = PROTO_MAP.get(proto, 0)
             if ebpf_rule["proto"] != 0:
                 ebpf_rule["match_mask"] |= MATCH_PROTO
-        if "sport" in rule:
-            ebpf_rule["src_port"] = int(rule["sport"])
+                if val is None:
+                    ebpf_rule["invert_mask"] |= MATCH_PROTO
+
+        # sport
+        val = rule.get("sport")
+        not_val = rule.get("!sport")
+        if val is not None or not_val is not None:
+            ebpf_rule["src_port"] = int(val if val is not None else not_val)
             ebpf_rule["match_mask"] |= MATCH_SRC_PORT
-        if "dport" in rule:
-            ebpf_rule["dst_port"] = int(rule["dport"])
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_SRC_PORT
+
+        # dport
+        val = rule.get("dport")
+        not_val = rule.get("!dport")
+        if val is not None or not_val is not None:
+            ebpf_rule["dst_port"] = int(val if val is not None else not_val)
             ebpf_rule["match_mask"] |= MATCH_DST_PORT
-        if "direction" in rule:
-            direction = rule["direction"]
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_DST_PORT
+
+        # direction
+        val = rule.get("direction")
+        not_val = rule.get("!direction")
+        if val is not None or not_val is not None:
+            direction = val if val is not None else not_val
             if direction == "inbound":
                 ebpf_rule["direction"] = 1
             elif direction == "outbound":
                 ebpf_rule["direction"] = 2
             ebpf_rule["match_mask"] |= MATCH_DIRECTION
-        if "loopback" in rule:
-            ebpf_rule["loopback"] = 1 if rule["loopback"] else 0
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_DIRECTION
+
+        # loopback
+        val = rule.get("loopback")
+        not_val = rule.get("!loopback")
+        if val is not None or not_val is not None:
+            if val is not None:
+                ebpf_rule["loopback"] = 1 if val else 0
+            else:
+                ebpf_rule["loopback"] = 0 if not_val else 1
             ebpf_rule["match_mask"] |= MATCH_LOOPBACK
 
-        # Extended fields for Milestone 3
-        if "ttl" in rule:
-            ebpf_rule["ttl"] = int(rule["ttl"])
+        # ttl
+        val = rule.get("ttl")
+        not_val = rule.get("!ttl")
+        if val is not None or not_val is not None:
+            ebpf_rule["ttl"] = int(val if val is not None else not_val)
             ebpf_rule["match_mask"] |= MATCH_TTL
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_TTL
 
         # TCP Flags
         tcp_flags = 0
         tcp_mask = 0
         for flag in ["syn", "ack", "fin", "rst", "psh", "urg"]:
+            flag_bit = {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
             if flag in rule:
-                tcp_mask |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
+                tcp_mask |= flag_bit
                 if rule[flag]:
-                    tcp_flags |= {"fin": 0x01, "syn": 0x02, "rst": 0x04, "psh": 0x08, "ack": 0x10, "urg": 0x20}[flag]
+                    tcp_flags |= flag_bit
+            elif f"!{flag}" in rule:
+                tcp_mask |= flag_bit
+                if not rule[f"!{flag}"]:
+                    tcp_flags |= flag_bit
 
         if tcp_mask:
             ebpf_rule["tcp_flags"] = tcp_flags

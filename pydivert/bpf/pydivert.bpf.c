@@ -30,6 +30,7 @@ struct filter_rule {
     __u16 src_port;
     __u16 dst_port;
     __u16 match_mask;
+    __u16 invert_mask;
     __u8  proto;
     __u8  direction;
     __u8  loopback;
@@ -177,13 +178,13 @@ static __always_inline int matches_rule(struct __sk_buff *skb, struct filter_rul
         }
     }
 
-    if ((rule->match_mask & MATCH_SRC_IP) && src_ip != rule->src_ip) return 0;
-    if ((rule->match_mask & MATCH_DST_IP) && dst_ip != rule->dst_ip) return 0;
-    if ((rule->match_mask & MATCH_SRC_PORT) && src_port != rule->src_port) return 0;
-    if ((rule->match_mask & MATCH_DST_PORT) && dst_port != rule->dst_port) return 0;
-    if ((rule->match_mask & MATCH_PROTO) && proto != rule->proto) return 0;
-    if ((rule->match_mask & MATCH_DIRECTION) && direction != rule->direction) return 0;
-    if ((rule->match_mask & MATCH_TTL) && ttl != rule->ttl) return 0;
+    if ((rule->match_mask & MATCH_SRC_IP) && ((src_ip == rule->src_ip) == !!(rule->invert_mask & MATCH_SRC_IP))) return 0;
+    if ((rule->match_mask & MATCH_DST_IP) && ((dst_ip == rule->dst_ip) == !!(rule->invert_mask & MATCH_DST_IP))) return 0;
+    if ((rule->match_mask & MATCH_SRC_PORT) && ((src_port == rule->src_port) == !!(rule->invert_mask & MATCH_SRC_PORT))) return 0;
+    if ((rule->match_mask & MATCH_DST_PORT) && ((dst_port == rule->dst_port) == !!(rule->invert_mask & MATCH_DST_PORT))) return 0;
+    if ((rule->match_mask & MATCH_PROTO) && ((proto == rule->proto) == !!(rule->invert_mask & MATCH_PROTO))) return 0;
+    if ((rule->match_mask & MATCH_DIRECTION) && ((direction == rule->direction) == !!(rule->invert_mask & MATCH_DIRECTION))) return 0;
+    if ((rule->match_mask & MATCH_TTL) && ((ttl == rule->ttl) == !!(rule->invert_mask & MATCH_TTL))) return 0;
     if ((rule->match_mask & MATCH_TCP_FLAGS) && (tcp_flags & rule->tcp_flags_mask) != rule->tcp_flags) return 0;
 
     if (rule->match_mask & MATCH_LOOPBACK) {
