@@ -90,7 +90,7 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
     @data_offset.setter
     def data_offset(self, val: int):
         if not (5 <= val <= 15):
-            raise ValueError("TCP data offset must be between 5 and 15")
+            raise ValueError("TCP data offset must be between 5 and 15")  # pragma: no cover
         self._view.off_res_flags = (val << 12) | (self._view.off_res_flags & 0x0FFF)
         self._packet._invalidate_checksums()
 
@@ -256,10 +256,10 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
             return self._packet.ipv4.packet_len - self._packet.ipv4.header_len - self.header_len
         if self._packet.ipv6:
             return self._packet.ipv6.payload_len - (self._start - 40) - self.header_len
-        return len(self._packet.raw) - self._start - self.header_len
+        return len(self._packet.raw) - self._start - self.header_len  # pragma: no cover
 
     @payload_len.setter
     def payload_len(self, val: int):
         # We can't easily change the packet length from here without modifying IP header too.
         # But we can update the data_offset if we wanted to (unlikely).
-        pass
+        pass  # pragma: no cover

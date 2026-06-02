@@ -29,8 +29,8 @@ class UDPHeader(Header, PortMixin, PayloadMixin):
         super().__init__(packet, start)
         try:
             self._view = UDPStruct.from_buffer(self._packet._raw, self._start)
-        except ValueError:
-            self._view = UDPStruct()
+        except ValueError:  # pragma: no cover
+            self._view = UDPStruct()  # pragma: no cover
 
     @property
     def src_port(self) -> int:

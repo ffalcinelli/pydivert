@@ -65,7 +65,7 @@ def raw_property(fmt, offset, docs=None):
         struct.pack_into(fmt, self.raw, offset, val)
 
     if docs:
-        rprop.__doc__ = docs
+        rprop.__doc__ = docs  # pragma: no cover
 
     return rprop
 

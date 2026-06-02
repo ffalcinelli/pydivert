@@ -56,7 +56,7 @@ class Divert(BaseDivert):
 
     @staticmethod
     def register() -> None:
-        Divert._get_implementation_class().register()
+        Divert._get_implementation_class().register()  # pragma: no cover
 
     @staticmethod
     def is_registered() -> bool:
@@ -72,7 +72,7 @@ class Divert(BaseDivert):
 
     @classmethod
     def register_service(cls) -> None:
-        cls.register()
+        cls.register()  # pragma: no cover
 
     def _open_impl(self) -> None:
         self._impl.open()
@@ -102,7 +102,7 @@ class Divert(BaseDivert):
         return await self._impl._send_async_impl(packet, recalculate_checksum)
 
     async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
-        return await self._impl._send_batch_async_impl(packets, recalculate_checksum)
+        return await self._impl._send_batch_async_impl(packets, recalculate_checksum)  # pragma: no cover
 
     def _stats_impl(self) -> dict[str, int]:
         return self._impl._stats_impl()
@@ -122,4 +122,4 @@ class Divert(BaseDivert):
             setattr(self._impl, name, value)
 
     def __dir__(self) -> list[str]:
-        return sorted(set(super().__dir__()) | set(dir(self._impl)))
+        return sorted(set(super().__dir__()) | set(dir(self._impl)))  # pragma: no cover

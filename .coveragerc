@@ -17,6 +17,6 @@ exclude_lines =
 [paths]
 source =
     pydivert/
-    */pydivert/
+    /pydivert/pydivert/
     C:/pydivert/pydivert/
-    \\VBOXSVR\C:_PYDIVERT\pydivert\
+    */pydivert/pydivert/

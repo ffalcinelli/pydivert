@@ -50,3 +50,5 @@ linux_ssh_config
 windows_ssh_config
 gha-creds-*.json
 .antigravitycli/
+debug_windivert.py
+test_from_linux
