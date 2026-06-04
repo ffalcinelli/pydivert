@@ -198,8 +198,7 @@ def test_base_divert_jit_filter():
     d.open()
     p1 = MagicMock()
     p2 = MagicMock()
-    _ = p1
-    d._recv_impl = MagicMock  # type: ignore
+    d._recv_impl = MagicMock(side_effect=[p1, p2])  # type: ignore
     d._jit_filter = lambda p: p == p2
     assert d.recv() == p2
     d.close()
@@ -211,8 +210,7 @@ async def test_base_divert_jit_filter_async():
     d.open()
     p1 = MagicMock()
     p2 = MagicMock()
-    _ = p1
-    d._recv_async_impl = AsyncMock  # type: ignore
+    d._recv_async_impl = AsyncMock(side_effect=[p1, p2])  # type: ignore
     d._jit_filter = lambda p: p == p2
     assert await d.recv_async() == p2
     d.close()
@@ -223,8 +221,7 @@ def test_base_divert_batch_jit():
     d.open()
     p1 = MagicMock()
     p2 = MagicMock()
-    _ = p1
-    d._recv_batch_impl = MagicMock  # type: ignore
+    d._recv_batch_impl = MagicMock(return_value=[p1, p2])  # type: ignore
     d._jit_filter = lambda p: p == p2
     assert d.recv_batch() == [p2]
     d.close()
@@ -236,8 +233,7 @@ async def test_base_divert_batch_jit_async():
     d.open()
     p1 = MagicMock()
     p2 = MagicMock()
-    _ = p1
-    d._recv_batch_async_impl = AsyncMock  # type: ignore
+    d._recv_batch_async_impl = AsyncMock(return_value=[p1, p2])  # type: ignore
     d._jit_filter = lambda p: p == p2
     assert await d.recv_batch_async() == [p2]
     d.close()
