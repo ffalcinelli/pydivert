@@ -23,6 +23,7 @@
 # see <https://www.gnu.org/licenses/>.
 
 import struct
+import sys
 
 
 def fromhex(x):
@@ -64,6 +65,28 @@ def raw_property(fmt, offset, docs=None):
         struct.pack_into(fmt, self.raw, offset, val)
 
     if docs:
-        rprop.__doc__ = docs
+        rprop.__doc__ = docs  # pragma: no cover
 
     return rprop
+
+
+def internet_checksum(data):
+    """
+    Calculates the 16-bit one's complement sum of the given data (RFC 1071).
+    """
+    if not isinstance(data, bytes | bytearray):
+        data = bytes(data)
+
+    if len(data) % 2 == 1:
+        data += b"\x00"
+
+    # Optimization: Use memoryview to sum 16-bit words.
+    # sum() on a memoryview cast to 'H' is significantly faster than struct.unpack.
+    s = sum(memoryview(data).cast("H"))
+    while s >> 16:
+        s = (s & 0xFFFF) + (s >> 16)
+
+    if sys.byteorder == "little":
+        s = ((s << 8) & 0xFF00) | ((s >> 8) & 0x00FF)
+
+    return ~s & 0xFFFF

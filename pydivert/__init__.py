@@ -29,14 +29,18 @@
 """
 
 from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol, RecvFlag
+from .core import Divert
+from .ebpf import EBPFDivert
 from .packet import Packet
 from .windivert import WinDivert
 
 __author__ = "fabio"
-__version__ = "3.1.3"
+__version__ = "4.0.0"
 
 __all__ = [
+    "Divert",
     "WinDivert",
+    "EBPFDivert",
     "Packet",
     "Layer",
     "Flag",

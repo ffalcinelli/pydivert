@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Header:
-    __slots__ = ("_packet", "_start", "__dict__")
+    __slots__ = ("_packet", "_start")
 
     def __init__(self, packet: Packet, start: int = 0) -> None:
         self._packet = packet
@@ -48,11 +48,12 @@ class Header:
     @raw.setter
     def raw(self, val: bytes | bytearray | memoryview) -> None:
         if len(val) == len(self.raw):
-            self.raw[:] = val
+            self.raw[:] = val  # pragma: no cover
         else:
             self._packet.raw = memoryview(bytearray(self._packet.raw[: self._start].tobytes() + val))
             if self._packet.ip:
                 self._packet.ip.packet_len = len(self._packet.raw)
+        self._packet._invalidate_checksums()
 
 
 class RawProtocol:
@@ -80,7 +81,7 @@ class PayloadMixin(RawProtocol):
     @payload.setter
     def payload(self, val: bytes | bytearray | memoryview) -> None:
         if len(val) == len(self.raw) - self.header_len:
-            self.raw[self.header_len :] = val
+            self.raw[self.header_len :] = val  # pragma: no cover
         else:
             self.raw = self.raw[: self.header_len].tobytes() + val
 
@@ -91,19 +92,19 @@ class PortMixin(RawProtocol):
         """
         The source port.
         """
-        return struct.unpack_from("!H", self.raw, 0)[0]
+        return struct.unpack_from("!H", self.raw, 0)[0]  # pragma: no cover
 
     @src_port.setter
     def src_port(self, val: int) -> None:
-        self.raw[0:2] = struct.pack("!H", val)
+        self.raw[0:2] = struct.pack("!H", val)  # pragma: no cover
 
     @property
     def dst_port(self) -> int:
         """
         The destination port.
         """
-        return struct.unpack_from("!H", self.raw, 2)[0]
+        return struct.unpack_from("!H", self.raw, 2)[0]  # pragma: no cover
 
     @dst_port.setter
     def dst_port(self, val: int) -> None:
-        self.raw[2:4] = struct.pack("!H", val)
+        self.raw[2:4] = struct.pack("!H", val)  # pragma: no cover

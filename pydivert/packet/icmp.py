@@ -1,67 +1,67 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-# 1) The GNU Lesser General Public License as published by the Free
-#    Software Foundation, either version 3 of the License, or (at your
-#    option) any later version.
-#
-# 2) The GNU General Public License as published by the Free Software
-#    Foundation, either version 2 of the License, or (at your option)
-#    any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
 from __future__ import annotations
 
+import ctypes
+from typing import TYPE_CHECKING
+
 from pydivert.packet.header import Header, PayloadMixin
-from pydivert.util import raw_property
+
+if TYPE_CHECKING:  # pragma: no cover
+    from pydivert.packet import Packet
+
+
+class ICMPStruct(ctypes.BigEndianStructure):
+    _fields_ = [
+        ("type", ctypes.c_uint8),
+        ("code", ctypes.c_uint8),
+        ("check", ctypes.c_uint16),
+        ("data", ctypes.c_uint32),
+    ]
 
 
 class ICMPHeader(Header, PayloadMixin):
-    __slots__ = ()
+    __slots__ = ("_view",)
     __match_args__ = ("type", "code", "cksum")
-    __repr_fields__ = ("cksum", "code", "header_len", "payload", "raw", "type")
+    __repr_fields__ = ("cksum", "code", "header_len", "payload", "type")
+    header_len: int = 4
+
+    def __init__(self, packet: Packet, start: int = 0) -> None:
+        super().__init__(packet, start)
+        try:
+            self._view = ICMPStruct.from_buffer(self._packet._raw, self._start)
+        except ValueError:
+            self._view = ICMPStruct()
 
     @property
     def type(self) -> int:
-        """
-        The ICMP message type.
-        """
-        return self.raw[0]
+        return self._view.type
 
     @type.setter
-    def type(self, val: int) -> None:
-        self.raw[0] = val
+    def type(self, val: int):
+        self._view.type = val
+        self._packet._invalidate_checksums()
 
     @property
     def code(self) -> int:
-        """
-        The ICMP message code.
-        """
-        return self.raw[1]
+        return self._view.code
 
     @code.setter
-    def code(self, val: int) -> None:
-        self.raw[1] = val
+    def code(self, val: int):
+        self._view.code = val
+        self._packet._invalidate_checksums()
 
-    cksum: int = raw_property("!H", 2, docs="The ICMP header checksum field.")
+    @property
+    def cksum(self) -> int:
+        return self._view.check
+
+    @cksum.setter
+    def cksum(self, val: int):
+        self._view.check = val
 
 
 class ICMPv4Header(ICMPHeader):
     __slots__ = ()
-    header_len: int = 4
 
 
 class ICMPv6Header(ICMPHeader):
-    header_len: int = 4
+    __slots__ = ()

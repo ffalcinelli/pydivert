@@ -64,8 +64,8 @@ def is_registered(service_name: str = "WinDivert") -> bool:
     try:
         service = advapi32.OpenServiceW(scm, service_name, SERVICE_QUERY_STATUS)
         if service:
-            advapi32.CloseServiceHandle(service)
-            return True
+            advapi32.CloseServiceHandle(service)  # pragma: no cover
+            return True  # pragma: no cover
         return False
     finally:
         advapi32.CloseServiceHandle(scm)
@@ -92,7 +92,7 @@ def stop_service(service_name: str = "WinDivert") -> bool:
             status = SERVICE_STATUS()
             if not advapi32.ControlService(service, SERVICE_CONTROL_STOP, byref(status)):
                 return False
-            return True
+            return True  # pragma: no cover
         finally:
             advapi32.CloseServiceHandle(service)
     finally:

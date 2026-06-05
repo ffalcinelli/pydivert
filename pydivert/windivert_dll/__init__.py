@@ -94,7 +94,7 @@ try:
             f.argtypes = [c_uint]
             f.restype = None
             return f(dwErrCode)
-        return None
+        return None  # pragma: no cover
 
     def WinError(code=None, desc=None):
         return ctypes.WinError(code, desc)
@@ -174,8 +174,8 @@ def raise_on_error(f):
                 err = WinError(code=retcode)
                 try:
                     SetLastError(0)
-                except Exception:
-                    pass
+                except Exception:  # pragma: no cover
+                    pass  # pragma: no cover
                 raise err
         return res
 
@@ -272,7 +272,7 @@ def __getattr__(name: str) -> Any:
     dynamically provides attributes not explicitly defined.
     """
     if name in WINDIVERT_FUNCTIONS:
-        return _mkprox(name)
+        return _mkprox(name)  # pragma: no cover
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

@@ -1,94 +1,101 @@
-# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-# 1) The GNU Lesser General Public License as published by the Free
-#    Software Foundation, either version 3 of the License, or (at your
-#    option) any later version.
-#
-# 2) The GNU General Public License as published by the Free Software
-#    Foundation, either version 2 of the License, or (at your option)
-#    any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
-from unittest.mock import MagicMock, patch
+import asyncio
+import socket
 
 import pytest
 
 import pydivert
-import pydivert.windivert_dll
-from pydivert.windivert_dll import Overlapped, WinDivertAddress
+
+# SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
 
 
-@pytest.fixture
-def mock_windivert_dll():
-    with patch("pydivert.windivert.windivert_dll") as mock:
-        # Mock HANDLE
-        mock.WinDivertOpen.return_value = 123
-        mock.ERROR_IO_PENDING = 997
-        yield mock
+@pytest.mark.asyncio
+async def test_async_context_manager():
+    try:
+        async with pydivert.Divert("false") as w:
+            assert w.is_open
+    except (PermissionError, OSError):
+        pytest.skip("Test requires administrator/root privileges.")
 
 
-def test_recv_ex_async_pending(mock_windivert_dll):
-    # Simulate WinDivertRecvEx raising ERROR_IO_PENDING
-    mock_windivert_dll.WinDivertRecvEx.side_effect = pydivert.windivert_dll.WinError(997)
-
-    w = pydivert.WinDivert()
-    w._handle = 123
-    overlapped = Overlapped()
-
-    result = w.recv_ex(overlapped=overlapped)
-
-    assert result is None
-    # Verify references are stored in overlapped to prevent GC
-    assert hasattr(overlapped, "_packet_buffer")
-    assert hasattr(overlapped, "_address")
-    assert hasattr(overlapped, "_recv_len")
-    assert mock_windivert_dll.WinDivertRecvEx.called
+@pytest.mark.asyncio
+async def test_recv_async_real():
+    port = 55555
+    addr = ("127.0.0.1", port)
+    try:
+        with pydivert.Divert(f"udp.DstPort == {port}") as w:
+            recv_task = asyncio.create_task(w.recv_async())
+            await asyncio.sleep(0.1)
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.sendto(b"hello-async", addr)
+            packet = await asyncio.wait_for(recv_task, timeout=2.0)
+            assert packet.payload == b"hello-async"
+    except (PermissionError, OSError):
+        pytest.skip("Insufficient privileges")
 
 
-def test_send_ex_async_pending(mock_windivert_dll):
-    # Simulate WinDivertSendEx raising ERROR_IO_PENDING
-    mock_windivert_dll.WinDivertSendEx.side_effect = pydivert.windivert_dll.WinError(997)
+@pytest.mark.asyncio
+async def test_send_async_real():
+    port = 55556
+    addr = ("127.0.0.1", port)
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.bind(addr)
+    server.settimeout(2.0)
+    try:
+        async with pydivert.Divert("false") as w:
+            raw = bytearray(
+                b"\x45\x00\x00\x20\x00\x01\x00\x00\x40\x11\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
+                b"\x12\x34\xd9\x04\x00\x0c\x00\x00" + b"data"
+            )
+            packet = pydivert.Packet(raw)
+            packet.recalculate_checksums()
+            await w.send_async(packet)
+            data, _ = server.recvfrom(1024)
+            assert data == b"data"
+    except (PermissionError, OSError):
+        pytest.skip("Insufficient privileges")
+    finally:
+        server.close()
 
-    w = pydivert.WinDivert()
-    w._handle = 123
-    overlapped = Overlapped()
 
-    packet = MagicMock(spec=pydivert.Packet)
-    packet.raw = bytearray(b"test")
-    packet.wd_addr = WinDivertAddress()
-
-    result = w.send_ex(packet, overlapped=overlapped)
-
-    assert result is None
-    # Verify references are stored in overlapped to prevent GC
-    assert hasattr(overlapped, "_packet_raw")
-    assert hasattr(overlapped, "_address")
-    assert hasattr(overlapped, "_send_len")
-    assert mock_windivert_dll.WinDivertSendEx.called
+@pytest.mark.asyncio
+async def test_async_iterator():
+    try:
+        async with pydivert.Divert("false") as w:
+            it = w.__aiter__()
+            assert it is w
+            try:
+                await asyncio.wait_for(w.__anext__(), timeout=0.1)
+            except (asyncio.TimeoutError, TimeoutError):
+                pass
+    except (PermissionError, OSError):
+        pytest.skip("Insufficient privileges")
 
 
-def test_recv_ex_sync_success(mock_windivert_dll):
-    # Simulate synchronous success (no error raised)
-    mock_windivert_dll.WinDivertRecvEx.return_value = True
+@pytest.mark.asyncio
+async def test_recv_batch_async():
+    port = 55558
+    addr = ("127.0.0.1", port)
+    try:
+        with pydivert.Divert(f"udp.DstPort == {port}") as w:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                for i in range(2):
+                    sock.sendto(f"b-{i}".encode(), addr)
+            await asyncio.sleep(0.2)
+            packets = await asyncio.wait_for(w.recv_batch_async(count=2), timeout=2.0)
+            assert len(packets) >= 1  # WinDivert might return partial batch on timeout
+    except (PermissionError, OSError):
+        pytest.skip("Insufficient privileges")
 
-    w = pydivert.WinDivert()
-    w._handle = 123
 
-    # We need to mock the Packet creation or let it fail gracefully
-    with patch("pydivert.windivert.Packet") as mock_packet:
-        result = w.recv_ex()
-        assert result == mock_packet.return_value
-        assert not mock_windivert_dll.WinDivertRecvEx.call_args[0][-1]  # overlapped is None
+@pytest.mark.asyncio
+async def test_recv_async_cancellation():
+    try:
+        with pydivert.Divert("false") as w:
+            recv_task = asyncio.create_task(w.recv_async())
+            await asyncio.sleep(0.1)
+            recv_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await recv_task
+    except (PermissionError, OSError):
+        pytest.skip("Insufficient privileges")

@@ -1,119 +1,265 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-# Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of either:
-#
-# 1) The GNU Lesser General Public License as published by the Free
-#    Software Foundation, either version 3 of the License, or (at your
-#    option) any later version.
-#
-# 2) The GNU General Public License as published by the Free Software
-#    Foundation, either version 2 of the License, or (at your option)
-#    any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License and the GNU General Public License
-# for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# and the GNU General Public License along with this program.  If not,
-# see <https://www.gnu.org/licenses/>.
-
 from __future__ import annotations
 
-import struct
+import ctypes
+from typing import TYPE_CHECKING
 
 from pydivert.packet.header import Header, PayloadMixin, PortMixin
-from pydivert.util import flag_property, raw_property
+
+if TYPE_CHECKING:  # pragma: no cover
+    from pydivert.packet import Packet
 
 
-class TCPHeader(Header, PayloadMixin, PortMixin):
-    __slots__ = ()
-    __match_args__ = ("src_port", "dst_port", "seq_num", "ack_num", "flags")
+class TCPStruct(ctypes.BigEndianStructure):
+    _fields_ = [
+        ("sport", ctypes.c_uint16),
+        ("dport", ctypes.c_uint16),
+        ("seq", ctypes.c_uint32),
+        ("ack", ctypes.c_uint32),
+        ("off_res_flags", ctypes.c_uint16),
+        ("win", ctypes.c_uint16),
+        ("check", ctypes.c_uint16),
+        ("urg_ptr", ctypes.c_uint16),
+    ]
+
+
+class TCPHeader(Header, PortMixin, PayloadMixin):
+    __slots__ = ("_view",)
+    __match_args__ = ("src_port", "dst_port", "seq_num", "ack_num", "control_bits")
     __repr_fields__ = (
-        "ack",
         "ack_num",
         "cksum",
         "control_bits",
-        "cwr",
         "data_offset",
         "dst_port",
-        "ece",
-        "fin",
         "header_len",
-        "ns",
         "payload",
-        "psh",
-        "raw",
-        "reserved",
-        "rst",
+        "payload_len",
         "seq_num",
         "src_port",
-        "syn",
-        "urg",
-        "urg_ptr",
-        "window_size",
+        "window",
     )
-    ns: bool = flag_property("ns", 12, 0b00000001)
 
-    cwr: bool = flag_property("cwr", 13, 0b10000000)
-    ece: bool = flag_property("ece", 13, 0b01000000)
-
-    urg: bool = flag_property("syn", 13, 0b00100000)
-    ack: bool = flag_property("ack", 13, 0b00010000)
-    psh: bool = flag_property("psh", 13, 0b00001000)
-    rst: bool = flag_property("rst", 13, 0b00000100)
-    syn: bool = flag_property("syn", 13, 0b00000010)
-    fin: bool = flag_property("fin", 13, 0b00000001)
+    def __init__(self, packet: Packet, start: int = 0) -> None:
+        super().__init__(packet, start)
+        try:
+            self._view = TCPStruct.from_buffer(self._packet._raw, self._start)
+        except ValueError:
+            self._view = TCPStruct()
 
     @property
-    def header_len(self) -> int:
-        """
-        The TCP header length.
-        """
-        return self.data_offset * 4
+    def src_port(self) -> int:
+        return self._view.sport
 
-    seq_num: int = raw_property("!I", 4, docs="The sequence number field.")
-    ack_num: int = raw_property("!I", 8, docs="The acknowledgement number field.")
+    @src_port.setter
+    def src_port(self, val: int):
+        self._view.sport = val
+        self._packet._invalidate_checksums()
 
-    window_size: int = raw_property("!H", 14, docs="The size of the receive window in bytes.")
-    cksum: int = raw_property("!H", 16, docs="The TCP header checksum field.")
-    urg_ptr: int = raw_property("!H", 18, docs="The Urgent Pointer field.")
+    @property
+    def dst_port(self) -> int:
+        return self._view.dport
+
+    @dst_port.setter
+    def dst_port(self, val: int):
+        self._view.dport = val
+        self._packet._invalidate_checksums()
+
+    @property
+    def seq_num(self) -> int:
+        return self._view.seq
+
+    @seq_num.setter
+    def seq_num(self, val: int):
+        self._view.seq = val
+        self._packet._invalidate_checksums()
+
+    @property
+    def ack_num(self) -> int:
+        return self._view.ack
+
+    @ack_num.setter
+    def ack_num(self, val: int):
+        self._view.ack = val
+        self._packet._invalidate_checksums()
 
     @property
     def data_offset(self) -> int:
-        """
-        The size of TCP header in 32bit words.
-        """
-        return self.raw[12] >> 4
+        return self._view.off_res_flags >> 12
 
     @data_offset.setter
-    def data_offset(self, val: int) -> None:
-        if val < 5 or val > 15:
-            raise ValueError("TCP data offset must be greater or equal than 5 and less than 15.")
-        struct.pack_into("!B", self.raw, 12, (val << 4) | (self.reserved << 1) | self.ns)
+    def data_offset(self, val: int):
+        if not (5 <= val <= 15):
+            raise ValueError("TCP data offset must be between 5 and 15")  # pragma: no cover
+        self._view.off_res_flags = (val << 12) | (self._view.off_res_flags & 0x0FFF)
+        self._packet._invalidate_checksums()
 
     @property
     def reserved(self) -> int:
-        """
-        The reserved field.
-        """
-        return (self.raw[12] >> 1) & 0x07
+        return (self._view.off_res_flags >> 9) & 0x07
 
     @reserved.setter
-    def reserved(self, val: int) -> None:
-        struct.pack_into("!B", self.raw, 12, (self.data_offset << 4) | (val << 1) | self.ns)
+    def reserved(self, val: int):
+        self._view.off_res_flags = (self.data_offset << 12) | ((val & 0x07) << 9) | (self.control_bits)
+        self._packet._invalidate_checksums()
 
     @property
     def control_bits(self) -> int:
-        """
-        The Control Bits field.
-        """
-        return struct.unpack_from("!H", self.raw, 12)[0] & 0x01FF
+        return self._view.off_res_flags & 0x01FF
 
     @control_bits.setter
-    def control_bits(self, val: int) -> None:
-        struct.pack_into("!H", self.raw, 12, (self.data_offset << 12) | (self.reserved << 9) | (val & 0x01FF))
+    def control_bits(self, val: int):
+        self._view.off_res_flags = (self._view.off_res_flags & 0xFE00) | (val & 0x01FF)
+        self._packet._invalidate_checksums()
+
+    @property
+    def ns(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0100)
+
+    @ns.setter
+    def ns(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0100
+        else:
+            self._view.off_res_flags &= ~0x0100
+        self._packet._invalidate_checksums()
+
+    @property
+    def cwr(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0080)
+
+    @cwr.setter
+    def cwr(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0080
+        else:
+            self._view.off_res_flags &= ~0x0080
+        self._packet._invalidate_checksums()
+
+    @property
+    def ece(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0040)
+
+    @ece.setter
+    def ece(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0040
+        else:
+            self._view.off_res_flags &= ~0x0040
+        self._packet._invalidate_checksums()
+
+    @property
+    def urg(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0020)
+
+    @urg.setter
+    def urg(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0020
+        else:
+            self._view.off_res_flags &= ~0x0020
+        self._packet._invalidate_checksums()
+
+    @property
+    def ack(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0010)
+
+    @ack.setter
+    def ack(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0010
+        else:
+            self._view.off_res_flags &= ~0x0010
+        self._packet._invalidate_checksums()
+
+    @property
+    def psh(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0008)
+
+    @psh.setter
+    def psh(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0008
+        else:
+            self._view.off_res_flags &= ~0x0008
+        self._packet._invalidate_checksums()
+
+    @property
+    def rst(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0004)
+
+    @rst.setter
+    def rst(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0004
+        else:
+            self._view.off_res_flags &= ~0x0004
+        self._packet._invalidate_checksums()
+
+    @property
+    def syn(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0002)
+
+    @syn.setter
+    def syn(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0002
+        else:
+            self._view.off_res_flags &= ~0x0002
+        self._packet._invalidate_checksums()
+
+    @property
+    def fin(self) -> bool:
+        return bool(self._view.off_res_flags & 0x0001)
+
+    @fin.setter
+    def fin(self, val: bool):
+        if val:
+            self._view.off_res_flags |= 0x0001
+        else:
+            self._view.off_res_flags &= ~0x0001
+        self._packet._invalidate_checksums()
+
+    @property
+    def window(self) -> int:
+        return self._view.win
+
+    @window.setter
+    def window(self, val: int):
+        self._view.win = val
+        self._packet._invalidate_checksums()
+
+    @property
+    def cksum(self) -> int:
+        return self._view.check
+
+    @cksum.setter
+    def cksum(self, val: int):
+        self._view.check = val
+
+    @property
+    def urg_ptr(self) -> int:
+        return self._view.urg_ptr
+
+    @urg_ptr.setter
+    def urg_ptr(self, val: int):
+        self._view.urg_ptr = val
+        self._packet._invalidate_checksums()
+
+    @property
+    def header_len(self) -> int:
+        return self.data_offset * 4
+
+    @property
+    def payload_len(self) -> int:
+        if self._packet.ipv4:
+            return self._packet.ipv4.packet_len - self._packet.ipv4.header_len - self.header_len
+        if self._packet.ipv6:
+            return self._packet.ipv6.payload_len - (self._start - 40) - self.header_len
+        return len(self._packet.raw) - self._start - self.header_len  # pragma: no cover
+
+    @payload_len.setter
+    def payload_len(self, val: int):
+        # We can't easily change the packet length from here without modifying IP header too.
+        # But we can update the data_offset if we wanted to (unlikely).
+        pass  # pragma: no cover

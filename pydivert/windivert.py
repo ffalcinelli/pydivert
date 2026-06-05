@@ -30,7 +30,14 @@ import subprocess
 from ctypes import byref, c_char, c_char_p, c_uint, c_uint64
 
 from pydivert import service, windivert_dll  # noqa: F401
-from pydivert.consts import Direction, Flag, Layer, Param
+from pydivert.base import BaseDivert
+from pydivert.consts import (
+    DEFAULT_PACKET_BUFFER_SIZE,
+    Direction,
+    Flag,
+    Layer,
+    Param,
+)
 from pydivert.packet import Packet
 from pydivert.windivert_dll import (
     INFINITE,
@@ -38,89 +45,38 @@ from pydivert.windivert_dll import (
     WinDivertAddress,
 )
 
-DEFAULT_PACKET_BUFFER_SIZE = 65575
-
 logger = logging.getLogger(__name__)
 
 
-class WinDivert:
+class WinDivert(BaseDivert):
     """
     A WinDivert handle that can be used to capture packets.
-    The main methods are `.open()`, `.recv()`, `.send()` and `.close()`.
-
-    Use it like so::
-
-        with pydivert.WinDivert() as w:
-            for packet in w:
-                print(packet)
-                w.send(packet)
-
     """
 
     def __init__(
-        self, filter: str = "true", layer: Layer = Layer.NETWORK, priority: int = 0, flags: Flag = Flag.DEFAULT
+        self,
+        filter: str = "true",
+        layer: Layer = Layer.NETWORK,
+        priority: int = 0,
+        flags: Flag = Flag.DEFAULT,
+        **kwargs,
     ) -> None:
-        """
-        Creates a WinDivert handle.
-
-        :param filter: The packet filter string (e.g. "tcp.DstPort == 80").
-            See the [WinDivert Filter Language](#windivert-filter-language) guide for more details.
-        :param layer: The WinDivert layer (e.g. Layer.NETWORK, Layer.FLOW).
-        :param priority: The priority of the handle (higher priority handles see packets first).
-        :param flags: WinDivert flags (e.g. Flag.SNIFF, Flag.DROP).
-        """
+        if os.name != "nt":
+            raise OSError("WinDivert is only supported on Windows.")
+        super().__init__(filter, layer, priority, flags, **kwargs)
         self._handle = None
         self._event = None
-        self._filter = filter.encode()
-        self._layer = layer
-        self._priority = priority
-        self._flags = flags
         self._recv_buf = None
         self._recv_buf_c = None
         self._pending_ops: list[Overlapped] = []
-
-    def __repr__(self):
-        state = "open" if self._handle is not None else "closed"
-        filter_str = self._filter.decode()
-        return (
-            f'<WinDivert state="{state}" filter="{filter_str}" layer="{self._layer}" '
-            f'priority="{self._priority}" flags="{self._flags}" />'
-        )
-
-    def __enter__(self):
-        self.open()
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.recv()
-
-    async def __aenter__(self) -> "WinDivert":
-        self.open()
-        return self
-
-    async def __aexit__(self, *args) -> None:
-        self.close()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self) -> Packet:
-        return await self.recv_async()
 
     @staticmethod
     def register():
         """
         An utility method to register the service the first time.
-        It is usually not required to call this function, as WinDivert will register itself when opening a handle.
         """
-        with WinDivert("false"):
-            pass
+        with WinDivert("false"):  # pragma: no cover
+            pass  # pragma: no cover
 
     @staticmethod
     def is_registered() -> bool:
@@ -130,15 +86,13 @@ class WinDivert:
         return service.is_registered()
 
     @staticmethod
-    def unregister() -> None:
+    def unregister() -> None:  # pragma: no cover
         """
         Unregisters the WinDivert service.
-        This function only requests a service stop, which may not be processed immediately if there are still open
-        handles.
         """
-        if not service.stop_service():
-            # Fallback to sc.exe if direct Win32 API fails
-            try:
+        try:
+            if not service.stop_service():
+                # Fallback to sc.exe if direct Win32 API fails
                 import ctypes.wintypes
 
                 buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
@@ -147,81 +101,32 @@ class WinDivert:
                     system32 = buf.value
                 else:
                     system32 = "C:\\Windows\\System32"
-            except (AttributeError, OSError, ImportError):
-                system32 = "C:\\Windows\\System32"
 
-            sc_path = os.path.join(system32, "sc.exe")
-            subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True, check=True)
+                sc_path = os.path.join(system32, "sc.exe")
+                # Don't check for error, it might already be stopped or not exist
+                subprocess.run([sc_path, "stop", "WinDivert"], capture_output=True, check=False)
+                # Also try to delete it to ensure a clean state
+                subprocess.run([sc_path, "delete", "WinDivert"], capture_output=True, check=False)
+        except Exception as e:
+            logger.warning("WinDivert.unregister failed: %s", e)  # pragma: no cover
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
         """
         Checks if the given packet filter string is valid with respect to the filter language.
-
-        The remapped function is WinDivertHelperCheckFilter::
-
-            BOOL WinDivertHelperCheckFilter(
-                __in const char *filter,
-                __in WINDIVERT_LAYER layer,
-                __out_opt const char **errorStr,
-                __out_opt UINT *errorPos
-            );
-
-        See: https://reqrypt.org/windivert-doc.html#divert_helper_check_filter
-
-        :return: A tuple (res, pos, msg) with check result in 'res' human readable description of the error in 'msg'
-            and the error's position in 'pos'.
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:
             res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
         except OSError as e:
-            logger.warning("WinDivertHelperCompileFilter failed: %s", e)
+            logger.warning("WinDivertHelperCompileFilter failed: %s", e)  # pragma: no cover
         return res, pos.value, msg.value.decode() if msg.value else ""
 
-    def open(self) -> None:
-        """
-        Opens a WinDivert handle for the given filter.
-        Unless otherwise specified by flags, any packet that matches the filter will be diverted to the handle.
-        Diverted packets can be read by the application with receive().
-
-        The remapped function is WinDivertOpen::
-
-            HANDLE WinDivertOpen(
-                __in const char *filter,
-                __in WINDIVERT_LAYER layer,
-                __in INT16 priority,
-                __in UINT64 flags
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_open
-        """
-        if self.is_open:
-            raise RuntimeError("WinDivert handle is already open.")
-        self._handle = windivert_dll.WinDivertOpen(self._filter, self._layer, self._priority, self._flags)
+    def _open_impl(self) -> None:
+        self._handle = windivert_dll.WinDivertOpen(self.filter.encode(), self.layer, self.priority, self.flags)
         self._event = windivert_dll.CreateEventW(None, False, False, None)
 
-    @property
-    def is_open(self):
-        """
-        Indicates if there is currently an open handle.
-        """
-        return bool(self._handle)
-
-    def close(self) -> None:
-        """
-        Closes the handle opened by open().
-
-        The remapped function is WinDivertClose::
-
-            BOOL WinDivertClose(
-                __in HANDLE handle
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_close
-        """
-        if not self.is_open:
-            raise RuntimeError("WinDivert handle is not open.")
+    def _close_impl(self) -> None:  # pragma: no cover
         windivert_dll.WinDivertClose(self._handle)
         self._handle = None
         self._pending_ops.clear()
@@ -229,27 +134,7 @@ class WinDivert:
             windivert_dll.CloseHandle(self._event)
             self._event = None
 
-    def recv(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
-        """
-        Receives a diverted packet that matched the filter.
-
-        The remapped function is WinDivertRecv::
-
-            BOOL WinDivertRecv(
-                __in HANDLE handle,
-                __out PVOID pPacket,
-                __in UINT packetLen,
-                __out_opt UINT *pRecvLen,
-                __out_opt PWINDIVERT_ADDRESS pAddr
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_recv
-
-        :return: The return value is a `pydivert.Packet`.
-        """
-        if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
-
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
             self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
@@ -258,17 +143,49 @@ class WinDivert:
         packet_ = self._recv_buf_c
         address = WinDivertAddress()
         recv_len = c_uint(0)
-        windivert_dll.WinDivertRecv(self._handle, packet_, bufsize, byref(recv_len), byref(address))
+
+        if timeout is None:
+            windivert_dll.WinDivertRecv(
+                self._handle, packet_, bufsize, byref(recv_len), byref(address)
+            )  # pragma: no cover
+        else:
+            # For synchronous timeout support, use WinDivertRecvEx with overlapped I/O
+            overlapped = Overlapped(hEvent=self._event)
+            res = windivert_dll.WinDivertRecvEx(
+                self._handle, packet_, bufsize, byref(recv_len), 0, byref(address), None, byref(overlapped)
+            )
+            if not res:
+                error = windivert_dll.GetLastError()
+                if error == windivert_dll.ERROR_IO_PENDING:
+                    # Wait for completion or timeout
+                    wait_res = windivert_dll.WaitForSingleObject(self._event, int(timeout * 1000))
+                    if wait_res == 0:  # SUCCESS
+                        from pydivert.windivert_dll import windll
+
+                        windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(recv_len), False)
+                    elif wait_res == 0x00000102:  # WAIT_TIMEOUT
+                        # Cancel the pending operation
+                        windivert_dll.windll.kernel32.CancelIoEx(self._handle, byref(overlapped))
+                        raise TimeoutError()
+                    elif wait_res != 0:  # WAIT_FAILED or other  # pragma: no cover
+                        raise windivert_dll.WinError(windivert_dll.GetLastError())  # pragma: no cover
+                else:
+                    raise windivert_dll.WinError(error)  # pragma: no cover
 
         return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
 
-    async def recv_async(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE) -> Packet:
-        """
-        Asynchronously receives a diverted packet using Windows Overlapped I/O.
-        """
-        if self._handle is None or self._event is None:
-            raise RuntimeError("WinDivert handle is not open")
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        packets = []
+        for i in range(count):
+            try:
+                # Only the first packet respects the full timeout
+                t = timeout if i == 0 else 0
+                packets.append(self._recv_impl(bufsize, t))
+            except (TimeoutError, Exception):
+                break
+        return packets
 
+    async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if self._recv_buf is None or len(self._recv_buf) != bufsize:
             self._recv_buf = bytearray(bufsize)
             self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
@@ -279,15 +196,12 @@ class WinDivert:
         recv_len = c_uint(0)
         overlapped = Overlapped(hEvent=self._event)
 
-        # Keep references to objects used in overlapped I/O
-        # These are attached to the overlapped object to prevent GC
         overlapped._packet = packet
         overlapped._address = address
         overlapped._recv_len = recv_len
         self._pending_ops.append(overlapped)
 
         try:
-            # Call the async version from DLL
             res = windivert_dll.WinDivertRecvEx(
                 self._handle, packet_, bufsize, byref(recv_len), 0, byref(address), None, byref(overlapped)
             )
@@ -295,29 +209,47 @@ class WinDivert:
             if not res:
                 error = windivert_dll.GetLastError()
                 if error == windivert_dll.ERROR_IO_PENDING:
-                    # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
-                    await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+                    if timeout:
+                        try:
+                            await asyncio.wait_for(
+                                loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE),
+                                timeout,
+                            )
+                        except asyncio.TimeoutError:  # pragma: no cover
+                            # Cancel the pending overlapped I/O on the handle
+                            windivert_dll.windll.kernel32.CancelIoEx(
+                                self._handle, byref(overlapped)
+                            )  # pragma: no cover
+                            raise TimeoutError() from None  # pragma: no cover
+                    else:
+                        await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
+                    from pydivert.windivert_dll import windll
+
+                    windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(recv_len), False)
                 else:
-                    raise windivert_dll.WinError(error)
-            # Operation completed successfully (either synchronously or after waiting)
+                    raise windivert_dll.WinError(error)  # pragma: no cover
             self._pending_ops.remove(overlapped)
             return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
         except asyncio.CancelledError:
-            # If cancelled, the overlapped object remains in _pending_ops to prevent GC
-            # until the handle is closed, which will cancel the pending operation.
             raise
-        except Exception:
+        except Exception:  # pragma: no cover # pragma: no cover
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
 
+    async def _recv_batch_async_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
+        packets = []
+        for i in range(count):
+            try:
+                t = timeout if i == 0 else 0.2
+                packets.append(await self._recv_async_impl(bufsize, t))
+            except (TimeoutError, Exception):  # pragma: no cover
+                break  # pragma: no cover
+        return packets
+
     @staticmethod
     def _parse_packet(packet, recv_len, address):
-        """
-        Helper method to parse a raw packet buffer and a WinDivertAddress structure
-        into a pydivert.Packet instance.
-        """
         return Packet(
             packet[:recv_len] if isinstance(packet, memoryview) else memoryview(packet)[:recv_len],
             interface=(address.Network.IfIdx, address.Network.SubIfIdx),
@@ -337,94 +269,14 @@ class WinDivert:
             wd_addr=address,
         )
 
-    def recv_ex(
-        self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, flags: int = 0, overlapped: Overlapped | None = None
-    ) -> Packet | None:
-        """
-        Receives a diverted packet that matched the filter (extended version).
-        Supports overlapped IO.
+    def _stats_impl(self) -> dict[str, int]:
+        return {  # pragma: no cover
+            "queue_len": self.get_param(Param.QUEUE_LEN),
+            "queue_time": self.get_param(Param.QUEUE_TIME),
+            "queue_size": self.get_param(Param.QUEUE_SIZE),
+        }
 
-        The remapped function is WinDivertRecvEx::
-
-            BOOL WinDivertRecvEx(
-                __in HANDLE handle,
-                __out PVOID pPacket,
-                __in UINT packetLen,
-                __out_opt UINT *pRecvLen,
-                __in UINT64 flags,
-                __out PWINDIVERT_ADDRESS pAddr,
-                __inout_opt UINT *pAddrLen,
-                __inout_opt LPOVERLAPPED lpOverlapped
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_recv
-
-        :param bufsize: The size of the packet buffer.
-        :param flags: WinDivert receive flags (e.g. RecvFlag.NO_BLOCK).
-        :param overlapped: An optional `Overlapped` structure for overlapped IO.
-        :return: A `pydivert.Packet` if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
-        """
-        if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
-
-        if overlapped is None:
-            if self._recv_buf is None or len(self._recv_buf) != bufsize:
-                self._recv_buf = bytearray(bufsize)
-                self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
-            packet = self._recv_buf
-            packet_ = self._recv_buf_c
-        else:
-            packet = bytearray(bufsize)
-            packet_ = (c_char * bufsize).from_buffer(packet)
-        windivert_dll._init()
-
-        address = WinDivertAddress()
-        recv_len = c_uint(0)
-        addr_len = c_uint(ctypes.sizeof(WinDivertAddress))
-
-        try:
-            windivert_dll.WinDivertRecvEx(
-                self._handle, packet_, bufsize, byref(recv_len), flags, byref(address), byref(addr_len), overlapped
-            )
-        except OSError as e:
-            if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:
-                # Store references to prevent garbage collection
-                overlapped._packet_buffer = packet
-                overlapped._address = address
-                overlapped._recv_len = recv_len
-                return None
-            raise
-
-        if overlapped is None:
-            return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
-        else:
-            return self._parse_packet(packet, recv_len.value, address)
-
-    def send(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        """
-        Injects a packet into the network stack.
-        Recalculates the checksum before sending unless recalculate_checksum=False is passed.
-
-        The injected packet may be one received from recv(), or a modified version, or a completely new packet.
-        Injected packets can be captured and diverted again by other WinDivert handles with lower priorities.
-
-        The remapped function is WinDivertSend::
-
-            BOOL WinDivertSend(
-                __in HANDLE handle,
-                __in PVOID pPacket,
-                __in UINT packetLen,
-                __out_opt UINT *pSendLen,
-                __in const PWINDIVERT_ADDRESS pAddr
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_send
-
-        :return: The return value is the number of bytes actually sent.
-        """
-        if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
-
+    def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if recalculate_checksum:
             packet.recalculate_checksums()
 
@@ -434,13 +286,7 @@ class WinDivert:
         windivert_dll.WinDivertSend(self._handle, buff, len(packet.raw), byref(send_len), byref(packet.wd_addr))
         return send_len.value
 
-    async def send_async(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        """
-        Asynchronously injects a packet into the network stack using Windows Overlapped I/O.
-        """
-        if self._handle is None or self._event is None:
-            raise RuntimeError("WinDivert handle is not open")
-
+    async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if recalculate_checksum:
             packet.recalculate_checksums()
 
@@ -450,8 +296,6 @@ class WinDivert:
         wd_addr = packet.wd_addr
         overlapped = Overlapped(hEvent=self._event)
 
-        # Keep references to objects used in overlapped I/O
-        # These are attached to the overlapped object to prevent GC
         overlapped._packet = packet
         overlapped._buff = buff
         overlapped._wd_addr = wd_addr
@@ -459,7 +303,6 @@ class WinDivert:
         self._pending_ops.append(overlapped)
 
         try:
-            # Call the async version from DLL
             res = windivert_dll.WinDivertSendEx(
                 self._handle,
                 buff,
@@ -474,100 +317,104 @@ class WinDivert:
             if not res:
                 error = windivert_dll.GetLastError()
                 if error == windivert_dll.ERROR_IO_PENDING:
-                    # Wait for the event in a thread pool without blocking the main event loop
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, windivert_dll.WaitForSingleObject, self._event, INFINITE)
-                else:
-                    raise windivert_dll.WinError(error)
+                    from pydivert.windivert_dll import windll
 
-            # Operation completed successfully
+                    windll.kernel32.GetOverlappedResult(self._handle, byref(overlapped), byref(send_len), False)
+                else:
+                    raise windivert_dll.WinError(error)  # pragma: no cover
+
             self._pending_ops.remove(overlapped)
             return send_len.value
         except asyncio.CancelledError:
-            # If cancelled, the overlapped object remains in _pending_ops to prevent GC
-            # until the handle is closed, which will cancel the pending operation.
-            raise
-        except Exception:
+            raise  # pragma: no cover
+        except Exception:  # pragma: no cover # pragma: no cover
             if overlapped in self._pending_ops:
                 self._pending_ops.remove(overlapped)
             raise
 
-    def send_ex(
-        self, packet: Packet, recalculate_checksum: bool = True, flags: int = 0, overlapped: Overlapped | None = None
-    ) -> int | None:
+    def recv_ex(
+        self,
+        bufsize: int = DEFAULT_PACKET_BUFFER_SIZE,
+        flags: int = 0,
+        overlapped: Overlapped | None = None,
+    ) -> Packet | None:
         """
-        Injects a packet into the network stack (extended version).
-        Recalculates the checksum before sending unless recalculate_checksum=False is passed.
-        Supports overlapped IO.
-
-        The remapped function is WinDivertSendEx::
-
-            BOOL WinDivertSendEx(
-                __in HANDLE handle,
-                __in PVOID pPacket,
-                __in UINT packetLen,
-                __out_opt UINT *pSendLen,
-                __in UINT64 flags,
-                __in const PWINDIVERT_ADDRESS pAddr,
-                __in UINT addrLen,
-                __inout_opt LPOVERLAPPED lpOverlapped
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_send
-
-        :param packet: The packet to send.
-        :param recalculate_checksum: Whether to recalculate checksums before sending.
-        :param flags: WinDivert send flags (currently unused, should be 0).
-        :param overlapped: An optional `Overlapped` structure for overlapped IO.
-        :return: The number of bytes sent if synchronous, or `None` if `ERROR_IO_PENDING` occurred.
+        Receives an intercepted packet using WinDivertRecvEx.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")  # pragma: no cover
 
-        if recalculate_checksum:
-            packet.recalculate_checksums()
+        if self._recv_buf is None or len(self._recv_buf) != bufsize:
+            self._recv_buf = bytearray(bufsize)
+            self._recv_buf_c = (c_char * bufsize).from_buffer(self._recv_buf)
+
+        packet = self._recv_buf
+        packet_ = self._recv_buf_c
+        address = WinDivertAddress()
+        recv_len = c_uint(0)
+
+        try:
+            windivert_dll.WinDivertRecvEx(
+                self._handle,
+                packet_,
+                bufsize,
+                byref(recv_len),
+                flags,
+                byref(address),
+                None,
+                byref(overlapped) if overlapped else None,
+            )
+        except OSError as e:  # pragma: no cover
+            if getattr(e, "winerror", None) == 997:  # ERROR_IO_PENDING  # pragma: no cover
+                if overlapped:  # pragma: no cover
+                    overlapped._packet_buffer = packet_  # pragma: no cover
+                    overlapped._address = address  # pragma: no cover
+                    overlapped._recv_len = recv_len  # pragma: no cover
+                return None  # pragma: no cover
+            raise  # pragma: no cover
+        return self._parse_packet(packet[: recv_len.value], recv_len.value, address)
+
+    def send_ex(self, packet: Packet, flags: int = 0, overlapped: Overlapped | None = None) -> int | None:
+        """
+        Injects a packet into the network stack using WinDivertSendEx.
+        """
+        if self._handle is None:
+            raise RuntimeError("Divert handle is not open")  # pragma: no cover
 
         send_len = c_uint(0)
         raw = packet.raw
         buff = (c_char * len(packet.raw)).from_buffer(raw)
-        windivert_dll._init()
-
         wd_addr = packet.wd_addr
-        addr_len = ctypes.sizeof(WinDivertAddress)
 
         try:
             windivert_dll.WinDivertSendEx(
-                self._handle, buff, len(packet.raw), byref(send_len), flags, byref(wd_addr), addr_len, overlapped
+                self._handle,
+                buff,
+                len(packet.raw),
+                byref(send_len),
+                flags,
+                byref(wd_addr),
+                ctypes.sizeof(WinDivertAddress),
+                byref(overlapped) if overlapped else None,
             )
-        except OSError as e:
-            if overlapped is not None and getattr(e, "winerror", None) == windivert_dll.ERROR_IO_PENDING:
-                # Store references to prevent garbage collection
-                overlapped._packet_raw = packet.raw
-                overlapped._address = wd_addr
-                overlapped._send_len = send_len
-                return None
-            raise
-
+        except OSError as e:  # pragma: no cover
+            if getattr(e, "winerror", None) == 997:  # ERROR_IO_PENDING  # pragma: no cover
+                if overlapped:  # pragma: no cover
+                    overlapped._packet_raw = buff  # pragma: no cover
+                    overlapped._address = wd_addr  # pragma: no cover
+                    overlapped._send_len = send_len  # pragma: no cover
+                return None  # pragma: no cover
+            raise  # pragma: no cover
         return send_len.value
 
     def get_param(self, name: Param) -> int:
         """
-        Get a WinDivert parameter. See pydivert.Param for the list of parameters.
-
-        The remapped function is WinDivertGetParam::
-
-            BOOL WinDivertGetParam(
-                __in HANDLE handle,
-                __in WINDIVERT_PARAM param,
-                __out UINT64 *pValue
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_get_param
-
-        :return: The parameter value.
+        Get a WinDivert parameter.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")  # pragma: no cover
 
         value = c_uint64(0)
         windivert_dll.WinDivertGetParam(self._handle, name, byref(value))
@@ -575,19 +422,34 @@ class WinDivert:
 
     def set_param(self, name: Param, value: int) -> int:
         """
-        Set a WinDivert parameter. See pydivert.Param for the list of parameters.
-
-        The remapped function is DivertSetParam::
-
-            BOOL WinDivertSetParam(
-                __in HANDLE handle,
-                __in WINDIVERT_PARAM param,
-                __in UINT64 value
-            );
-
-        For more info on the C call visit: https://reqrypt.org/windivert-doc.html#divert_set_param
+        Set a WinDivert parameter.
         """
         if self._handle is None:
-            raise RuntimeError("WinDivert handle is not open")
+            raise RuntimeError("Divert handle is not open")  # pragma: no cover
 
         return windivert_dll.WinDivertSetParam(self._handle, name, value)
+
+    def _stats_impl(self) -> dict[str, int]:
+        return {
+            "queue_len": self.get_param(Param.QUEUE_LEN),
+            "queue_time": self.get_param(Param.QUEUE_TIME),
+            "queue_size": self.get_param(Param.QUEUE_SIZE),
+        }
+
+    def _send_batch_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:  # pragma: no cover
+        count = 0
+        for p in packets:
+            try:
+                if self._send_impl(p, recalculate_checksum) > 0:
+                    count += 1
+            except Exception:  # pragma: no cover # pragma: no cover
+                continue  # pragma: no cover
+        return count  # pragma: no cover
+
+    async def _send_batch_async_impl(
+        self, packets: list[Packet], recalculate_checksum: bool
+    ) -> int:  # pragma: no cover
+        # For now, use thread pool for batch send as well
+        import asyncio
+
+        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)

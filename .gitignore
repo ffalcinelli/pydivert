@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+pydivert/bpf/pydivert.bpf.o
 
 # Distribution / packaging
 build/
@@ -48,3 +49,6 @@ coverage*
 linux_ssh_config
 windows_ssh_config
 gha-creds-*.json
+.antigravitycli/
+debug_windivert.py
+test_from_linux

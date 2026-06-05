@@ -1,6 +1,6 @@
 # PyDivert
 
-[![github-actions](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml/badge.svg)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
+[![github-actions](https://img.shields.io/github/actions/workflow/status/ffalcinelli/pydivert/ci.yml)](https://github.com/ffalcinelli/pydivert/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/ffalcinelli/pydivert/main.svg)](https://codecov.io/gh/ffalcinelli/pydivert)
 [![latest_release](https://img.shields.io/pypi/v/pydivert.svg)](https://pypi.python.org/pypi/pydivert)
 [![docs](https://img.shields.io/badge/docs-pdoc-blue.svg)](https://ffalcinelli.github.io/pydivert/)
@@ -9,26 +9,29 @@
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
 [![snyk](https://img.shields.io/badge/snyk-security-violet)](https://security.snyk.io/package/pip/pydivert)
 
-**PyDivert** is a powerful Python binding for [WinDivert](https://reqrypt.org/windivert.html), a Windows driver that allows user-mode applications to capture, modify, and drop network packets sent to or from the Windows network stack.
+**PyDivert** is a high-performance, cross-platform Python binding for capturing, modifying, and dropping network packets. It supports **Windows** via [WinDivert](https://reqrypt.org/windivert.html) and **Linux** via **eBPF (CO-RE)**.
 
 ## Features
 
+- **Cross-Platform**: Unified API for Windows (WinDivert) and Linux (eBPF).
+- **Seamless Multi-Handle Support**: Run multiple PyDivert applications simultaneously with kernel-level priority chaining on both platforms.
+- **Unified Filter Language**: Use the same WinDivert-style filter strings on both Windows and Linux.
 - **Capture** network packets matching a specific filter.
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.
 - **Inject** new or modified packets into the network stack.
 - **Modern Python Support**: Full integration with `asyncio` and Structural Pattern Matching (PEP 634).
 - **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
-- **Bundled Binaries**: No need to manually install WinDivert; the 64-bit DLL and driver are included.
+- **Bundled Binaries**: No need to manually install WinDivert on Windows; the 64-bit DLL and driver are included.
 
 ## Requirements
 
 - **Python 3.10+** (64-bit)
-- **Windows 11** (64-bit)
-- **Administrator Privileges** (required to interact with the WinDivert driver)
+- **Windows 11** (64-bit) or **Linux** (with eBPF support, kernel 5.8+)
+- **Administrator/Root Privileges** (required to interact with network drivers)
 
 > [!NOTE]
-> Windows Server is currently untested but likely works if it meets the architecture requirements.
+> Windows Server is currently untested but likely works if it meets the architecture requirements. On Linux, `libbpf` and a modern kernel are required.
 
 ## Installation
 
@@ -38,36 +41,42 @@ Install PyDivert using `pip`:
 pip install pydivert
 ```
 
+For Linux eBPF support, install with the `linux` extra:
+
+```bash
+pip install "pydivert[linux]"
+```
+
 Or using [uv](https://github.com/astral-sh/uv):
 
 ```bash
-uv add pydivert
+uv add pydivert --extra linux
 ```
 
 ## Quick Start
 
-The main entry points are `pydivert.WinDivert` for capturing and `pydivert.Packet` for manipulation.
+The main entry points are `pydivert.Divert` for cross-platform capturing and `pydivert.Packet` for manipulation.
 
 > [!TIP]
 > All code examples in this README are verified by automated integration tests in `pydivert/tests/test_readme_examples.py`.
 
-### Basic Capture and Re-injection
+### Basic Capture and Re-injection (Cross-Platform)
 
 ```python
 import pydivert
 
 # Capture only TCP packets to port 80 (HTTP requests)
-with pydivert.WinDivert("tcp.DstPort == 80") as w:
-    for packet in w:
+with pydivert.Divert("tcp.DstPort == 80") as diverter:
+    for packet in diverter:
         print(f"Captured: {packet}")
-        w.send(packet)  # Re-inject the packet back into the stack
+        diverter.send(packet)  # Re-inject the packet back into the stack
 ```
 
-When you call `.recv()` (or iterate over the `WinDivert` object), the packet is **taken out** of the Windows network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
+When you call `.recv()` (or iterate over the capture object), the packet is **taken out** of the network stack. It will not reach its destination unless you explicitly call `.send(packet)`.
 
 ### First-Class `asyncio` Support
 
-PyDivert 3.0+ supports `asyncio` natively using modern `async with` and `async for` syntax.
+PyDivert 4.0 supports `asyncio` natively using modern `async with` and `async for` syntax.
 
 ```python
 import asyncio
@@ -75,10 +84,10 @@ import pydivert
 
 async def main():
     # Asynchronously capture packets
-    async with pydivert.WinDivert("tcp.DstPort == 80") as w:
-        async for packet in w:
+    async with pydivert.Divert("tcp.DstPort == 80") as diverter:
+        async for packet in diverter:
             print(f"Async captured: {packet}")
-            await w.send_async(packet)
+            await diverter.send_async(packet)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -94,14 +103,14 @@ import pydivert
 from pydivert.packet import Packet
 from pydivert.packet.tcp import TCPHeader
 
-with pydivert.WinDivert("tcp") as w:
-    for packet in w:
+with pydivert.Divert("tcp") as diverter:
+    for packet in diverter:
         match packet:
             case Packet(tcp=TCPHeader(dst_port=80)):
                 print("HTTP Traffic")
             case Packet(tcp=TCPHeader(dst_port=443)):
                 print("HTTPS Traffic")
-        w.send(packet)
+        diverter.send(packet)
 ```
 
 ### 2. Simple Firewall (Dropping Packets)
@@ -111,8 +120,8 @@ By simply not calling `.send(packet)`, the packet is effectively dropped.
 import pydivert
 
 # Block all traffic from a specific IP address
-with pydivert.WinDivert("ip.SrcAddr == 1.2.3.4") as w:
-    for packet in w:
+with pydivert.Divert("ip.SrcAddr == 1.2.3.4") as diverter:
+    for packet in diverter:
         print(f"Blocking packet from {packet.src_addr}")
         # Packet is dropped here
 ```
@@ -124,12 +133,12 @@ You can inspect or modify the raw bytes of the packet payload.
 import pydivert
 
 # Filter for TCP packets with payload
-with pydivert.WinDivert("tcp.PayloadLength > 0") as w:
-    for packet in w:
+with pydivert.Divert("tcp.PayloadLength > 0") as diverter:
+    for packet in diverter:
         if b"secret-token" in packet.payload:
             # Redact the token
             packet.payload = packet.payload.replace(b"secret-token", b"REDACTED")
-        w.send(packet)
+        diverter.send(packet)
 ```
 
 ## Packet Integrity and Checksums
@@ -169,6 +178,8 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 - `Layer.SOCKET`: Socket-level events.
 - `Layer.REFLECT`: Reflected events.
 
+See the [Linux Backend Guide](docs/LINUX_BACKEND.md) for details on how these are implemented on Linux.
+
 ### Flags
 
 - `Flag.SNIFF`: Monitor mode (sniffing).
@@ -178,15 +189,16 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 
 ## Filter Language
 
-PyDivert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](#windivert-filter-language).
+Divert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](#windivert-filter-language).
 
 For the original technical reference, please visit the [official WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
 
-## WinDivert Version Compatibility
+## WinDivert/eBPF Version Compatibility
 
-| PyDivert | WinDivert |
+| Divert | Backend |
 | --- | --- |
-| 3.0.0+ | 2.2.2 (bundled) - Full support for modern metadata and layers |
+| 4.0.0+ | WinDivert 2.2.2 (bundled) / Linux eBPF (CO-RE) |
+| 3.0.0+ | WinDivert 2.2.2 (bundled) - Full support for modern metadata and layers |
 
 ## Development
 
@@ -196,11 +208,24 @@ For the original technical reference, please visit the [official WinDivert docum
 
 ### Testing with Vagrant
 
-Since WinDivert requires Windows, use **Vagrant** to run tests on a Windows 11 VM:
+PyDivert includes a `Vagrantfile` to easily run tests in a clean environment with the necessary privileges.
+
+#### Windows (WinDivert)
+To run tests on a Windows 11 VM:
 
 ```bash
-vagrant up
-vagrant powershell -c '$env:UV_PROJECT_ENVIRONMENT="C:/pydivert_venv"; cd C:/pydivert; uv run pytest'
+vagrant up windows
+# This will sync the project and run tests automatically
+vagrant provision windows --provision-with test-windows
+```
+
+#### Linux (eBPF)
+To run tests on a Ubuntu VM with eBPF support:
+
+```bash
+vagrant up linux
+# This will recompile the eBPF program and run tests automatically
+vagrant provision linux --provision-with test-linux
 ```
 
 ## API Reference
