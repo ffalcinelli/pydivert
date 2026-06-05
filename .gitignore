@@ -24,6 +24,7 @@ coverage.xml
 # Virtual environments
 venv/
 .venv/
+.venv.old/
 
 # IDEs
 .idea/
