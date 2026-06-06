@@ -274,8 +274,7 @@ class EBPFDivert(BaseDivert):
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
                     except Exception as e:  # pragma: no cover
-                        # This usually happens if the hook already exists
-                        logger.debug("Failed to create TC ingress hook (may already exist): %s", e)  # pragma: no cover
+                        logger.debug("Failed to create TC hook (may already exist): %s", e)  # pragma: no cover
 
                     opts_ingress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
@@ -296,8 +295,7 @@ class EBPFDivert(BaseDivert):
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
                     except Exception as e:  # pragma: no cover
-                        # This usually happens if the hook already exists
-                        logger.debug("Failed to create TC egress hook (may already exist): %s", e)  # pragma: no cover
+                        logger.debug("Failed to create TC hook (may already exist): %s", e)  # pragma: no cover
 
                     opts_egress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
