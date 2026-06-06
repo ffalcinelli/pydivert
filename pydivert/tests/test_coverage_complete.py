@@ -1407,25 +1407,31 @@ def test_ebpf_stats_impl_unsupported():
         except Exception:
             pass
 
-def test_ebpf_empty_except_blocks():
-    from pydivert.ebpf import EBPFDivert, _libbpf_print
 
+def test_ebpf_empty_except_blocks():
     # Line 47: libbpf_set_print error
     with patch("pydivert.ebpf.libbpf") as mock_libbpf:
         mock_libbpf.libbpf_set_print.side_effect = Exception("set print error")
         import importlib
+
         import pydivert.ebpf
+
         importlib.reload(pydivert.ebpf)
 
     # Reload again to restore standard mock state
     with patch("pydivert.ebpf.libbpf", MagicMock()):
         import importlib
+
         import pydivert.ebpf
+
         importlib.reload(pydivert.ebpf)
 
     # Line 142: delete stale TC filter error
     with patch("subprocess.run", side_effect=Exception("run error")):
-        with patch("subprocess.check_output", return_value=b'[{"options": {"bpf_name": "tc_divert_ingress"}, "pref": 1, "handle": 1}]'):
+        with patch(
+            "subprocess.check_output",
+            return_value=b'[{"options": {"bpf_name": "tc_divert_ingress"}, "pref": 1, "handle": 1}]',
+        ):
             d = pydivert.ebpf.EBPFDivert()
             pydivert.ebpf.EBPFDivert.unregister()
 
