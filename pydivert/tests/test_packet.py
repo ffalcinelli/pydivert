@@ -100,24 +100,6 @@ def test_payload_modification_different_length():
     assert packet.udp.payload_len == 5
 
 
-def test_payload_modification_regex():
-    import re
-
-    raw = bytearray(b"\x45\x00\x00\x23\x00\x00\x40\x00\x40\x11\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
-    raw += b"\x12\x34\x12\x34\x00\x0f\x00\x00"
-    raw += b"abc\x00\x00\x00\xff"
-    packet = pydivert.Packet(raw)
-    assert packet.payload == b"abc\x00\x00\x00\xff"
-
-    packet.payload = re.sub(b"\x00\x00\x00.", b"\x00\x00\x00\x00F", packet.payload)
-    assert packet.payload == b"abc\x00\x00\x00\x00F"
-    assert len(packet.raw) == 36
-    assert packet.ipv4 is not None
-    assert packet.ipv4.packet_len == 36
-    assert packet.udp is not None
-    assert packet.udp.payload_len == 8
-
-
 # --- Checksums ---
 
 

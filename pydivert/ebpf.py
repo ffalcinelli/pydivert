@@ -45,7 +45,7 @@ if libbpf:
     try:
         libbpf.libbpf_set_print(_libbpf_print_cb)
     except Exception as e:  # pragma: no cover
-        logger.debug("Failed to set libbpf print callback: %s", e)  # pragma: no cover
+        logger.debug("Failed to set libbpf print callback: %s", e)
 
 _ebpf_lock = threading.Lock()
 _initialized_hooks = set()
@@ -140,7 +140,7 @@ class EBPFDivert(BaseDivert):
                                     check=False,
                                 )
                 except Exception as e:  # pragma: no cover
-                    logger.debug("Failed to delete stale TC filter: %s", e)  # pragma: no cover
+                    logger.debug("Failed to delete stale TC filter: %s", e)
                     continue
 
     @staticmethod
@@ -173,7 +173,7 @@ class EBPFDivert(BaseDivert):
                     if "tc_divert" in options.get("bpf_name", ""):
                         max_prio = max(max_prio, f.get("pref", 0))
         except Exception as e:  # pragma: no cover
-            logger.debug("Failed to check existing TC filters for max priority: %s", e)  # pragma: no cover
+            logger.debug("Failed to check existing TC filters for max priority: %s", e)
         return max_prio + 1
 
     def _open_impl(self):  # noqa: C901
@@ -274,7 +274,7 @@ class EBPFDivert(BaseDivert):
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
                     except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)  # pragma: no cover
+                        logger.debug("Failed to create TC hook (may already exist): %s", e)
 
                     opts_ingress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
@@ -295,7 +295,7 @@ class EBPFDivert(BaseDivert):
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
                     except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)  # pragma: no cover
+                        logger.debug("Failed to create TC hook (may already exist): %s", e)
 
                     opts_egress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
@@ -558,7 +558,7 @@ class EBPFDivert(BaseDivert):
                 if self._send_impl(p, recalculate_checksum) > 0:
                     count += 1
             except Exception as e:  # pragma: no cover
-                logger.debug("Failed to send packet in batch: %s", e)  # pragma: no cover
+                logger.debug("Failed to send packet in batch: %s", e)
                 continue
         return count
 
