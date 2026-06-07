@@ -76,8 +76,7 @@ class IPHeader(Header):
     @src_addr.setter
     def src_addr(self, val: str) -> None:
         addr_bytes = socket.inet_pton(self._af, val)
-        for i, b in enumerate(addr_bytes):
-            self._view.saddr[i] = b
+        self._view.saddr[:] = addr_bytes
         self._packet._invalidate_checksums()
 
     @property
@@ -94,8 +93,7 @@ class IPHeader(Header):
     @dst_addr.setter
     def dst_addr(self, val: str) -> None:
         addr_bytes = socket.inet_pton(self._af, val)
-        for i, b in enumerate(addr_bytes):
-            self._view.daddr[i] = b
+        self._view.daddr[:] = addr_bytes
         self._packet._invalidate_checksums()
 
 
