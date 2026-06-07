@@ -3,9 +3,9 @@ set -e
 
 export PATH="/usr/local/bin:$PATH"
 
-echo "Fetching eBPF driver..."
+echo "Fetching pre-built binaries..."
 cd /pydivert
-python3 scripts/fetch_ebpfdivert.py
+python3 scripts/fetch_binaries.py
 
 echo "Ensuring dependencies are up to date..."
 uv sync --extra test
