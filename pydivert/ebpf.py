@@ -15,7 +15,7 @@ from .bpf import (
     BpfFilterRule,
     BpfTcHook,
     BpfTcOpts,
-    PydivertPacketBuffer,
+    DivertPacketBuffer,
     libbpf,
 )
 from .consts import (
@@ -329,7 +329,7 @@ class EBPFDivert(BaseDivert):
                     self._raw_sock6 = None  # pragma: no cover
 
     def _ring_callback(self, ctx, data, size):
-        buf = PydivertPacketBuffer.from_address(data)
+        buf = DivertPacketBuffer.from_address(data)
         pkt_len = buf.header.pkt_len
         ifindex = buf.header.ifindex
         direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND

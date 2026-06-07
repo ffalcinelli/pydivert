@@ -60,7 +60,7 @@ class BpfFilterRule(ctypes.Structure):
     ]
 
 
-class PydivertPktHeader(ctypes.Structure):
+class DivertPktHeader(ctypes.Structure):
     _fields_ = [
         ("pkt_len", ctypes.c_uint32),
         ("ifindex", ctypes.c_uint32),
@@ -70,9 +70,9 @@ class PydivertPktHeader(ctypes.Structure):
     ]
 
 
-class PydivertPacketBuffer(ctypes.Structure):
+class DivertPacketBuffer(ctypes.Structure):
     _fields_ = [
-        ("header", PydivertPktHeader),
+        ("header", DivertPktHeader),
         ("data", ctypes.c_uint8 * 2048),
     ]
 
