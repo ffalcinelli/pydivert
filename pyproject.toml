@@ -91,7 +91,7 @@ known-first-party = ["pydivert"]
 
 [tool.pydivert.binaries]
 windivert = "2.2.2"
-ebpfdivert = "0.0.1"
+ebpfdivert = "0.0.2"
 
 [tool.ty.environment]
 python-platform = "win32"

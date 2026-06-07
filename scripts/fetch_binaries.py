@@ -25,40 +25,51 @@ def get_versions():
 
 def download_windivert(version):
     """Downloads and extracts WinDivert binaries."""
-    url = f"https://github.com/basil00/WinDivert/releases/download/v{version}/WinDivert-{version}-A.zip"
     dst_dir = os.path.join(ROOT, "pydivert", "windivert_dll")
+    version_file = os.path.join(dst_dir, ".version")
     
     dll_path = os.path.join(dst_dir, "WinDivert64.dll")
     sys_path = os.path.join(dst_dir, "WinDivert64.sys")
     
-    if os.path.exists(dll_path) and os.path.exists(sys_path):
-        print(f"WinDivert {version} already present.")
-        return
+    if os.path.exists(version_file):
+        with open(version_file, "r") as f:
+            if f.read().strip() == version and os.path.exists(dll_path) and os.path.exists(sys_path):
+                print(f"WinDivert {version} already present.")
+                return
 
+    url = f"https://github.com/basil00/WinDivert/releases/download/v{version}/WinDivert-{version}-A.zip"
     print(f"Downloading WinDivert {version} from {url}...")
     with urllib.request.urlopen(url) as response:
         with zipfile.ZipFile(io.BytesIO(response.read())) as z:
-            # WinDivert zip contains x64/WinDivert.dll and x64/WinDivert64.sys
-            # We want to save them as WinDivert64.dll and WinDivert64.sys in our directory
             with z.open(f"WinDivert-{version}-A/x64/WinDivert.dll") as src, open(dll_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
             with z.open(f"WinDivert-{version}-A/x64/WinDivert64.sys") as src, open(sys_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
+    
+    with open(version_file, "w") as f:
+        f.write(version)
     print("Successfully fetched WinDivert binaries.")
 
 def download_ebpfdivert(version):
     """Downloads eBPF object file."""
-    url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert.bpf.o"
-    dst = os.path.join(ROOT, "pydivert", "bpf", "ebpfdivert.bpf.o")
+    dst_dir = os.path.join(ROOT, "pydivert", "bpf")
+    version_file = os.path.join(dst_dir, ".version")
+    dst = os.path.join(dst_dir, "ebpfdivert.bpf.o")
     
-    if os.path.exists(dst):
-        print(f"eBPF driver {version} already present.")
-        return
+    if os.path.exists(version_file):
+        with open(version_file, "r") as f:
+            if f.read().strip() == version and os.path.exists(dst):
+                print(f"eBPF driver {version} already present.")
+                return
 
+    url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert.bpf.o"
     print(f"Downloading eBPF driver {version} from {url}...")
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    os.makedirs(dst_dir, exist_ok=True)
     with urllib.request.urlopen(url) as response, open(dst, "wb") as out_file:
         shutil.copyfileobj(response, out_file)
+    
+    with open(version_file, "w") as f:
+        f.write(version)
     print(f"Successfully fetched eBPF driver: {dst}")
 
 def main():
