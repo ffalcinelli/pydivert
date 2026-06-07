@@ -24,7 +24,6 @@ coverage.xml
 # Virtual environments
 venv/
 .venv/
-.venv.old/
 
 # IDEs
 .idea/
@@ -38,11 +37,6 @@ objects.json
 .vagrant/
 .cache/
 *~
-pydivert/windivert_dll/WinDivert64.dll
-pydivert/windivert_dll/WinDivert64.sys
-pydivert/windivert_dll/.version
-pydivert/bpf/ebpfdivert.bpf.o
-pydivert/bpf/.version
 
 # Snyk / SBOM
 requirements.txt

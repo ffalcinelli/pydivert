@@ -40,9 +40,6 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Fetching pre-built binaries..."
-& uv run python scripts/fetch_binaries.py
-
 Write-Host "Running tests with coverage..."
 $env:COVERAGE_FILE = "C:\pydivert\.coverage.windows"
 & uv run pytest --cov=pydivert --cov-config=.coveragerc pydivert\tests

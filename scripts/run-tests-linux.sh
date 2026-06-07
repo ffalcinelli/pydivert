@@ -3,9 +3,9 @@ set -e
 
 export PATH="/usr/local/bin:$PATH"
 
-echo "Fetching pre-built binaries..."
+echo "Compiling eBPF program..."
 cd /pydivert
-python3 scripts/fetch_binaries.py
+clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
 
 echo "Ensuring dependencies are up to date..."
 uv sync --extra test
