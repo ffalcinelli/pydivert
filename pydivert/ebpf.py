@@ -15,7 +15,7 @@ from .bpf import (
     BpfFilterRule,
     BpfTcHook,
     BpfTcOpts,
-    PydivertPacketBuffer,
+    DivertPacketBuffer,
     libbpf,
 )
 from .consts import (
@@ -179,7 +179,7 @@ class EBPFDivert(BaseDivert):
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
             bpf = cast(Any, libbpf)
-            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
+            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "ebpfdivert.bpf.o")
 
             # In Windows, priority 0 means default.
             # In TC, priority 1 is highest. We map our priority to TC priority.
@@ -329,7 +329,7 @@ class EBPFDivert(BaseDivert):
                     self._raw_sock6 = None  # pragma: no cover
 
     def _ring_callback(self, ctx, data, size):
-        buf = PydivertPacketBuffer.from_address(data)
+        buf = DivertPacketBuffer.from_address(data)
         pkt_len = buf.header.pkt_len
         ifindex = buf.header.ifindex
         direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND

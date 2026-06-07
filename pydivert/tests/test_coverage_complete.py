@@ -476,7 +476,7 @@ def test_ebpf_ring_callback_heuristics():
     d._recv_futures = []
     d._queue = []
 
-    with patch("pydivert.ebpf.PydivertPacketBuffer.from_address") as mock_from:
+    with patch("pydivert.ebpf.DivertPacketBuffer.from_address") as mock_from:
 
         def make_buf(data):
             m = MagicMock()
