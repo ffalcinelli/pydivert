@@ -38,6 +38,9 @@ objects.json
 .vagrant/
 .cache/
 *~
+pydivert/windivert_dll/WinDivert64.dll
+pydivert/windivert_dll/WinDivert64.sys
+pydivert/bpf/ebpfdivert.bpf.o
 
 # Snyk / SBOM
 requirements.txt

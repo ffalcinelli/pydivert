@@ -82,23 +82,8 @@ jobs:
     - name: Install dependencies
       run: uv sync --extra test --extra linux
 
-    - name: Generate vmlinux.h
-      run: |
-        if sudo bpftool btf dump file /sys/kernel/btf/vmlinux format c > vmlinux.h.tmp 2>/dev/null; then
-          mv vmlinux.h.tmp pydivert/bpf/vmlinux.h
-          echo "Successfully regenerated vmlinux.h"
-        else
-          echo "bpftool failed to generate vmlinux.h, using bundled version"
-          rm -f vmlinux.h.tmp
-        fi
-
-    - name: Compile eBPF object
-      run: clang -O2 -g -target bpf -I pydivert/bpf -c pydivert/bpf/pydivert.bpf.c -o pydivert/bpf/pydivert.bpf.o
-
-    - name: Compile and run eBPF C tests
-      run: |
-        gcc -o pydivert/bpf/test_bpf pydivert/bpf/test_bpf.c -lbpf
-        sudo ./pydivert/bpf/test_bpf pydivert/bpf/pydivert.bpf.o
+    - name: Fetch pre-built binaries
+      run: python scripts/fetch_binaries.py
 
     - name: Configure loopback
       run: sudo ethtool -K lo rx off tx off || true

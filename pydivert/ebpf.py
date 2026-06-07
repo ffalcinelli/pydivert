@@ -179,7 +179,7 @@ class EBPFDivert(BaseDivert):
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
             bpf = cast(Any, libbpf)
-            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
+            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "ebpfdivert.bpf.o")
 
             # In Windows, priority 0 means default.
             # In TC, priority 1 is highest. We map our priority to TC priority.
