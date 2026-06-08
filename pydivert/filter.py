@@ -521,7 +521,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         "icmp": 1,
     }
 
-    # Match mask mapping (matching ebpfdivert.bpf.c)
+    # Match mask mapping (matching pydivert.bpf.c)
     MATCH_SRC_IP = 1 << 0
     MATCH_DST_IP = 1 << 1
     MATCH_SRC_PORT = 1 << 2

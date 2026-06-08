@@ -89,10 +89,6 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["pydivert"]
 
-[tool.pydivert.binaries]
-windivert = "2.2.2"
-ebpfdivert = "0.0.2"
-
 [tool.ty.environment]
 python-platform = "win32"
 
@@ -106,18 +102,10 @@ include = [
     "CHANGELOG",
     "LICENSE",
     "README.md",
-    "hatch_build.py",
-    "scripts",
-    "pydivert/windivert_dll/WinDivert64.dll",
-    "pydivert/windivert_dll/WinDivert64.sys",
-    "pydivert/bpf/ebpfdivert.bpf.o",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["pydivert"]
-
-[tool.hatch.build.hooks.custom]
-path = "hatch_build.py"
 
 [tool.pytest.ini_options]
 testpaths = ["pydivert"]

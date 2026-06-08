@@ -15,7 +15,7 @@ from .bpf import (
     BpfFilterRule,
     BpfTcHook,
     BpfTcOpts,
-    DivertPacketBuffer,
+    PydivertPacketBuffer,
     libbpf,
 )
 from .consts import (
@@ -44,8 +44,8 @@ _libbpf_print_cb = LIBBPF_PRINT_CB(_libbpf_print)
 if libbpf:
     try:
         libbpf.libbpf_set_print(_libbpf_print_cb)
-    except Exception as e:  # pragma: no cover
-        logger.debug("Failed to set libbpf print callback: %s", e)
+    except Exception:  # pragma: no cover
+        pass
 
 _ebpf_lock = threading.Lock()
 _initialized_hooks = set()
@@ -139,8 +139,7 @@ class EBPFDivert(BaseDivert):
                                     ],
                                     check=False,
                                 )
-                except Exception as e:  # pragma: no cover
-                    logger.debug("Failed to delete stale TC filter: %s", e)
+                except Exception:  # pragma: no cover
                     continue
 
     @staticmethod
@@ -172,14 +171,14 @@ class EBPFDivert(BaseDivert):
                     options = f.get("options", {})
                     if "tc_divert" in options.get("bpf_name", ""):
                         max_prio = max(max_prio, f.get("pref", 0))
-        except Exception as e:  # pragma: no cover
-            logger.debug("Failed to check existing TC filters for max priority: %s", e)
+        except Exception:  # pragma: no cover
+            pass
         return max_prio + 1
 
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
             bpf = cast(Any, libbpf)
-            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "ebpfdivert.bpf.o")
+            obj_path = os.path.join(os.path.dirname(__file__), "bpf", "pydivert.bpf.o")
 
             # In Windows, priority 0 means default.
             # In TC, priority 1 is highest. We map our priority to TC priority.
@@ -273,8 +272,8 @@ class EBPFDivert(BaseDivert):
                     hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
-                    except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)
+                    except Exception:  # pragma: no cover
+                        pass
 
                     opts_ingress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
@@ -294,8 +293,8 @@ class EBPFDivert(BaseDivert):
                     hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
                     try:
                         bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
-                    except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)
+                    except Exception:  # pragma: no cover
+                        pass
 
                     opts_egress = BpfTcOpts(
                         sz=ctypes.sizeof(BpfTcOpts),
@@ -329,7 +328,7 @@ class EBPFDivert(BaseDivert):
                     self._raw_sock6 = None  # pragma: no cover
 
     def _ring_callback(self, ctx, data, size):
-        buf = DivertPacketBuffer.from_address(data)
+        buf = PydivertPacketBuffer.from_address(data)
         pkt_len = buf.header.pkt_len
         ifindex = buf.header.ifindex
         direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND
@@ -557,8 +556,7 @@ class EBPFDivert(BaseDivert):
             try:
                 if self._send_impl(p, recalculate_checksum) > 0:
                     count += 1
-            except Exception as e:  # pragma: no cover
-                logger.debug("Failed to send packet in batch: %s", e)
+            except Exception:  # pragma: no cover
                 continue
         return count
 
