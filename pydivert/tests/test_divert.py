@@ -52,6 +52,7 @@ def test_check_filter_invalid():
     if sys.platform == "win32":
         assert pos > 0
     else:
+        # On Linux/eBPF it typically returns -1
         assert pos != 0
 
 
