@@ -19,6 +19,8 @@ def test_util_fromhex():
     assert pydivert.util.fromhex("aabb") == b"\xaa\xbb"
     with pytest.raises(ValueError):
         pydivert.util.fromhex("a")
+    with pytest.raises(ValueError):
+        pydivert.util.fromhex("xx")
 
 
 def test_util_flag_property():
