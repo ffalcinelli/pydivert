@@ -1,5 +1,6 @@
 import socket
 
+import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -156,6 +157,12 @@ def test_tcp_fields():
     assert not tcp.ack
     tcp.window = 1024
     assert tcp.window == 1024
+
+    with pytest.raises(ValueError, match="TCP data offset must be between 5 and 15"):
+        tcp.data_offset = 4
+
+    with pytest.raises(ValueError, match="TCP data offset must be between 5 and 15"):
+        tcp.data_offset = 16
 
 
 # --- Metadata ---

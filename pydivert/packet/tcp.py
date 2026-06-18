@@ -90,7 +90,7 @@ class TCPHeader(Header, PortMixin, PayloadMixin):
     @data_offset.setter
     def data_offset(self, val: int):
         if not (5 <= val <= 15):
-            raise ValueError("TCP data offset must be between 5 and 15")  # pragma: no cover
+            raise ValueError("TCP data offset must be between 5 and 15")
         self._view.off_res_flags = (val << 12) | (self._view.off_res_flags & 0x0FFF)
         self._packet._invalidate_checksums()
 
