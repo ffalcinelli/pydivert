@@ -46,6 +46,16 @@ def test_check_filter():
     assert pos == 0
 
 
+def test_check_filter_invalid():
+    res, pos, msg = Divert.check_filter("invalid filter string")
+    assert res is False
+    if sys.platform == "win32":
+        assert pos >= 0
+    else:
+        # On Linux/eBPF it typically returns -1
+        assert pos != 0
+
+
 # --- OS Edge Cases & Mocks ---
 
 

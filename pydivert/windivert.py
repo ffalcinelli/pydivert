@@ -117,7 +117,9 @@ class WinDivert(BaseDivert):
         """
         res, pos, msg = False, c_uint(), c_char_p()
         try:
-            res = windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
+            res = bool(
+                windivert_dll.WinDivertHelperCompileFilter(filter.encode(), layer, None, 0, byref(msg), byref(pos))
+            )
         except OSError as e:
             logger.warning("WinDivertHelperCompileFilter failed: %s", e)  # pragma: no cover
         return res, pos.value, msg.value.decode() if msg.value else ""
