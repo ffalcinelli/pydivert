@@ -441,12 +441,12 @@ class PythonEvalTransformer(Transformer):
 
     def logic_and(self, children):
         # filter out operators
-        parts = [str(c) for c in children if str(c) not in ("&&", "and")]  # pragma: no cover
+        parts = [s for c in children if (s := str(c)) not in ("&&", "and")]  # pragma: no cover
         return "(" + " and ".join(parts) + ")"  # pragma: no cover
 
     def logic_or(self, children):
         # filter out operators
-        parts = [str(c) for c in children if str(c) not in ("||", "or")]  # pragma: no cover
+        parts = [s for c in children if (s := str(c)) not in ("||", "or")]  # pragma: no cover
         return "(" + " or ".join(parts) + ")"  # pragma: no cover
 
     def not_expr(self, children):
