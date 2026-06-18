@@ -6,6 +6,7 @@ import os
 import socket
 import threading
 import time
+from collections import deque
 from typing import Any, cast
 
 from .base import BaseDivert
@@ -71,7 +72,7 @@ class EBPFDivert(BaseDivert):
         if libbpf is None:
             raise ImportError("libbpf missing on system.")
         self._obj = self._ringbuf = self._raw_sock = self._raw_sock6 = None
-        self._queue: list[Packet] = []
+        self._queue: deque[Packet] = deque()
         self._hooks: list[tuple[BpfTcHook, BpfTcOpts]] = []
         self._interfaces = kwargs.get("interfaces", None)
         self._tc_priority = 0
@@ -433,7 +434,7 @@ class EBPFDivert(BaseDivert):
         if not self._queue:
             raise OSError(socket.EBADF, "Handle closed while receiving")
 
-        return self._queue.pop(0)
+        return self._queue.popleft()
 
     def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
         if Flag.SEND_ONLY in self.flags:  # pragma: no cover
@@ -444,7 +445,7 @@ class EBPFDivert(BaseDivert):
             p = self._recv_impl(bufsize, timeout)  # pragma: no cover
             packets.append(p)  # pragma: no cover
             while len(packets) < count and self._queue:  # pragma: no cover
-                packets.append(self._queue.pop(0))  # pragma: no cover
+                packets.append(self._queue.popleft())  # pragma: no cover
         except TimeoutError:  # pragma: no cover
             if not packets:  # pragma: no cover
                 raise  # pragma: no cover
@@ -533,7 +534,7 @@ class EBPFDivert(BaseDivert):
             p = await self._recv_async_impl(bufsize, timeout)
             packets.append(p)
             while len(packets) < count and self._queue:
-                packets.append(self._queue.pop(0))
+                packets.append(self._queue.popleft())
         except (TimeoutError, Exception):  # pragma: no cover
             if not packets:  # pragma: no cover
                 raise  # pragma: no cover
@@ -545,7 +546,7 @@ class EBPFDivert(BaseDivert):
             p = self._recv_impl(bufsize, timeout)
             packets.append(p)
             while len(packets) < count and self._queue:
-                packets.append(self._queue.pop(0))  # pragma: no cover
+                packets.append(self._queue.popleft())  # pragma: no cover
         except (TimeoutError, Exception):
             if not packets:
                 raise
