@@ -156,13 +156,7 @@ class WinDivertTransformer(Transformer):
         for child in children:
             if not isinstance(child, list) or not child:
                 continue  # pragma: no cover
-            new_result = []
-            for existing_rule in result_rules:
-                for new_rule_part in child:
-                    merged = existing_rule.copy()
-                    merged.update(new_rule_part)
-                    new_result.append(merged)
-            result_rules = new_result
+            result_rules = [existing | new for existing in result_rules for new in child]
         return result_rules
 
     def logic_or(self, children):
