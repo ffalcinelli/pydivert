@@ -1167,9 +1167,9 @@ async def test_windivert_batch_async_logic():
 
 
 def test_ebpf_recv_batch_linux():
-    from pydivert.ebpf import EBPFDivert
-
     from collections import deque
+
+    from pydivert.ebpf import EBPFDivert
 
     with patch("pydivert.ebpf.libbpf", MagicMock()):
         d = EBPFDivert()
