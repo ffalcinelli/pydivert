@@ -3,11 +3,11 @@ import ctypes
 
 
 class BpfObject(ctypes.Structure):
-    pass
+    """Opaque structure for BPF objects."""
 
 
 class BpfMap(ctypes.Structure):
-    pass
+    """Opaque structure for BPF maps."""
 
 
 class BpfTcHook(ctypes.Structure):
