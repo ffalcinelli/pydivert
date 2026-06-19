@@ -117,6 +117,37 @@ def test_checksum_recalculation():
     assert p.is_checksum_valid
 
 
+def test_ipv6_tcp_checksum_recalculation():
+    raw = util.fromhex(
+        "600d684a007d0640fc000002000000020000000000000001fc000002000000010000000000000001a9a01f90021b638"
+        "dba311e8e801800cfc92e00000101080a801da522801da522474554202f68656c6c6f2e74787420485454502f312e31"
+        "0d0a557365722d4167656e743a206375726c2f372e33382e300d0a486f73743a205b666330303a323a303a313a3a315"
+        "d3a383038300d0a4163636570743a202a2f2a0d0a0d0a"
+    )
+    p = pydivert.Packet(bytearray(raw))
+
+    p.recalculate_checksums()
+    assert p.is_checksum_valid
+    assert p.tcp is not None
+    p.tcp.dst_port = (p.tcp.dst_port + 1) % 65535
+    assert not p.is_checksum_valid
+    p.recalculate_checksums()
+    assert p.is_checksum_valid
+
+
+def test_ipv6_udp_checksum_recalculation():
+    raw = util.fromhex("600d684a00111140fc000002000000020000000000000001fc00000200000001000000000000000130391f9000118ea168656c6c6f20756470")
+    p = pydivert.Packet(bytearray(raw))
+
+    p.recalculate_checksums()
+    assert p.is_checksum_valid
+    assert p.udp is not None
+    p.udp.dst_port = (p.udp.dst_port + 1) % 65535
+    assert not p.is_checksum_valid
+    p.recalculate_checksums()
+    assert p.is_checksum_valid
+
+
 # --- JIT ---
 
 
