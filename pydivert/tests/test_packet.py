@@ -125,7 +125,6 @@ def test_ipv6_tcp_checksum_recalculation():
         "d3a383038300d0a4163636570743a202a2f2a0d0a0d0a"
     )
     p = pydivert.Packet(bytearray(raw))
-
     p.recalculate_checksums()
     assert p.is_checksum_valid
     assert p.tcp is not None
@@ -136,9 +135,11 @@ def test_ipv6_tcp_checksum_recalculation():
 
 
 def test_ipv6_udp_checksum_recalculation():
-    raw = util.fromhex("600d684a00111140fc000002000000020000000000000001fc00000200000001000000000000000130391f9000118ea168656c6c6f20756470")
+    raw = util.fromhex(
+        "600d684a00111140fc000002000000020000000000000001fc00000200000001"
+        "000000000000000130391f9000118ea168656c6c6f20756470"
+    )
     p = pydivert.Packet(bytearray(raw))
-
     p.recalculate_checksums()
     assert p.is_checksum_valid
     assert p.udp is not None
