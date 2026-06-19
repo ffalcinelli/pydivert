@@ -240,6 +240,47 @@ def test_direction_and_layer_properties():
     assert p.wd_addr.Layer == Layer.REFLECT
     assert p.wd_addr.u.Reflect.ProcessId == 789
 
+    p.impostor = True
+    assert p.is_impostor
+    assert p.impostor
+    assert p.wd_addr.Impostor == 1
+
+    p.sniffed = True
+    assert p.is_sniffed
+    assert p.sniffed
+    assert p.wd_addr.Sniffed == 1
+
+    p.loopback = True
+    assert p.is_loopback
+    assert p.loopback
+    assert p.wd_addr.Loopback == 1
+
+    p.timestamp = 12345
+    assert p.timestamp == 12345
+    assert p.wd_addr.Timestamp == 12345
+
+    p.event = 10
+    assert p.event == 10
+    assert p.wd_addr.Event == 10
+
+    p.icmp_checksum = True
+    assert p._icmp_checksum is True
+
+    p.layer = Layer.FLOW
+    p.flow = flow_obj
+    assert p.flow is flow_obj
+    assert p.wd_addr.u.Flow.ProcessId == 123
+
+    p.layer = Layer.SOCKET
+    p.socket = socket_obj
+    assert p.socket is socket_obj
+    assert p.wd_addr.u.Socket.ProcessId == 456
+
+    p.layer = Layer.REFLECT
+    p.reflect = reflect_obj
+    assert p.reflect is reflect_obj
+    assert p.wd_addr.u.Reflect.ProcessId == 789
+
 
 # --- Hypothesis ---
 

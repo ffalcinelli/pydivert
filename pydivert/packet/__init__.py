@@ -294,7 +294,7 @@ class Packet:
 
     @impostor.setter
     def impostor(self, val: bool) -> None:
-        self.is_impostor = val  # pragma: no cover
+        self.is_impostor = val
 
     @property
     def is_sniffed(self) -> bool:
@@ -312,7 +312,7 @@ class Packet:
 
     @sniffed.setter
     def sniffed(self, val: bool) -> None:
-        self.is_sniffed = val  # pragma: no cover
+        self.is_sniffed = val
 
     @property
     def is_inbound(self) -> bool:
@@ -362,8 +362,8 @@ class Packet:
 
     @event.setter
     def event(self, val: Any) -> None:
-        self._event = val  # pragma: no cover
-        self._wd_addr.Event = val  # pragma: no cover
+        self._event = val
+        self._wd_addr.Event = val
 
     @property
     def flow(self) -> Any | None:
@@ -372,9 +372,9 @@ class Packet:
 
     @flow.setter
     def flow(self, val: Any) -> None:
-        self._flow = val  # pragma: no cover
-        if val is not None and self._layer == Layer.FLOW:  # pragma: no cover
-            self._wd_addr.u.Flow = val  # pragma: no cover
+        self._flow = val
+        if val is not None and self._layer == Layer.FLOW:
+            self._wd_addr.u.Flow = val
 
     @property
     def socket(self) -> Any | None:
@@ -383,9 +383,9 @@ class Packet:
 
     @socket.setter
     def socket(self, val: Any) -> None:
-        self._socket = val  # pragma: no cover
-        if val is not None and self._layer == Layer.SOCKET:  # pragma: no cover
-            self._wd_addr.u.Socket = val  # pragma: no cover
+        self._socket = val
+        if val is not None and self._layer == Layer.SOCKET:
+            self._wd_addr.u.Socket = val
 
     @property
     def reflect(self) -> Any | None:
@@ -394,9 +394,9 @@ class Packet:
 
     @reflect.setter
     def reflect(self, val: Any) -> None:
-        self._reflect = val  # pragma: no cover
-        if val is not None and self._layer == Layer.REFLECT:  # pragma: no cover
-            self._wd_addr.u.Reflect = val  # pragma: no cover
+        self._reflect = val
+        if val is not None and self._layer == Layer.REFLECT:
+            self._wd_addr.u.Reflect = val
 
     @property
     def src_addr(self) -> str | None:
@@ -541,7 +541,7 @@ class Packet:
 
     @icmp_checksum.setter
     def icmp_checksum(self, val: bool) -> None:
-        self._icmp_checksum = val  # pragma: no cover
+        self._icmp_checksum = val
 
     def _invalidate_checksums(self):
         """Invalidate all checksum flags."""
@@ -622,11 +622,11 @@ class Packet:
         if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
             address.u.Network.IfIdx, address.u.Network.SubIfIdx = self._interface
         elif self._layer == Layer.FLOW and self._flow:
-            address.u.Flow = self._flow  # pragma: no cover
+            address.u.Flow = self._flow
         elif self._layer == Layer.SOCKET and self._socket:
-            address.u.Socket = self._socket  # pragma: no cover
+            address.u.Socket = self._socket
         elif self._layer == Layer.REFLECT and self._reflect:
-            address.u.Reflect = self._reflect  # pragma: no cover
+            address.u.Reflect = self._reflect
 
         address.IPChecksum = 1 if self._ip_checksum else 0
         address.TCPChecksum = 1 if self._tcp_checksum else 0
