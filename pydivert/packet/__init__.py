@@ -321,7 +321,7 @@ class Packet:
 
     @is_inbound.setter
     def is_inbound(self, val: bool) -> None:
-        self.direction = Direction.INBOUND if val else Direction.OUTBOUND  # pragma: no cover
+        self.direction = Direction.INBOUND if val else Direction.OUTBOUND
 
     @property
     def is_outbound(self) -> bool:
@@ -330,7 +330,7 @@ class Packet:
 
     @is_outbound.setter
     def is_outbound(self, val: bool) -> None:
-        self.direction = Direction.OUTBOUND if val else Direction.INBOUND  # pragma: no cover
+        self.direction = Direction.OUTBOUND if val else Direction.INBOUND
 
     @property
     def layer(self) -> Layer:
@@ -339,21 +339,21 @@ class Packet:
 
     @layer.setter
     def layer(self, val: Layer) -> None:
-        self._layer = val  # pragma: no cover
-        self._wd_addr.Layer = val  # pragma: no cover
+        self._layer = val
+        self._wd_addr.Layer = val
         # Clear union when layer changes
-        import ctypes  # pragma: no cover
+        import ctypes
 
-        ctypes.memset(ctypes.byref(self._wd_addr.u), 0, ctypes.sizeof(self._wd_addr.u))  # pragma: no cover
+        ctypes.memset(ctypes.byref(self._wd_addr.u), 0, ctypes.sizeof(self._wd_addr.u))
         # Sync back the relevant fields for the new layer
-        if val in (Layer.NETWORK, Layer.NETWORK_FORWARD):  # pragma: no cover
-            self._wd_addr.u.Network.IfIdx, self._wd_addr.u.Network.SubIfIdx = self._interface  # pragma: no cover
-        elif val == Layer.FLOW and self._flow:  # pragma: no cover
-            self._wd_addr.u.Flow = self._flow  # pragma: no cover
-        elif val == Layer.SOCKET and self._socket:  # pragma: no cover
-            self._wd_addr.u.Socket = self._socket  # pragma: no cover
-        elif val == Layer.REFLECT and self._reflect:  # pragma: no cover
-            self._wd_addr.u.Reflect = self._reflect  # pragma: no cover
+        if val in (Layer.NETWORK, Layer.NETWORK_FORWARD):
+            self._wd_addr.u.Network.IfIdx, self._wd_addr.u.Network.SubIfIdx = self._interface
+        elif val == Layer.FLOW and self._flow:
+            self._wd_addr.u.Flow = self._flow
+        elif val == Layer.SOCKET and self._socket:
+            self._wd_addr.u.Socket = self._socket
+        elif val == Layer.REFLECT and self._reflect:
+            self._wd_addr.u.Reflect = self._reflect
 
     @property
     def event(self) -> Any:

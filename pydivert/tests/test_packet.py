@@ -175,6 +175,71 @@ def test_metadata():
     assert p.interface == (1, 2)
 
 
+def test_direction_and_layer_properties():
+    from pydivert.consts import Layer
+    p = pydivert.Packet(b"test", (1, 2), Direction.OUTBOUND)
+
+    # Test direction
+    assert p.direction == Direction.OUTBOUND
+    assert not p.is_inbound
+    assert p.is_outbound
+
+    p.direction = Direction.INBOUND
+    assert p.direction == Direction.INBOUND
+    assert p.is_inbound
+    assert not p.is_outbound
+    assert p.wd_addr.Outbound == 0
+
+    p.direction = Direction.OUTBOUND
+    assert p.direction == Direction.OUTBOUND
+    assert not p.is_inbound
+    assert p.is_outbound
+    assert p.wd_addr.Outbound == 1
+
+    p.is_inbound = True
+    assert p.direction == Direction.INBOUND
+    assert p.wd_addr.Outbound == 0
+
+    p.is_outbound = True
+    assert p.direction == Direction.OUTBOUND
+    assert p.wd_addr.Outbound == 1
+
+    # Test layer
+    assert p.layer == Layer.NETWORK
+
+    p.layer = Layer.NETWORK_FORWARD
+    assert p.layer == Layer.NETWORK_FORWARD
+    assert p.wd_addr.Layer == Layer.NETWORK_FORWARD
+    assert p.wd_addr.u.Network.IfIdx == 1
+    assert p.wd_addr.u.Network.SubIfIdx == 2
+
+    from pydivert.windivert_dll.structs import WinDivertAddress
+
+    flow_obj = WinDivertAddress._Union._Flow()
+    flow_obj.ProcessId = 123
+    p._flow = flow_obj
+    p.layer = Layer.FLOW
+    assert p.layer == Layer.FLOW
+    assert p.wd_addr.Layer == Layer.FLOW
+    assert p.wd_addr.u.Flow.ProcessId == 123
+
+    socket_obj = WinDivertAddress._Union._Socket()
+    socket_obj.ProcessId = 456
+    p._socket = socket_obj
+    p.layer = Layer.SOCKET
+    assert p.layer == Layer.SOCKET
+    assert p.wd_addr.Layer == Layer.SOCKET
+    assert p.wd_addr.u.Socket.ProcessId == 456
+
+    reflect_obj = WinDivertAddress._Union._Reflect()
+    reflect_obj.ProcessId = 789
+    p._reflect = reflect_obj
+    p.layer = Layer.REFLECT
+    assert p.layer == Layer.REFLECT
+    assert p.wd_addr.Layer == Layer.REFLECT
+    assert p.wd_addr.u.Reflect.ProcessId == 789
+
+
 # --- Hypothesis ---
 
 
