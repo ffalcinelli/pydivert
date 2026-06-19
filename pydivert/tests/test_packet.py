@@ -139,10 +139,57 @@ def test_ipv4_fields():
     ip = p.ipv4
     ip.ttl = 64
     assert ip.ttl == 64
-    ip.df = True
-    assert ip.df
     ip.ident = 0x1234
     assert ip.ident == 0x1234
+
+
+def test_ipv4_fragmentation_flags():
+    p = create_base_ipv4_tcp()
+    ip = p.ipv4
+
+    # Reset all flags
+    ip.rf = False
+    ip.df = False
+    ip.mf = False
+
+    # Check initial state
+    assert not ip.rf
+    assert not ip.df
+    assert not ip.mf
+    assert not ip.reserved
+
+    # Test rf (and reserved alias)
+    ip.rf = True
+    assert ip.rf
+    assert ip.reserved
+    assert not ip.df
+    assert not ip.mf
+    ip.reserved = False
+    assert not ip.rf
+    assert not ip.reserved
+
+    # Test df
+    ip.df = True
+    assert ip.df
+    assert not ip.rf
+    assert not ip.mf
+    ip.df = False
+    assert not ip.df
+
+    # Test mf
+    ip.mf = True
+    assert ip.mf
+    assert not ip.rf
+    assert not ip.df
+    ip.mf = False
+    assert not ip.mf
+
+    # Set combinations
+    ip.rf = True
+    ip.df = True
+    assert ip.rf
+    assert ip.df
+    assert not ip.mf
 
 
 # --- TCP Fields ---
