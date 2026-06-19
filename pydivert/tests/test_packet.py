@@ -177,6 +177,7 @@ def test_metadata():
 
 def test_direction_and_layer_properties():
     from pydivert.consts import Layer
+
     p = pydivert.Packet(b"test", (1, 2), Direction.OUTBOUND)
 
     # Test direction
