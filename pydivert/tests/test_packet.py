@@ -232,3 +232,52 @@ def test_ipv4_hypo(src, dst):
     p.dst_addr = dst
     assert p.src_addr == src
     assert p.dst_addr == dst
+
+def test_header_raw_modification():
+    p = create_base_ipv4_tcp()
+    assert p.ipv4 is not None
+    original_len = len(p.ipv4.raw)
+
+    # same length
+    new_raw = bytearray([0x12] * original_len)
+    p.ipv4.raw = new_raw
+    assert bytes(p.ipv4.raw) == new_raw
+    assert p._ip_checksum is False
+
+    # different length
+    p = create_base_ipv4_tcp()
+    assert p.ipv4 is not None
+    new_raw = bytearray([0x45, 0x00, 0x00, 0x29] + [0x34] * (original_len - 4 + 1))
+    p.ipv4.raw = new_raw
+    assert bytes(p.ipv4.raw) == new_raw
+    assert p.ipv4.packet_len == len(p.raw)
+    assert p._ip_checksum is False
+
+    # PayloadMixin and PortMixin
+    class DummyProtocol(pydivert.packet.header.PortMixin, pydivert.packet.header.PayloadMixin):
+        def __init__(self):
+            self._raw = bytearray([0]*20)
+        @property
+        def raw(self):
+            return memoryview(self._raw)
+        @raw.setter
+        def raw(self, val):
+            self._raw = bytearray(val)
+        @property
+        def header_len(self):
+            return 8
+
+    proto = DummyProtocol()
+    assert proto.src_port == 0
+    proto.src_port = 80
+    assert proto.src_port == 80
+    assert proto.dst_port == 0
+    proto.dst_port = 8080
+    assert proto.dst_port == 8080
+    assert len(proto.payload) == 12
+    proto.payload = bytearray([1]*12)
+    assert len(proto.payload) == 12
+    assert proto.payload[0] == 1
+    proto.payload = bytearray([2]*10)
+    assert len(proto.payload) == 10
+    assert proto.payload[0] == 2
