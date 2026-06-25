@@ -1,10 +1,10 @@
+import io
 import os
 import re
-import sys
-import zipfile
-import urllib.request
-import io
 import shutil
+import sys
+import urllib.request
+import zipfile
 
 # Root directory of the project
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -12,27 +12,27 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 def get_versions():
     """Reads versions from pyproject.toml without external dependencies."""
     path = os.path.join(ROOT, "pyproject.toml")
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
-    
+
     windivert = re.search(r'windivert\s*=\s*"([^"]+)"', content)
     ebpfdivert = re.search(r'ebpfdivert\s*=\s*"([^"]+)"', content)
-    
+
     if not windivert or not ebpfdivert:
         raise RuntimeError("Could not find binary versions in pyproject.toml")
-        
+
     return windivert.group(1), ebpfdivert.group(1)
 
 def download_windivert(version):
     """Downloads and extracts WinDivert binaries."""
     dst_dir = os.path.join(ROOT, "pydivert", "windivert_dll")
     version_file = os.path.join(dst_dir, ".version")
-    
+
     dll_path = os.path.join(dst_dir, "WinDivert64.dll")
     sys_path = os.path.join(dst_dir, "WinDivert64.sys")
-    
+
     if os.path.exists(version_file):
-        with open(version_file, "r") as f:
+        with open(version_file) as f:
             if f.read().strip() == version and os.path.exists(dll_path) and os.path.exists(sys_path):
                 print(f"WinDivert {version} already present.")
                 return
@@ -45,34 +45,61 @@ def download_windivert(version):
                 shutil.copyfileobj(src, dst)
             with z.open(f"WinDivert-{version}-A/x64/WinDivert64.sys") as src, open(sys_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
-    
+
     with open(version_file, "w") as f:
         f.write(version)
     print("Successfully fetched WinDivert binaries.")
 
 def download_ebpfdivert(version):
-    """Downloads eBPF object file."""
+    """Downloads eBPF object file and C shared library."""
+    import tarfile
+
     dst_dir = os.path.join(ROOT, "pydivert", "bpf")
     version_file = os.path.join(dst_dir, ".version")
-    dst = os.path.join(dst_dir, "ebpfdivert.bpf.o")
-    
+    dst_o = os.path.join(dst_dir, "ebpfdivert.bpf.o")
+    dst_so = os.path.join(dst_dir, "libebpfdivert.so")
+
     if os.path.exists(version_file):
-        with open(version_file, "r") as f:
-            if f.read().strip() == version and os.path.exists(dst):
-                print(f"eBPF driver {version} already present.")
+        with open(version_file) as f:
+            if f.read().strip() == version and os.path.exists(dst_o) and os.path.exists(dst_so):
+                print(f"eBPF driver & library {version} already present.")
                 return
 
-    url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert.bpf.o"
-    print(f"Downloading eBPF driver {version} from {url}...")
     os.makedirs(dst_dir, exist_ok=True)
-    with urllib.request.urlopen(url) as response, open(dst, "wb") as out_file:
-        shutil.copyfileobj(response, out_file)
+
+    url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert-v{version}-linux-amd64.tar.gz"
+    print(f"Downloading eBPFDivert {version} tarball from {url}...")
     
+    with urllib.request.urlopen(url) as response:
+        with tarfile.open(fileobj=io.BytesIO(response.read()), mode="r:gz") as tar:
+            # Extract libebpfdivert.so
+            try:
+                member_so = tar.getmember("lib/libebpfdivert.so")
+                with tar.extractfile(member_so) as src, open(dst_so, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+            except KeyError:
+                member_so = tar.getmember("./lib/libebpfdivert.so")
+                with tar.extractfile(member_so) as src, open(dst_so, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
+            # Extract ebpfdivert.bpf.o
+            try:
+                member_o = tar.getmember("lib/ebpfdivert/ebpfdivert.bpf.o")
+                with tar.extractfile(member_o) as src, open(dst_o, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+            except KeyError:
+                member_o = tar.getmember("./lib/ebpfdivert/ebpfdivert.bpf.o")
+                with tar.extractfile(member_o) as src, open(dst_o, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+
     with open(version_file, "w") as f:
         f.write(version)
-    print(f"Successfully fetched eBPF driver: {dst}")
+    print(f"Successfully fetched eBPF binaries: {dst_o}, {dst_so}")
 
 def main():
+    if os.environ.get("SKIP_FETCH_BINARIES") in ("1", "true", "TRUE"):
+        print("Skipping fetching binaries as requested by SKIP_FETCH_BINARIES env var.")
+        return
     try:
         win_ver, ebpf_ver = get_versions()
         download_windivert(win_ver)

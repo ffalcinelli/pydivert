@@ -384,19 +384,19 @@ def test_filter_syntax_error_real():
 
 # ebpf.py tests
 def test_ebpf_layer_unsupported():
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         with pytest.raises(NotImplementedError):
             pydivert.ebpf.EBPFDivert(layer=pydivert.Layer.REFLECT)
 
 
-def test_ebpf_libbpf_missing():
-    with patch("pydivert.ebpf.libbpf", None):
+def test_ebpf_libebpfdivert_missing():
+    with patch("pydivert.ebpf.libebpfdivert", None):
         with pytest.raises(ImportError):
             pydivert.ebpf.EBPFDivert()
 
 
 def test_ebpf_unregister_fail():
-    with patch("os.listdir", side_effect=OSError()):
+    with patch("pydivert.ebpf.libebpfdivert", None):
         pydivert.ebpf.EBPFDivert.unregister()
 
 
@@ -468,37 +468,7 @@ def test_ipv6_extension_headers():
     assert offset == 48
 
 
-# ebpf.py heuristics tests
-def test_ebpf_ring_callback_heuristics():
-    from pydivert.ebpf import EBPFDivert
 
-    d = MagicMock(spec=EBPFDivert)
-    d._ring_callback = EBPFDivert._ring_callback.__get__(d, EBPFDivert)
-    d._is_open = True
-    d._recv_futures = []
-    d._queue = []
-
-    with patch("pydivert.ebpf.DivertPacketBuffer.from_address") as mock_from:
-
-        def make_buf(data):
-            m = MagicMock()
-            m.pkt_len = len(data)
-            m.l2_len = 0
-            m.direction = 0
-            m.raw = data
-            return m
-
-        raw = b"\x45\x00\x00\x1c\x17\xed\x40\x00\x40\x01\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
-        mock_from.return_value = make_buf(raw)
-        d._ring_callback(None, 0, len(raw))
-
-        raw_lo = b"\x02\x00\x00\x00" + raw
-        mock_from.return_value = make_buf(raw_lo)
-        d._ring_callback(None, 0, len(raw_lo))
-
-        raw_eth = b"\x00" * 14 + raw
-        mock_from.return_value = make_buf(raw_eth)
-        d._ring_callback(None, 0, len(raw_eth))
 
 
 # windivert.py overlapped tests
@@ -600,7 +570,7 @@ def test_packet_property_setters():
 def test_ebpf_stats_error():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert(flags=pydivert.Flag.SEND_ONLY)
         with pytest.raises(RuntimeError):
             d.stats()
@@ -610,7 +580,7 @@ def test_ebpf_stats_error():
 async def test_ebpf_async_recv_thread():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert()
         d._is_open = True
         with patch.object(d, "_recv_impl") as mock_recv:
@@ -683,20 +653,17 @@ def test_ipv6_header_properties():
 def test_ebpf_priority_logic():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf") as mock_libbpf:
+    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
         with patch("pydivert.ebpf.socket.socket"):
             d = EBPFDivert(priority=100)
-            mock_libbpf.bpf_object__open_file.return_value = 123
-            mock_libbpf.bpf_object__load.return_value = 0
-            mock_libbpf.bpf_tc_attach.return_value = 0
-            mock_libbpf.ring_buffer__new.return_value = 456
-            mock_libbpf.bpf_object__find_program_by_name.return_value = 789
+            mock_libebpf.ebpfdivert_load.return_value = 0
+            mock_libebpf.ebpfdivert_open.return_value = 123
             d._open_impl()
             assert d._tc_priority == 30001 - 100
 
             d2 = EBPFDivert(priority=0)
-            mock_libbpf.bpf_object__open_file.return_value = 123
-            mock_libbpf.bpf_object__load.return_value = 0
+            mock_libebpf.ebpfdivert_load.return_value = 0
+            mock_libebpf.ebpfdivert_open.return_value = 123
             d2._open_impl()
             assert d2._tc_priority >= 1000
 
@@ -726,16 +693,18 @@ def test_packet_additional_properties():
 def test_ebpf_send_errors():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert()
         d._is_open = True
         p = MagicMock(spec=pydivert.Packet)
         p.dst_addr = None
+        p._l2_header = None
         assert d._send_impl(p) == 0
 
         p2 = MagicMock(spec=pydivert.Packet)
         p2.dst_addr = "127.0.0.1"
         p2.ipv6 = False
+        p2._l2_header = None
         d._raw_sock = MagicMock()
         d._raw_sock.sendto.return_value = 20
         # No error if raw_sock is present
@@ -925,17 +894,15 @@ def test_udp_full_properties():
 def test_ebpf_open_errors():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf") as mock_libbpf:
+    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
         d = EBPFDivert()
 
-        mock_libbpf.bpf_object__open_file.return_value = 123
-        mock_libbpf.bpf_object__load.return_value = 0
-        mock_libbpf.ring_buffer__new.return_value = None
+        mock_libebpf.ebpfdivert_load.return_value = -1
         with pytest.raises(RuntimeError):
             d._open_impl()
 
-        mock_libbpf.ring_buffer__new.return_value = 456
-        mock_libbpf.bpf_object__find_program_by_name.return_value = None
+        mock_libebpf.ebpfdivert_load.return_value = 0
+        mock_libebpf.ebpfdivert_open.return_value = None
         with pytest.raises(RuntimeError):
             d._open_impl()
 
@@ -1081,12 +1048,13 @@ def test_divert_facade_hit():
 def test_ebpf_send_batch_logic():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert()
         d._is_open = True
         p = MagicMock(spec=pydivert.Packet)
         p.dst_addr = "127.0.0.1"
         p.ipv6 = False
+        p._l2_header = None
         d._raw_sock = MagicMock()
         d._raw_sock.sendto.return_value = 20
         assert d._send_batch_impl([p], True) == 1
@@ -1096,12 +1064,13 @@ def test_ebpf_send_batch_logic():
 async def test_ebpf_send_batch_async_logic():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert()
         d._is_open = True
         p = MagicMock(spec=pydivert.Packet)
         p.dst_addr = "127.0.0.1"
         p.ipv6 = False
+        p._l2_header = None
         d._raw_sock = MagicMock()
         d._raw_sock.sendto.return_value = 20
         assert await d._send_batch_async_impl([p], True) == 1
@@ -1167,25 +1136,20 @@ async def test_windivert_batch_async_logic():
 
 
 def test_ebpf_recv_batch_linux():
-    from collections import deque
-
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
         d = EBPFDivert()
         d._is_open = True
-        p = MagicMock(spec=pydivert.Packet)
-        d._queue = deque([p])
+        mock_libebpf.ebpfdivert_recv.side_effect = [0, -11]
         res = d.recv_batch(count=1)
-        assert res == [p]
-        assert len(d._queue) == 0
+        assert len(res) == 1
 
 
 def test_ebpf_unregister_normal():
-    with patch("os.listdir", return_value=["pydivert_123_456_ingress"]):
-        with patch("subprocess.run") as mock_run:
-            pydivert.ebpf.EBPFDivert.unregister()
-            assert mock_run.called
+    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
+        pydivert.ebpf.EBPFDivert.unregister()
+        assert mock_libebpf.ebpfdivert_unload.called
 
 
 def test_packet_is_loopback_setter():
@@ -1401,7 +1365,7 @@ def test_filter_coverage():
 def test_ebpf_stats_impl_unsupported():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         d = EBPFDivert()
         d._is_open = True
         # stats is not supported on EBPF, stats_impl should return dummy or raise
@@ -1418,28 +1382,13 @@ def test_ebpf_empty_except_blocks():
     if platform.system() == "Windows":
         return
 
-    # Line 47: libbpf_set_print error
-    with patch("pydivert.ebpf.libbpf") as mock_libbpf:
-        mock_libbpf.libbpf_set_print.side_effect = Exception("set print error")
+    # Restores mock state
+    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
         import importlib
 
         import pydivert.ebpf
 
         importlib.reload(pydivert.ebpf)
-
-    # Reload again to restore standard mock state
-    with patch("pydivert.ebpf.libbpf", MagicMock()):
-        import importlib
-
-        import pydivert.ebpf
-
-        importlib.reload(pydivert.ebpf)
-
-    # Line 142: delete stale TC filter error
-    with patch("subprocess.run", side_effect=Exception("run error")):
-        with patch("subprocess.check_output", return_value=b'[{"options": {"bpf_name": "tc_divert"}, "pref": 1}]'):
-            d = pydivert.ebpf.EBPFDivert()
-            pydivert.ebpf.EBPFDivert.unregister()
 
     # Line 175: check existing TC filters error
     with patch("subprocess.check_output", side_effect=Exception("check output error")):
@@ -1448,24 +1397,15 @@ def test_ebpf_empty_except_blocks():
     import platform
 
     if platform.system() != "Windows":
-        with patch("pydivert.ebpf.libbpf") as mock_libbpf:
+        with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
             d = pydivert.ebpf.EBPFDivert()
             d._is_open = True
 
-            # Line 276 & 298: bpf_tc_hook_create error
-            mock_libbpf.bpf_tc_hook_create.side_effect = Exception("hook create error")
-            mock_libbpf.bpf_object__open_file.return_value = 1
-            mock_libbpf.bpf_object__load.return_value = 0
-            mock_libbpf.bpf_object__find_program_by_name.return_value = 1
-            mock_libbpf.ring_buffer__new.return_value = 1
-
-            # Avoid hanging on if_nameindex by mocking it
-            with patch("socket.if_nameindex", return_value=[(1, "lo")]):
-                mock_libbpf.bpf_object__find_map_by_name.return_value = 1
-                mock_libbpf.bpf_tc_attach.return_value = 0
-                with patch("socket.socket"):
+            # ebpfdivert_load error handling
+            mock_libebpf.ebpfdivert_load.side_effect = RuntimeError("load error")
+            with patch("socket.socket"):
+                with pytest.raises(RuntimeError):
                     d._open_impl()
-                    d.close()
 
     # Line 562: send packet in batch error
     with patch("pydivert.ebpf.EBPFDivert._send_impl", side_effect=Exception("send error")):
@@ -1502,10 +1442,9 @@ def test_ebpf_mock_transpile_empty_except_blocks():
         # Just loop to check logic
         assert EBPFDivert._get_next_priority() == 30000
 
-    # Ensure open_impl falls back if it can't run bpf__object__load
-    with patch("pydivert.ebpf.libbpf") as mock_libbpf:
-        mock_libbpf.bpf_object__open_file.return_value = 1
-        mock_libbpf.bpf_object__load.return_value = -1
+    # Ensure open_impl falls back if it can't load
+    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
+        mock_libebpf.ebpfdivert_load.return_value = -1
         d = EBPFDivert()
         d._is_open = True
         try:

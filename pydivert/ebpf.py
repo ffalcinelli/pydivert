@@ -6,26 +6,22 @@ import os
 import socket
 import threading
 import time
-from collections import deque
-from typing import Any, cast
+from typing import Any
 
 from .base import BaseDivert
 from .bpf import (
-    LIBBPF_PRINT_CB,
-    RINGBUF_CB,
-    BpfFilterRule,
-    BpfTcHook,
-    BpfTcOpts,
+    BpfRuleOpt,
     DivertPacketBuffer,
-    libbpf,
+    libebpfdivert,
 )
 from .consts import (
     DEFAULT_PACKET_BUFFER_SIZE,
     Direction,
     Flag,
     Layer,
+    Param,
 )
-from .filter import transpile_to_ebpf
+from .filter import transpile_to_ebpf, transpile_to_rules
 from .packet import Packet
 
 # Define SO_MARK if missing (e.g. for type checking on non-Linux)
@@ -33,28 +29,133 @@ SO_MARK = getattr(socket, "SO_MARK", 36)
 
 logger = logging.getLogger(__name__)
 
-
-# Silence libbpf's confusing warnings (like exclusivity flag on TC)
-def _libbpf_print(level, format_str, args):
-    if os.environ.get("PYDIVERT_DEBUG_BPF") == "1":
-        print(f"libbpf: {format_str.decode('utf-8', 'replace').strip()}")  # pragma: no cover
-    return 0
-
-
-_libbpf_print_cb = LIBBPF_PRINT_CB(_libbpf_print)
-if libbpf:
-    try:
-        libbpf.libbpf_set_print(_libbpf_print_cb)
-    except Exception as e:  # pragma: no cover
-        logger.debug("Failed to set libbpf print callback: %s", e)
-
 _ebpf_lock = threading.Lock()
-_initialized_hooks = set()
+
+
+def rule_to_opt(rule: dict[str, Any], sniff: bool, drop: bool) -> tuple[BpfRuleOpt, list[bytes]]:  # noqa: C901
+    opt = BpfRuleOpt()
+    refs = []
+
+    def set_field(name: str, val: bytes):
+        setattr(opt, name, val)
+        refs.append(val)
+
+    # 1. Action
+    action = b"divert"
+    if drop:
+        action = b"drop"
+    elif sniff:
+        action = b"sniff"
+    set_field("action", action)
+
+    # 2. Proto
+    proto = rule.get("proto") or rule.get("!proto")
+    if proto:
+        set_field("proto", str(proto).lower().encode())
+    else:
+        set_field("proto", b"any")
+
+    # 3. Source IP
+    src_ip = rule.get("srcaddr") or rule.get("!srcaddr")
+    if src_ip:
+        is_ipv6 = ":" in src_ip
+        cidr = f"{src_ip}/128" if is_ipv6 else f"{src_ip}/32"
+        set_field("src_ip_cidr", cidr.encode())
+    else:
+        set_field("src_ip_cidr", b"any")
+
+    # 4. Destination IP
+    dst_ip = rule.get("dstaddr") or rule.get("!dstaddr")
+    if dst_ip:
+        is_ipv6 = ":" in dst_ip
+        cidr = f"{dst_ip}/128" if is_ipv6 else f"{dst_ip}/32"
+        set_field("dst_ip_cidr", cidr.encode())
+    else:
+        set_field("dst_ip_cidr", b"any")
+
+    # 5. Source Port
+    src_port = rule.get("sport") or rule.get("!sport")
+    if src_port is not None:
+        set_field("src_port_range", f"{src_port}-{src_port}".encode())
+    else:
+        set_field("src_port_range", b"any")
+
+    # 6. Destination Port
+    dst_port = rule.get("dport") or rule.get("!dport")
+    if dst_port is not None:
+        set_field("dst_port_range", f"{dst_port}-{dst_port}".encode())
+    else:
+        set_field("dst_port_range", b"any")
+
+    # 7. Direction
+    direction = rule.get("direction") or rule.get("!direction")
+    if direction:
+        set_field("direction", direction.lower().encode())
+    else:
+        set_field("direction", b"any")
+
+    # 8. Loopback
+    loopback = rule.get("loopback") or rule.get("!loopback")
+    if loopback is not None:
+        set_field("loopback", b"yes" if loopback else b"no")
+    else:
+        set_field("loopback", b"any")
+
+    # 9. TTL
+    ttl = rule.get("ttl") or rule.get("!ttl")
+    if ttl is not None:
+        set_field("ttl", str(ttl).encode())
+    else:
+        set_field("ttl", b"any")
+
+    # 10. TCP Flags
+    flags = []
+    for f in ["syn", "ack", "fin", "rst", "psh", "urg"]:
+        if rule.get(f) is True:
+            flags.append(f.upper())
+    if flags:
+        val = ",".join(flags).encode()
+        set_field("tcp_flags", val)
+        set_field("tcp_flags_mask", val)
+    else:
+        set_field("tcp_flags", b"any")
+        set_field("tcp_flags_mask", b"any")
+
+    # 11. Invert mask
+    MATCH_SRC_IP = 1 << 0
+    MATCH_DST_IP = 1 << 1
+    MATCH_SRC_PORT = 1 << 2
+    MATCH_DST_PORT = 1 << 3
+    MATCH_PROTO = 1 << 4
+    MATCH_DIRECTION = 1 << 5
+    MATCH_LOOPBACK = 1 << 6
+    MATCH_TTL = 1 << 11
+
+    invert_mask = 0
+    if "!srcaddr" in rule:
+        invert_mask |= MATCH_SRC_IP
+    if "!dstaddr" in rule:
+        invert_mask |= MATCH_DST_IP
+    if "!sport" in rule:
+        invert_mask |= MATCH_SRC_PORT
+    if "!dport" in rule:
+        invert_mask |= MATCH_DST_PORT
+    if "!proto" in rule:
+        invert_mask |= MATCH_PROTO
+    if "!direction" in rule:
+        invert_mask |= MATCH_DIRECTION
+    if "!loopback" in rule:
+        invert_mask |= MATCH_LOOPBACK
+    if "!ttl" in rule:
+        invert_mask |= MATCH_TTL
+
+    opt.invert_mask = invert_mask
+    return opt, refs
 
 
 class EBPFDivert(BaseDivert):
     """
-    Linux implementation of the Divert interface using **eBPF**.
+    Linux implementation of the Divert interface using **eBPF** (via libebpfdivert).
     """
 
     def __init__(
@@ -69,11 +170,10 @@ class EBPFDivert(BaseDivert):
         if layer not in (Layer.NETWORK, Layer.FLOW, Layer.SOCKET):
             raise NotImplementedError(f"Layer {layer} is not supported on Linux yet.")
 
-        if libbpf is None:
-            raise ImportError("libbpf missing on system.")
-        self._obj = self._ringbuf = self._raw_sock = self._raw_sock6 = None
-        self._queue: deque[Packet] = deque()
-        self._hooks: list[tuple[BpfTcHook, BpfTcOpts]] = []
+        if libebpfdivert is None:
+            raise ImportError("libebpfdivert missing on system.")
+        self._handle = None
+        self._raw_sock = self._raw_sock6 = None
         self._interfaces = kwargs.get("interfaces", None)
         self._tc_priority = 0
         self._mark = 0
@@ -81,73 +181,24 @@ class EBPFDivert(BaseDivert):
     @staticmethod
     def register() -> None:
         """eBPF backend does not require explicit registration."""
-        pass  # pragma: no cover
+        pass
 
     @staticmethod
     def is_registered() -> bool:
-        """eBPF backend is always considered registered if libbpf is available."""
-        return libbpf is not None
+        """eBPF backend is always considered registered if libebpfdivert is available."""
+        return libebpfdivert is not None
 
     @staticmethod
-    def unregister() -> None:  # pragma: no cover
+    def unregister() -> None:
         """
-        Forcefully removes all PyDivert-related eBPF hooks from all network interfaces.
-        This provides parity with WinDivert.unregister() and can be used for emergency cleanup.
+        Forcefully removes all PyDivert-related eBPF hooks from network interfaces.
         """
-        import json
-        import os
-        import subprocess
-
-        try:
-            interfaces = os.listdir("/sys/class/net")
-        except OSError:
-            return
-
-        for ifname in interfaces:
-            for hook in ["ingress", "egress"]:
-                try:
-                    # Query existing filters on the interface
-                    output = subprocess.check_output(
-                        ["sudo", "tc", "-j", "filter", "show", "dev", ifname, hook],
-                        stderr=subprocess.DEVNULL,
-                    )
-                    if not output:
-                        continue
-                    filters = json.loads(output)
-                    for f in filters:
-                        # Identify PyDivert filters by the BPF program name
-                        options = f.get("options", {})
-                        bpf_name = options.get("bpf_name", "")
-                        if "tc_divert_ingre" in bpf_name or "tc_divert_egres" in bpf_name:
-                            pref = f.get("pref")
-                            handle = options.get("handle")
-                            if pref and handle:
-                                # Surgical deletion of the specific filter
-                                subprocess.run(
-                                    [
-                                        "sudo",
-                                        "tc",
-                                        "filter",
-                                        "del",
-                                        "dev",
-                                        ifname,
-                                        hook,
-                                        "pref",
-                                        str(pref),
-                                        "handle",
-                                        str(handle),
-                                        "bpf",
-                                    ],
-                                    check=False,
-                                )
-                except Exception as e:  # pragma: no cover
-                    logger.debug("Failed to delete stale TC filter: %s", e)
-                    continue
+        if libebpfdivert:
+            libebpfdivert.ebpfdivert_unload(None)
 
     @staticmethod
     def check_filter(filter: str, layer: Layer = Layer.NETWORK) -> tuple[bool, int, str]:
         """Check if a filter is valid for eBPF."""
-        # For now, we assume filters are valid if they can be transpiled
         try:
             transpile_to_ebpf(filter)
             return True, 0, ""
@@ -173,147 +224,63 @@ class EBPFDivert(BaseDivert):
                     options = f.get("options", {})
                     if "tc_divert" in options.get("bpf_name", ""):
                         max_prio = max(max_prio, f.get("pref", 0))
-        except Exception as e:  # pragma: no cover
+        except Exception as e:
             logger.debug("Failed to check existing TC filters for max priority: %s", e)
         return max_prio + 1
 
     def _open_impl(self):  # noqa: C901
         with _ebpf_lock:
-            bpf = cast(Any, libbpf)
             obj_path = os.path.join(os.path.dirname(__file__), "bpf", "ebpfdivert.bpf.o")
 
-            # In Windows, priority 0 means default.
-            # In TC, priority 1 is highest. We map our priority to TC priority.
-            # If priority is 0, we use a default priority that allows multiple handles.
             if self.priority == 0:
                 self._tc_priority = self._get_next_priority()
             else:
-                # Map WinDivert priority range (30000 to -30000) to TC range (1 to 65535)
-                # WinDivert: 30000 -> TC: 1, 0 -> TC: 30001, -30000 -> TC: 60001
                 self._tc_priority = 30001 - self.priority
 
             self._mark = 0x4D490000 | (self._tc_priority & 0xFFFF)
             logger.debug(
-                "EBPFDivert priority=%d -> tc_priority=%d, mark=0x%08x", self.priority, self._tc_priority, self._mark
+                "EBPFDivert priority=%d -> tc_priority=%d, mark=0x%08x",
+                self.priority,
+                self._tc_priority,
+                self._mark,
             )
 
             if Flag.SEND_ONLY not in self.flags:
-                logger.debug("Loading BPF object: %s", obj_path)
-                self._obj = bpf.bpf_object__open_file(obj_path.encode(), None)
-                if not self._obj or bpf.bpf_object__load(self._obj) != 0:
-                    raise RuntimeError("Failed to load BPF object.")  # pragma: no cover
+                ifname = None
+                if self._interfaces:
+                    if len(self._interfaces) == 1:
+                        ifname = self._interfaces[0].encode()
+                    else:
+                        ifname = b"all"
 
-                # Update config map with our priority
-                config_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"config_map")
-                if config_map_ptr:
-                    config_fd = bpf.bpf_map__fd(config_map_ptr)
-                    key = ctypes.c_uint32(0)
-                    val = ctypes.c_uint32(self._tc_priority)
-                    bpf.bpf_map_update_elem(config_fd, ctypes.byref(key), ctypes.byref(val), 0)
+                logger.debug("Loading BPF object and driver via libebpfdivert: %s", obj_path)
+                ret = libebpfdivert.ebpfdivert_load(ifname, obj_path.encode(), self._tc_priority)
+                if ret != 0:
+                    raise RuntimeError("Failed to load eBPFDivert BPF object.")
 
-                # Ringbuf
-                map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"pcap_ringbuf")
-                if not map_ptr:
-                    raise RuntimeError("pcap_ringbuf map missing.")  # pragma: no cover
+                self._handle = libebpfdivert.ebpfdivert_open(self._tc_priority)
+                if not self._handle:
+                    libebpfdivert.ebpfdivert_unload(ifname)
+                    raise RuntimeError("Failed to create eBPFDivert handle.")
 
-                self._cb = RINGBUF_CB(self._ring_callback)
-                self._ringbuf = bpf.ring_buffer__new(bpf.bpf_map__fd(map_ptr), self._cb, None, None)
-                if not self._ringbuf:
-                    raise RuntimeError("Failed to create ring buffer.")  # pragma: no cover
+                # Clear rules
+                libebpfdivert.ebpfdivert_rules_clear()
 
-                self._epoll_fd = bpf.ring_buffer__epoll_fd(self._ringbuf)
-                self._recv_futures: list[Any] = []
-
-                # Load filter rules
+                # Transpile and load rules
                 logger.debug("Transpiling filter: %s", self.filter)
                 is_sniff = (Flag.SNIFF in self.flags) or (self.layer in (Layer.FLOW, Layer.SOCKET, Layer.REFLECT))
-                ebpf_filter_rules = transpile_to_ebpf(self.filter, sniff=is_sniff, drop=(Flag.DROP in self.flags))
-                rules_map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"filter_rules")
-                if rules_map_ptr:
-                    rules_fd = bpf.bpf_map__fd(rules_map_ptr)
+                rules = transpile_to_rules(self.filter)
 
-                    # Clear map (up to 16 rules unrolled in C)
-                    empty_rule = BpfFilterRule()
-                    for i in range(16):
-                        key = ctypes.c_uint32(i)
-                        bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(empty_rule), 0)
-
-                    # Fill map
-                    for i, rule in enumerate(ebpf_filter_rules[:16]):
-                        key = ctypes.c_uint32(i)
-                        c_rule = BpfFilterRule(
-                            src_ip=rule["src_ip"],
-                            dst_ip=rule["dst_ip"],
-                            src_port=rule["src_port"],
-                            dst_port=rule["dst_port"],
-                            match_mask=rule["match_mask"],
-                            invert_mask=rule["invert_mask"],
-                            proto=rule["proto"],
-                            direction=rule["direction"],
-                            loopback=rule["loopback"],
-                            ttl=rule["ttl"],
-                            tcp_flags=rule["tcp_flags"],
-                            tcp_flags_mask=rule["tcp_flags_mask"],
-                        )
-                        bpf.bpf_map_update_elem(rules_fd, ctypes.byref(key), ctypes.byref(c_rule), 0)
-
-                # Attach TC hooks
-                prog_ingress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_ingress")
-                prog_egress = bpf.bpf_object__find_program_by_name(self._obj, b"tc_divert_egress")
-
-                if not prog_ingress or not prog_egress:
-                    raise RuntimeError("Failed to find BPF programs.")  # pragma: no cover
-
-                for ifindex, ifname in socket.if_nameindex():
-                    if self._interfaces is not None and ifname not in self._interfaces:
-                        continue  # pragma: no cover
-
-                    logger.debug("Attaching TC hooks to %s (%d)", ifname, ifindex)
-
-                    # Ingress
-                    hook_ingress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=1)
-                    try:
-                        bpf.bpf_tc_hook_create(ctypes.byref(hook_ingress))
-                    except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)
-
-                    opts_ingress = BpfTcOpts(
-                        sz=ctypes.sizeof(BpfTcOpts),
-                        prog_fd=bpf.bpf_program__fd(prog_ingress),
-                        flags=0,
-                        priority=self._tc_priority,
-                    )
-                    if bpf.bpf_tc_attach(ctypes.byref(hook_ingress), ctypes.byref(opts_ingress)) == 0:
-                        # Copy the objects to ensure they are not overwritten in the loop
-                        h = BpfTcHook()
-                        ctypes.memmove(ctypes.byref(h), ctypes.byref(hook_ingress), ctypes.sizeof(BpfTcHook))
-                        o = BpfTcOpts()
-                        ctypes.memmove(ctypes.byref(o), ctypes.byref(opts_ingress), ctypes.sizeof(BpfTcOpts))
-                        self._hooks.append((h, o))
-
-                    # Egress
-                    hook_egress = BpfTcHook(sz=ctypes.sizeof(BpfTcHook), ifindex=ifindex, attach_point=2)
-                    try:
-                        bpf.bpf_tc_hook_create(ctypes.byref(hook_egress))
-                    except Exception as e:  # pragma: no cover
-                        logger.debug("Failed to create TC hook (may already exist): %s", e)
-
-                    opts_egress = BpfTcOpts(
-                        sz=ctypes.sizeof(BpfTcOpts),
-                        prog_fd=bpf.bpf_program__fd(prog_egress),
-                        flags=0,
-                        priority=self._tc_priority,
-                    )
-                    if bpf.bpf_tc_attach(ctypes.byref(hook_egress), ctypes.byref(opts_egress)) == 0:
-                        # Copy the objects to ensure they are not overwritten in the loop
-                        h = BpfTcHook()
-                        ctypes.memmove(ctypes.byref(h), ctypes.byref(hook_egress), ctypes.sizeof(BpfTcHook))
-                        o = BpfTcOpts()
-                        ctypes.memmove(ctypes.byref(o), ctypes.byref(opts_egress), ctypes.sizeof(BpfTcOpts))
-                        self._hooks.append((h, o))
-
-                if not self._hooks:
-                    raise RuntimeError("Failed to attach eBPF hooks to any interface.")  # pragma: no cover
+                rule_idx = 0
+                for rule in rules[:64]:
+                    if "false" in rule:
+                        continue
+                    opt, refs = rule_to_opt(rule, sniff=is_sniff, drop=(Flag.DROP in self.flags))
+                    ret = libebpfdivert.ebpfdivert_rules_add_extended(rule_idx, ctypes.byref(opt))
+                    if ret == 0:
+                        rule_idx += 1
+                    else:
+                        logger.warning("Failed to add filter rule %d: %d", rule_idx, ret)
 
             if Flag.RECV_ONLY not in self.flags:
                 self._raw_sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
@@ -324,93 +291,28 @@ class EBPFDivert(BaseDivert):
                     self._raw_sock6 = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_RAW)
                     self._raw_sock6.setsockopt(socket.SOL_SOCKET, SO_MARK, self._mark)
                     if hasattr(socket, "IPV6_HDRINCL"):
-                        self._raw_sock6.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HDRINCL, 1)  # pragma: no cover
-                except OSError:  # pragma: no cover
-                    # IPv6 might not be supported
-                    self._raw_sock6 = None  # pragma: no cover
-
-    def _ring_callback(self, ctx, data, size):
-        buf = DivertPacketBuffer.from_address(data)
-        pkt_len = buf.header.pkt_len
-        ifindex = buf.header.ifindex
-        direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND
-        l2_len = buf.header.l2_len
-
-        # Extract captured data, skipping prefix and any L2 header if needed
-        # Since we load from offset 0, we have the full frame including L2
-        raw_frame = bytes(buf.data)[:pkt_len]
-
-        # Trust the l2_len provided by BPF
-        actual_l2_len = l2_len
-
-        # If BPF couldn't determine it, fallback to the heuristic
-        if actual_l2_len == 0 and pkt_len > 0:
-            if raw_frame[0] == 0x45 or (raw_frame[0] & 0xF0) == 0x60:  # pragma: no cover
-                actual_l2_len = 0  # pragma: no cover
-            elif pkt_len > 4 and (raw_frame[4] == 0x45 or (raw_frame[4] & 0xF0) == 0x60):  # pragma: no cover
-                actual_l2_len = 4  # pragma: no cover
-            elif pkt_len > 4 and raw_frame[:4] in (  # pragma: no cover
-                b"\x02\x00\x00\x00",
-                b"\x00\x00\x00\x02",
-            ):
-                actual_l2_len = 4  # pragma: no cover
-            elif pkt_len > 14 and (raw_frame[14] == 0x45 or (raw_frame[14] & 0xF0) == 0x60):  # pragma: no cover
-                actual_l2_len = 14  # pragma: no cover
-
-        p = Packet(
-            raw_frame[actual_l2_len:],
-            direction=direction,
-            interface=ifindex,
-            layer=self.layer,
-        )
-
-        # Basic loopback detection based on IP addresses
-        if p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1" or p.src_addr == "::1" or p.dst_addr == "::1":
-            p.is_loopback = True
-
-        if self.layer == Layer.FLOW:
-            # Emulate WinDivert FLOW data for parity
-            from pydivert.windivert_dll.structs import WinDivertAddress  # pragma: no cover
-
-            flow_data = WinDivertAddress._Union._Flow()  # pragma: no cover
-            flow_data.Protocol = p.protocol[0] or 0  # pragma: no cover
-            flow_data.LocalPort = p.src_port or 0  # pragma: no cover
-            flow_data.RemotePort = p.dst_port or 0  # pragma: no cover
-            # LocalAddr/RemoteAddr are harder as they are arrays, but we can try
-            p.flow = flow_data  # pragma: no cover
-
-        self._queue.append(p)
-        return 0
+                        self._raw_sock6.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_HDRINCL, 1)
+                except OSError:
+                    self._raw_sock6 = None
 
     def _close_impl(self):
-        # Signal that we are closing
         self._is_open = False
 
-        # Cancel any pending futures
-        if hasattr(self, "_recv_futures") and self._recv_futures:
-            for fut in self._recv_futures:  # pragma: no cover
-                if not fut.done():  # pragma: no cover
-                    fut.set_exception(RuntimeError("Handle closed"))  # pragma: no cover
-            self._recv_futures.clear()  # pragma: no cover
-
         with _ebpf_lock:
-            bpf = cast(Any, libbpf)
-            if self._obj is not True and self._obj:
-                for hook, opts in self._hooks:
-                    # To detach, handle and priority must be set to exactly what they were during attach
-                    # We ensure this by memmoving the state immediately after attachment.
-                    bpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
-                self._hooks.clear()
+            if self._handle:
+                libebpfdivert.ebpfdivert_close(self._handle)
+                self._handle = None
 
-                if self._ringbuf:
-                    # Give some time for poll() to exit
-                    ringbuf = self._ringbuf
-                    self._ringbuf = None
-                    time.sleep(0.05)
-                    bpf.ring_buffer__free(ringbuf)
+            ifname = None
+            if self._interfaces:
+                if len(self._interfaces) == 1:
+                    ifname = self._interfaces[0].encode()
+                else:
+                    ifname = b"all"
 
-                bpf.bpf_object__close(self._obj)
-            self._obj = None
+            if libebpfdivert:
+                libebpfdivert.ebpfdivert_unload(ifname)
+
             if self._raw_sock:
                 self._raw_sock.close()
                 self._raw_sock = None
@@ -420,103 +322,167 @@ class EBPFDivert(BaseDivert):
 
     def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
-            raise OSError(socket.EBADF, "Handle is send-only")  # pragma: no cover
+            raise OSError(errno.EBADF, "Handle is send-only")
 
-        bpf = cast(Any, libbpf)
+        buf = DivertPacketBuffer()
         start = time.time()
-        while not self._queue and self.is_open:
-            if self._ringbuf:
-                bpf.ring_buffer__poll(self._ringbuf, 10)
-            if timeout and (time.time() - start) > timeout:
+
+        while self.is_open:
+            ret = libebpfdivert.ebpfdivert_recv(self._handle, ctypes.byref(buf), ctypes.sizeof(buf), 10)
+            if ret == 0:
+                pkt_len = buf.header.pkt_len
+                ifindex = buf.header.ifindex
+                direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND
+                l2_len = buf.header.l2_len
+
+                raw_frame = bytes(buf.data)[:pkt_len]
+                l2_header = raw_frame[:l2_len]
+
+                if self._interfaces and len(self._interfaces) > 1:
+                    try:
+                        current_ifname = socket.if_indextoname(ifindex)
+                        if current_ifname not in self._interfaces:
+                            continue
+                    except OSError:
+                        continue
+
+                p = Packet(
+                    raw_frame[l2_len:],
+                    direction=direction,
+                    interface=ifindex,
+                    layer=self.layer,
+                )
+
+                if p.src_addr == "127.0.0.1" or p.dst_addr == "127.0.0.1" or p.src_addr == "::1" or p.dst_addr == "::1":
+                    p.is_loopback = True
+
+                p._l2_header = l2_header
+                return p
+
+            if timeout is not None and (time.time() - start) > timeout:
                 raise TimeoutError("The read operation timed out")
+
             time.sleep(0.001)
 
-        if not self._queue:
-            raise OSError(socket.EBADF, "Handle closed while receiving")
+        raise OSError(errno.EBADF, "Handle closed while receiving")
 
-        return self._queue.popleft()
+    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:  # noqa: C901
+        if Flag.SEND_ONLY in self.flags:
+            raise OSError(errno.EBADF, "Handle is send-only")
 
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
-        if Flag.SEND_ONLY in self.flags:  # pragma: no cover
-            raise OSError(socket.EBADF, "Handle is send-only")  # pragma: no cover
+        packets = []
+        try:
+            p = self._recv_impl(bufsize, timeout)
+            packets.append(p)
+            while len(packets) < count:
+                try:
+                    buf = DivertPacketBuffer()
+                    ret = libebpfdivert.ebpfdivert_recv(self._handle, ctypes.byref(buf), ctypes.sizeof(buf), 0)
+                    if ret == 0:
+                        pkt_len = buf.header.pkt_len
+                        ifindex = buf.header.ifindex
+                        direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND
+                        l2_len = buf.header.l2_len
+                        raw_frame = bytes(buf.data)[:pkt_len]
 
-        packets = []  # pragma: no cover
-        try:  # pragma: no cover
-            p = self._recv_impl(bufsize, timeout)  # pragma: no cover
-            packets.append(p)  # pragma: no cover
-            while len(packets) < count and self._queue:  # pragma: no cover
-                packets.append(self._queue.popleft())  # pragma: no cover
-        except TimeoutError:  # pragma: no cover
-            if not packets:  # pragma: no cover
-                raise  # pragma: no cover
-        return packets  # pragma: no cover
+                        if self._interfaces and len(self._interfaces) > 1:
+                            try:
+                                current_ifname = socket.if_indextoname(ifindex)
+                                if current_ifname not in self._interfaces:
+                                    continue
+                            except OSError:
+                                continue
 
-    def _stats_impl(self):
-        if self._obj is True or not self._obj:
-            return {"diverted": 0, "dropped": 0, "sniffed": 0}
-
-        bpf = cast(Any, libbpf)
-        map_ptr = bpf.bpf_object__find_map_by_name(self._obj, b"stats_map")
-        if not map_ptr:
-            return {"diverted": 0, "dropped": 0, "sniffed": 0}  # pragma: no cover
-
-        fd = bpf.bpf_map__fd(map_ptr)
-        num_cpus = bpf.libbpf_num_possible_cpus()
-        if num_cpus <= 0:
-            num_cpus = os.cpu_count() or 1  # pragma: no cover
-
-        def get_stat(key_idx):
-            key = ctypes.c_uint32(key_idx)
-            # PERCPU_ARRAY map values are returned as an array of values, one per CPU.
-            # Each value is 8-byte aligned.
-            value_type = ctypes.c_uint64 * num_cpus
-            values = value_type()
-            if bpf.bpf_map_lookup_elem(fd, ctypes.byref(key), ctypes.byref(values)) == 0:
-                return sum(values)
-            return 0  # pragma: no cover
-
-        return {
-            "diverted": get_stat(0),  # STAT_DIVERTED
-            "dropped": get_stat(1),  # STAT_DROPPED
-            "sniffed": get_stat(2),  # STAT_SNIFFED
-        }
+                        p2 = Packet(
+                            raw_frame[l2_len:],
+                            direction=direction,
+                            interface=ifindex,
+                            layer=self.layer,
+                        )
+                        if (
+                            p2.src_addr == "127.0.0.1"
+                            or p2.dst_addr == "127.0.0.1"
+                            or p2.src_addr == "::1"
+                            or p2.dst_addr == "::1"
+                        ):
+                            p2.is_loopback = True
+                        p2._l2_header = raw_frame[:l2_len]
+                        packets.append(p2)
+                    else:
+                        break
+                except Exception:
+                    break
+        except TimeoutError:
+            if not packets:
+                raise
+        return packets
 
     def _send_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
         if Flag.RECV_ONLY in self.flags:
-            raise OSError(socket.EBADF, "Handle is receive-only")  # pragma: no cover
+            raise OSError(errno.EBADF, "Handle is receive-only")
 
         if recalculate_checksum:
             packet.recalculate_checksums()
 
+        l2_header = getattr(packet, "_l2_header", None)
+        if l2_header is not None:
+            buf = DivertPacketBuffer()
+            payload = bytes(packet.raw)
+            full_frame = bytes(l2_header) + payload
+
+            buf.header.pkt_len = len(full_frame)
+            buf.header.ifindex = packet.interface[0]
+            buf.header.direction = 1 if packet.direction == Direction.INBOUND else 2
+            buf.header.l2_len = len(l2_header)
+            buf.header.cap_len = len(full_frame)
+
+            ctypes.memmove(buf.data, full_frame, min(len(full_frame), 2048))
+
+            ret = libebpfdivert.ebpfdivert_send(self._handle, ctypes.byref(buf))
+            if ret != 0:
+                raise OSError(-ret, os.strerror(-ret))
+            return len(payload)
+
         dst_addr = packet.dst_addr
         if dst_addr is None:
-            logger.warning("Cannot send packet with unknown destination address")  # pragma: no cover
+            logger.warning("Cannot send packet with unknown destination address")
             return 0
 
-        # Choose socket and possibly bind to interface
         sock = self._raw_sock6 if packet.ipv6 else self._raw_sock
         if not sock:
             msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
             raise OSError(errno.EAFNOSUPPORT, msg)
 
-        # For loopback re-injection, some kernels require explicit binding or
-        # handling to ensure the packet hits the right hooks.
         if packet.ipv6:
-            scope_id = 0  # pragma: no cover
-            if dst_addr == "::1":  # pragma: no cover
-                try:  # pragma: no cover
-                    scope_id = socket.if_nametoindex("lo")  # pragma: no cover
-                except OSError:  # pragma: no cover
-                    scope_id = 0  # pragma: no cover
-            return sock.sendto(packet.raw, (dst_addr, 0, 0, scope_id))  # pragma: no cover
+            scope_id = 0
+            if dst_addr == "::1":
+                try:
+                    scope_id = socket.if_nametoindex("lo")
+                except OSError:
+                    scope_id = 0
+            return sock.sendto(packet.raw, (dst_addr, 0, 0, scope_id))
 
         return sock.sendto(packet.raw, (dst_addr, 0))
+
+    def _stats_impl(self):
+        if not self._handle:
+            return {"diverted": 0, "dropped": 0, "sniffed": 0}
+
+        stats = (ctypes.c_uint64 * 6)()
+        ret = libebpfdivert.ebpfdivert_get_stats(stats, 6)
+        if ret == 0:
+            return {
+                "diverted": stats[0],  # STAT_DIVERTED
+                "dropped": stats[1],   # STAT_DROPPED
+                "sniffed": stats[2],   # STAT_SNIFFED
+            }
+        return {"diverted": 0, "dropped": 0, "sniffed": 0}
 
     async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         import asyncio
 
         if Flag.SEND_ONLY in self.flags:
-            raise OSError(socket.EBADF, "Handle is send-only")  # pragma: no cover
+            raise OSError(errno.EBADF, "Handle is send-only")
 
         return await asyncio.to_thread(self._recv_impl, bufsize, timeout)
 
@@ -524,7 +490,7 @@ class EBPFDivert(BaseDivert):
         import asyncio
 
         if Flag.RECV_ONLY in self.flags:
-            raise OSError(socket.EBADF, "Handle is receive-only")  # pragma: no cover
+            raise OSError(errno.EBADF, "Handle is receive-only")
 
         return await asyncio.to_thread(self._send_impl, packet, recalculate_checksum)
 
@@ -533,20 +499,12 @@ class EBPFDivert(BaseDivert):
         try:
             p = await self._recv_async_impl(bufsize, timeout)
             packets.append(p)
-            while len(packets) < count and self._queue:
-                packets.append(self._queue.popleft())
-        except (TimeoutError, Exception):  # pragma: no cover
-            if not packets:  # pragma: no cover
-                raise  # pragma: no cover
-        return packets
-
-    def _recv_batch_impl(self, count: int, bufsize: int, timeout: float | None) -> list[Packet]:
-        packets = []
-        try:
-            p = self._recv_impl(bufsize, timeout)
-            packets.append(p)
-            while len(packets) < count and self._queue:
-                packets.append(self._queue.popleft())  # pragma: no cover
+            while len(packets) < count:
+                # Retrieve any immediately buffered packets
+                packets_list = self._recv_batch_impl(count - len(packets), bufsize, 0)
+                if not packets_list:
+                    break
+                packets.extend(packets_list)
         except (TimeoutError, Exception):
             if not packets:
                 raise
@@ -558,7 +516,7 @@ class EBPFDivert(BaseDivert):
             try:
                 if self._send_impl(p, recalculate_checksum) > 0:
                     count += 1
-            except Exception as e:  # pragma: no cover
+            except Exception as e:
                 logger.debug("Failed to send packet in batch: %s", e)
                 continue
         return count
@@ -567,3 +525,22 @@ class EBPFDivert(BaseDivert):
         import asyncio
 
         return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)
+
+    def set_param(self, name: Param, value: int) -> int:
+        if name == Param.QUEUE_LEN:
+            if not self._handle:
+                raise RuntimeError("Divert handle is not open")
+            ret = libebpfdivert.ebpfdivert_set_max_queue_size(self._handle, value)
+            if ret != 0:
+                raise OSError(-ret, os.strerror(-ret))
+            self._max_queue_size = value
+            return 0
+        else:
+            raise NotImplementedError("Parameter not supported on eBPF backend.")
+
+    def get_param(self, name: Param) -> int:
+        if name == Param.QUEUE_LEN:
+            return getattr(self, "_max_queue_size", 1024)
+        else:
+            raise NotImplementedError("Parameter not supported on eBPF backend.")
+

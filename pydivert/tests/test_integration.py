@@ -52,10 +52,12 @@ def test_drop_tcp(echo_server):
     port = echo_server
     filter_str = f"tcp.DstPort == {port}"
     stop_event = threading.Event()
+    ready_event = threading.Event()
 
     def divert_and_drop():
         try:
             with pydivert.Divert(filter_str) as w:
+                ready_event.set()
                 while not stop_event.is_set():
                     try:
                         w.recv(timeout=0.1)
@@ -66,7 +68,7 @@ def test_drop_tcp(echo_server):
 
     t = threading.Thread(target=divert_and_drop, daemon=True)
     t.start()
-    time.sleep(0.5)
+    assert ready_event.wait(timeout=10.0), "Diverter failed to start"
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -75,18 +77,20 @@ def test_drop_tcp(echo_server):
                 s.connect(("127.0.0.1", port))
     finally:
         stop_event.set()
-        t.join(timeout=1.0)
+        t.join(timeout=5.0)
 
 
 def test_modify_port(echo_server):
     real_port = echo_server
     fake_port = 12347  # Use different port to avoid conflicts
     stop_event = threading.Event()
+    ready_event = threading.Event()
     filter_str = f"tcp.DstPort == {fake_port} or tcp.SrcPort == {real_port}"
 
     def redirect_logic():
         try:
             with pydivert.Divert(filter_str) as w:
+                ready_event.set()
                 while not stop_event.is_set():
                     try:
                         packet = w.recv(timeout=0.1)
@@ -103,7 +107,7 @@ def test_modify_port(echo_server):
 
     t = threading.Thread(target=redirect_logic, daemon=True)
     t.start()
-    time.sleep(0.5)
+    assert ready_event.wait(timeout=10.0), "Diverter failed to start"
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -113,7 +117,7 @@ def test_modify_port(echo_server):
             assert s.recv(1024) == b"hello"
     finally:
         stop_event.set()
-        t.join(timeout=1.0)
+        t.join(timeout=5.0)
 
 
 def test_ebpf_interception_linux():
@@ -123,10 +127,12 @@ def test_ebpf_interception_linux():
     port = 12348
     payload = b"EBPF_TEST_PAYLOAD"
     captured = threading.Event()
+    ready_event = threading.Event()
 
     def diverter():
         try:
             with pydivert.Divert(f"udp.DstPort == {port}") as w:
+                ready_event.set()
                 packet = w.recv(timeout=3.0)
                 if payload in packet.payload:
                     captured.set()
@@ -136,7 +142,7 @@ def test_ebpf_interception_linux():
 
     t = threading.Thread(target=diverter, daemon=True)
     t.start()
-    time.sleep(0.5)
+    assert ready_event.wait(timeout=10.0), "Diverter failed to start"
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.sendto(payload, ("127.0.0.1", port))

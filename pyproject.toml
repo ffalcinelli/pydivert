@@ -91,7 +91,7 @@ known-first-party = ["pydivert"]
 
 [tool.pydivert.binaries]
 windivert = "2.2.2"
-ebpfdivert = "0.0.2"
+ebpfdivert = "0.0.3"
 
 [tool.ty.environment]
 python-platform = "win32"
@@ -111,6 +111,7 @@ include = [
     "pydivert/windivert_dll/WinDivert64.dll",
     "pydivert/windivert_dll/WinDivert64.sys",
     "pydivert/bpf/ebpfdivert.bpf.o",
+    "pydivert/bpf/libebpfdivert.so",
 ]
 
 [tool.hatch.build.targets.wheel]

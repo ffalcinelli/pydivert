@@ -47,8 +47,12 @@ class BpfFilterRule(ctypes.Structure):
     _fields_ = [
         ("src_ip", ctypes.c_uint32),
         ("dst_ip", ctypes.c_uint32),
-        ("src_port", ctypes.c_uint16),
-        ("dst_port", ctypes.c_uint16),
+        ("src_mask", ctypes.c_uint32),
+        ("dst_mask", ctypes.c_uint32),
+        ("src_port_start", ctypes.c_uint16),
+        ("src_port_end", ctypes.c_uint16),
+        ("dst_port_start", ctypes.c_uint16),
+        ("dst_port_end", ctypes.c_uint16),
         ("match_mask", ctypes.c_uint16),
         ("invert_mask", ctypes.c_uint16),
         ("proto", ctypes.c_uint8),
@@ -60,13 +64,30 @@ class BpfFilterRule(ctypes.Structure):
     ]
 
 
+class BpfRuleOpt(ctypes.Structure):
+    _fields_ = [
+        ("proto", ctypes.c_char_p),
+        ("src_ip_cidr", ctypes.c_char_p),
+        ("dst_ip_cidr", ctypes.c_char_p),
+        ("src_port_range", ctypes.c_char_p),
+        ("dst_port_range", ctypes.c_char_p),
+        ("action", ctypes.c_char_p),
+        ("direction", ctypes.c_char_p),
+        ("loopback", ctypes.c_char_p),
+        ("ttl", ctypes.c_char_p),
+        ("tcp_flags", ctypes.c_char_p),
+        ("tcp_flags_mask", ctypes.c_char_p),
+        ("invert_mask", ctypes.c_uint16),
+    ]
+
+
 class DivertPktHeader(ctypes.Structure):
     _fields_ = [
         ("pkt_len", ctypes.c_uint32),
         ("ifindex", ctypes.c_uint32),
         ("direction", ctypes.c_uint16),
         ("l2_len", ctypes.c_uint16),
-        ("pad", ctypes.c_uint32),
+        ("cap_len", ctypes.c_uint32),
     ]
 
 

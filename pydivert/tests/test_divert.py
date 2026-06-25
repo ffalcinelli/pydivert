@@ -73,10 +73,9 @@ def test_windivert_unregister_fallback_mock():
 def test_ebpf_load_failure_mock():
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf") as mock_lib:
-        mock_lib.bpf_object__open_file.return_value = 1
-        mock_lib.bpf_object__load.return_value = -1
-        with pytest.raises(RuntimeError, match="Failed to load BPF object"):
+    with patch("pydivert.ebpf.libebpfdivert") as mock_lib:
+        mock_lib.ebpfdivert_load.return_value = -1
+        with pytest.raises(RuntimeError, match="Failed to load eBPFDivert BPF object"):
             EBPFDivert("false").open()
 
 
@@ -402,12 +401,10 @@ def test_ebpf_attach_failure_mock():
         pytest.skip("Linux only")
     from pydivert.ebpf import EBPFDivert
 
-    with patch("pydivert.ebpf.libbpf") as mock_lib:
-        mock_lib.bpf_object__open_file.return_value = 1
-        mock_lib.bpf_object__load.return_value = 0
-        mock_lib.bpf_program__name.return_value = b"test"
-        mock_lib.bpf_tc_attach.return_value = -1
-        with pytest.raises(RuntimeError, match="Failed to attach"):
+    with patch("pydivert.ebpf.libebpfdivert") as mock_lib:
+        mock_lib.ebpfdivert_load.return_value = 0
+        mock_lib.ebpfdivert_open.return_value = None
+        with pytest.raises(RuntimeError, match="Failed to create eBPFDivert handle"):
             EBPFDivert("false").open()
 
 

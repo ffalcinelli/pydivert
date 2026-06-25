@@ -58,3 +58,8 @@ gha-creds-*.json
 .antigravitycli/
 debug_windivert.py
 test_from_linux
+*.pcap
+*.so
+*.o
+ebpfdivert/
+

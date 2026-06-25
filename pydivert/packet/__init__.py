@@ -39,6 +39,7 @@ class Packet:
         "_socket",
         "_reflect",
         "_wd_addr",
+        "_l2_header",
         "__dict__",  # Needed for cached_property
     )
 
@@ -67,6 +68,7 @@ class Packet:
         if not isinstance(raw, bytearray):
             raw = bytearray(raw)
         self._raw = raw
+        self._l2_header = None
 
         if wd_addr is not None:
             self._wd_addr = wd_addr
