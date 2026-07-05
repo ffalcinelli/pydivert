@@ -12,24 +12,15 @@ from typing import Any
 
 from .base import BaseDivert
 from .bpf import (
-    libbpf,
-    BpfObject,
-    BpfMap,
-    BpfTcHook,
-    BpfTcOpts,
+    RINGBUF_CB,
     BpfFilterRule,
     BpfFilterRuleIpv6,
+    BpfTcHook,
+    BpfTcOpts,
     DivertPacketBuffer,
-    DivertPktHeader,
-    RINGBUF_CB,
+    libbpf,
 )
-from .consts import (
-    DEFAULT_PACKET_BUFFER_SIZE,
-    Direction,
-    Flag,
-    Layer,
-    Param,
-)
+from .consts import DEFAULT_PACKET_BUFFER_SIZE, Direction, Flag, Layer, Param
 from .filter import transpile_to_ebpf, transpile_to_rules
 from .packet import Packet
 
@@ -360,6 +351,13 @@ class EBPFDivert(BaseDivert):
 
     def _close_impl(self):
         self._is_open = False
+        self._remove_async_reader()
+        self._cancel_read_futures()
+        with _ebpf_lock:
+            self._close_bpf_objects()
+            self._close_sockets()
+
+    def _remove_async_reader(self):
         if self._loop and self._fd is not None:
             try:
                 self._loop.remove_reader(self._fd)
@@ -368,40 +366,44 @@ class EBPFDivert(BaseDivert):
             self._loop = None
             self._fd = None
 
+    def _cancel_read_futures(self):
         while self._read_futures:
             future = self._read_futures.popleft()
             if not future.done():
                 future.set_exception(OSError(errno.EBADF, "Handle closed while receiving"))
-        with _ebpf_lock:
-            if self._obj:
-                if libebpfdivert != "legacy_placeholder" and libebpfdivert is not None:
-                    getattr(libebpfdivert, "ebpfdivert_close", lambda *a: None)(self._obj)
-                    self._obj = None
-                    return
 
-                for hook, opts in self._hooks:
-                    libbpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
-                self._hooks.clear()
-
-                if self._ringbuf:
-                    ringbuf = self._ringbuf
-                    self._ringbuf = None
-                    time.sleep(0.05)
-                    libbpf.ring_buffer__free(ringbuf)
-
-                libbpf.bpf_object__close(self._obj)
+    def _close_bpf_objects(self):
+        if not self._obj:
+            return
+        if libebpfdivert != "legacy_placeholder" and libebpfdivert is not None:
+            getattr(libebpfdivert, "ebpfdivert_close", lambda *a: None)(self._obj)
             self._obj = None
+            return
 
-            if self._raw_sock:
-                self._raw_sock.close()
-                self._raw_sock = None
-            if self._raw_sock6:
-                self._raw_sock6.close()
-                self._raw_sock6 = None
+        for hook, opts in self._hooks:
+            libbpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
+        self._hooks.clear()
 
-            for sock in self._raw_packet_socks.values():
-                sock.close()
-            self._raw_packet_socks.clear()
+        if self._ringbuf:
+            ringbuf = self._ringbuf
+            self._ringbuf = None
+            time.sleep(0.05)
+            libbpf.ring_buffer__free(ringbuf)
+
+        libbpf.bpf_object__close(self._obj)
+        self._obj = None
+
+    def _close_sockets(self):
+        if self._raw_sock:
+            self._raw_sock.close()
+            self._raw_sock = None
+        if self._raw_sock6:
+            self._raw_sock6.close()
+            self._raw_sock6 = None
+
+        for sock in self._raw_packet_socks.values():
+            sock.close()
+        self._raw_packet_socks.clear()
 
     def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
         if Flag.SEND_ONLY in self.flags:
@@ -454,33 +456,34 @@ class EBPFDivert(BaseDivert):
             l2_header = None
 
         if l2_header is None:
-            dst_addr = packet.dst_addr
-            if dst_addr is None:
-                logger.warning("Cannot send packet with unknown destination address")
-                return 0
+            return self._send_standard_raw(packet)
+        else:
+            return self._send_af_packet(packet, l2_header)
 
-            # Fallback to standard raw IP sockets if raw sockets are available
-            if self._raw_sock is not None or self._raw_sock6 is not None:
-                sock = self._raw_sock6 if packet.ipv6 else self._raw_sock
-                if not sock:
-                    msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
-                    raise OSError(errno.EAFNOSUPPORT, msg)
+    def _send_standard_raw(self, packet: Packet) -> int:
+        dst_addr = packet.dst_addr
+        if dst_addr is None:
+            logger.warning("Cannot send packet with unknown destination address")
+            return 0
 
-                if packet.ipv6:
-                    scope_id = 0
-                    if dst_addr == "::1":
-                        try:
-                            scope_id = socket.if_nametoindex("lo")
-                        except OSError:
-                            scope_id = 0
-                    return sock.sendto(packet.raw, (dst_addr, 0, 0, scope_id))
+        # Fallback to standard raw IP sockets if raw sockets are available
+        sock = self._raw_sock6 if packet.ipv6 else self._raw_sock
+        if not sock:
+            msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
+            raise OSError(errno.EAFNOSUPPORT, msg)
 
-                return sock.sendto(packet.raw, (dst_addr, 0))
-            else:
-                msg = "IPv6 raw socket not available" if packet.ipv6 else "IPv4 raw socket not available"
-                raise OSError(errno.EAFNOSUPPORT, msg)
+        if packet.ipv6:
+            scope_id = 0
+            if dst_addr == "::1":
+                try:
+                    scope_id = socket.if_nametoindex("lo")
+                except OSError:
+                    pass
+            return sock.sendto(packet.raw, (dst_addr, 0, 0, scope_id))
 
-        # Otherwise, inject via AF_PACKET raw socket
+        return sock.sendto(packet.raw, (dst_addr, 0))
+
+    def _send_af_packet(self, packet: Packet, l2_header: bytes | bytearray) -> int:
         ifindex = 0
         if hasattr(packet, "interface") and packet.interface:
             try:
@@ -495,16 +498,19 @@ class EBPFDivert(BaseDivert):
         if ifindex == lo_idx or ifindex == 0:
             ifindex = lo_idx
 
-        if not l2_header or len(l2_header) < 14:
+        if len(l2_header) < 14:
             l2_header = b"\x00" * 12 + (b"\x08\x00" if not packet.ipv6 else b"\x86\xdd")
 
         payload = bytes(packet.raw)
         full_frame = bytes(l2_header) + payload
         direction = 1 if packet.direction == Direction.INBOUND else 2
 
-        # Re-inject via native AF_PACKET raw socket
-        sock_key = (direction, ifindex)
+        sock = self._get_or_create_af_packet_sock(direction, ifindex, lo_idx)
+        sock.send(full_frame)
+        return len(payload)
 
+    def _get_or_create_af_packet_sock(self, direction: int, ifindex: int, lo_idx: int) -> socket.socket:
+        sock_key = (direction, ifindex)
         if sock_key not in self._raw_packet_socks:
             s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
 
@@ -520,10 +526,7 @@ class EBPFDivert(BaseDivert):
             ifname = socket.if_indextoname(bind_ifindex)
             s.bind((ifname, 3))
             self._raw_packet_socks[sock_key] = s
-
-        sock = self._raw_packet_socks[sock_key]
-        sock.send(full_frame)
-        return len(payload)
+        return self._raw_packet_socks[sock_key]
 
     def _stats_impl(self):
         if not self._obj:
@@ -589,7 +592,7 @@ class EBPFDivert(BaseDivert):
                     self._read_futures.remove(future)
                 except ValueError:
                     pass
-                raise TimeoutError("The read operation timed out")
+                raise TimeoutError("The read operation timed out") from None
         else:
             return await future
 
