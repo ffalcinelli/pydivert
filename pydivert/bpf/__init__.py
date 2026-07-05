@@ -2,72 +2,118 @@
 import ctypes
 import ctypes.util
 import logging
-import os
-from typing import Any
 
 from .structs import (
-    BpfRuleOpt,
+    LIBBPF_PRINT_CB,
+    PERF_BUF_CB,
+    RINGBUF_CB,
+    BpfFilterRule,
+    BpfFilterRuleIpv6,
+    BpfMap,
+    BpfObject,
+    BpfTcHook,
+    BpfTcOpts,
     DivertPacketBuffer,
     DivertPktHeader,
+    PerfBufferOpts,
 )
 
 logger = logging.getLogger(__name__)
 
-# Attempt to load libebpfdivert
-libebpf_path = ctypes.util.find_library("ebpfdivert")
-if not libebpf_path:
-    # Check if it's bundled in the local directory
-    bundled_path = os.path.join(os.path.dirname(__file__), "libebpfdivert.so")
-    if os.path.exists(bundled_path):
-        libebpf_path = bundled_path
-
-libebpfdivert: Any = None
-
-if libebpf_path:
+# Attempt to load libbpf
+try:
+    libbpf = ctypes.CDLL("libbpf.so.1")
+except OSError:
     try:
-        libebpfdivert = ctypes.CDLL(libebpf_path)
+        libbpf = ctypes.CDLL("libbpf.so")
     except OSError:
-        pass
+        libbpf = None
 
-if libebpfdivert:
-    libebpfdivert.ebpfdivert_load.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_load.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint32]
+if libbpf:
+    libbpf.bpf_object__open_file.restype = ctypes.POINTER(BpfObject)
+    libbpf.bpf_object__open_file.argtypes = [ctypes.c_char_p, ctypes.c_void_p]
 
-    libebpfdivert.ebpfdivert_unload.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_unload.argtypes = [ctypes.c_char_p]
+    libbpf.bpf_object__load.restype = ctypes.c_int
+    libbpf.bpf_object__load.argtypes = [ctypes.POINTER(BpfObject)]
 
-    libebpfdivert.ebpfdivert_rules_clear.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_rules_clear.argtypes = []
+    libbpf.bpf_object__find_map_by_name.restype = ctypes.POINTER(BpfMap)
+    libbpf.bpf_object__find_map_by_name.argtypes = [ctypes.POINTER(BpfObject), ctypes.c_char_p]
 
-    libebpfdivert.ebpfdivert_rules_add_extended.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_rules_add_extended.argtypes = [ctypes.c_int, ctypes.POINTER(BpfRuleOpt)]
+    libbpf.bpf_map__fd.restype = ctypes.c_int
+    libbpf.bpf_map__fd.argtypes = [ctypes.POINTER(BpfMap)]
 
-    libebpfdivert.ebpfdivert_open.restype = ctypes.c_void_p
-    libebpfdivert.ebpfdivert_open.argtypes = [ctypes.c_uint32]
+    libbpf.bpf_object__find_program_by_name.restype = ctypes.c_void_p
+    libbpf.bpf_object__find_program_by_name.argtypes = [ctypes.POINTER(BpfObject), ctypes.c_char_p]
 
-    libebpfdivert.ebpfdivert_recv.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_recv.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(DivertPacketBuffer),
-        ctypes.c_size_t,
-        ctypes.c_int,
-    ]
+    libbpf.bpf_program__fd.restype = ctypes.c_int
+    libbpf.bpf_program__fd.argtypes = [ctypes.c_void_p]
 
-    libebpfdivert.ebpfdivert_send.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_send.argtypes = [ctypes.c_void_p, ctypes.POINTER(DivertPacketBuffer)]
+    libbpf.perf_buffer__new.restype = ctypes.c_void_p
+    libbpf.perf_buffer__new.argtypes = [ctypes.c_int, ctypes.c_size_t, ctypes.POINTER(PerfBufferOpts)]
 
-    libebpfdivert.ebpfdivert_close.restype = None
-    libebpfdivert.ebpfdivert_close.argtypes = [ctypes.c_void_p]
+    libbpf.perf_buffer__consume.restype = ctypes.c_int
+    libbpf.perf_buffer__consume.argtypes = [ctypes.c_void_p]
 
-    libebpfdivert.ebpfdivert_get_stats.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_get_stats.argtypes = [ctypes.POINTER(ctypes.c_uint64), ctypes.c_int]
+    libbpf.perf_buffer__epoll_fd.restype = ctypes.c_int
+    libbpf.perf_buffer__epoll_fd.argtypes = [ctypes.c_void_p]
 
-    libebpfdivert.ebpfdivert_set_max_queue_size.restype = ctypes.c_int
-    libebpfdivert.ebpfdivert_set_max_queue_size.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    libbpf.perf_buffer__free.restype = None
+    libbpf.perf_buffer__free.argtypes = [ctypes.c_void_p]
+
+    libbpf.ring_buffer__new.restype = ctypes.c_void_p
+    libbpf.ring_buffer__new.argtypes = [ctypes.c_int, RINGBUF_CB, ctypes.c_void_p, ctypes.c_void_p]
+
+    libbpf.ring_buffer__poll.restype = ctypes.c_int
+    libbpf.ring_buffer__poll.argtypes = [ctypes.c_void_p, ctypes.c_int]
+
+    libbpf.ring_buffer__consume.restype = ctypes.c_int
+    libbpf.ring_buffer__consume.argtypes = [ctypes.c_void_p]
+
+    libbpf.ring_buffer__epoll_fd.restype = ctypes.c_int
+    libbpf.ring_buffer__epoll_fd.argtypes = [ctypes.c_void_p]
+
+    libbpf.ring_buffer__free.restype = None
+    libbpf.ring_buffer__free.argtypes = [ctypes.c_void_p]
+
+    libbpf.bpf_map_update_elem.restype = ctypes.c_int
+    libbpf.bpf_map_update_elem.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint64]
+
+    libbpf.bpf_map_lookup_elem.restype = ctypes.c_int
+    libbpf.bpf_map_lookup_elem.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+
+    libbpf.bpf_object__close.restype = None
+    libbpf.bpf_object__close.argtypes = [ctypes.POINTER(BpfObject)]
+
+    libbpf.bpf_tc_hook_create.restype = ctypes.c_int
+    libbpf.bpf_tc_hook_create.argtypes = [ctypes.POINTER(BpfTcHook)]
+
+    libbpf.bpf_tc_hook_destroy.restype = ctypes.c_int
+    libbpf.bpf_tc_hook_destroy.argtypes = [ctypes.POINTER(BpfTcHook)]
+
+    libbpf.bpf_tc_attach.restype = ctypes.c_int
+    libbpf.bpf_tc_attach.argtypes = [ctypes.POINTER(BpfTcHook), ctypes.POINTER(BpfTcOpts)]
+
+    libbpf.bpf_tc_detach.restype = ctypes.c_int
+    libbpf.bpf_tc_detach.argtypes = [ctypes.POINTER(BpfTcHook), ctypes.POINTER(BpfTcOpts)]
+
+    libbpf.libbpf_num_possible_cpus.restype = ctypes.c_int
+    libbpf.libbpf_num_possible_cpus.argtypes = []
+
+    libbpf.libbpf_set_print.restype = None
+    libbpf.libbpf_set_print.argtypes = [LIBBPF_PRINT_CB]
 
 __all__ = [
-    "libebpfdivert",
-    "BpfRuleOpt",
+    "libbpf",
+    "BpfObject",
+    "BpfMap",
+    "BpfTcHook",
+    "BpfTcOpts",
+    "BpfFilterRule",
+    "BpfFilterRuleIpv6",
     "DivertPktHeader",
     "DivertPacketBuffer",
+    "PerfBufferOpts",
+    "PERF_BUF_CB",
+    "RINGBUF_CB",
+    "LIBBPF_PRINT_CB",
 ]

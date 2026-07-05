@@ -546,10 +546,16 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
                     break
         if contradiction:
             continue
-
         ebpf_rule = {
             "src_ip": 0,
             "dst_ip": 0,
+            "src_mask": 0,
+            "dst_mask": 0,
+            "is_ipv6": False,
+            "src_ip_v6": b"\x00" * 16,
+            "dst_ip_v6": b"\x00" * 16,
+            "src_mask_v6": b"\x00" * 16,
+            "dst_mask_v6": b"\x00" * 16,
             "src_port": 0,
             "dst_port": 0,
             "proto": 0,
@@ -575,22 +581,58 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         not_val = rule.get("!srcaddr")
         if val is not None or not_val is not None:
             addr = val if val is not None else not_val
-            if ":" not in addr:
-                ebpf_rule["src_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
-                ebpf_rule["match_mask"] |= MATCH_SRC_IP
-                if val is None:
-                    ebpf_rule["invert_mask"] |= MATCH_SRC_IP
+            parts = addr.split("/")
+            ip = parts[0]
+            if ":" in ip:
+                ebpf_rule["is_ipv6"] = True
+                prefix = int(parts[1]) if len(parts) > 1 else 128
+                ebpf_rule["src_ip_v6"] = socket.inet_pton(socket.AF_INET6, ip)
+                mask = bytearray(16)
+                bits = prefix
+                for idx in range(16):
+                    if bits >= 8:
+                        mask[idx] = 0xFF
+                        bits -= 8
+                    elif bits > 0:
+                        mask[idx] = (0xFF << (8 - bits)) & 0xFF
+                        bits = 0
+                ebpf_rule["src_mask_v6"] = bytes(mask)
+            else:
+                prefix = int(parts[1]) if len(parts) > 1 else 32
+                ebpf_rule["src_ip"] = struct.unpack("!I", socket.inet_aton(ip))[0]
+                ebpf_rule["src_mask"] = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0
+            ebpf_rule["match_mask"] |= MATCH_SRC_IP
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_SRC_IP
 
         # dstaddr
         val = rule.get("dstaddr")
         not_val = rule.get("!dstaddr")
         if val is not None or not_val is not None:
             addr = val if val is not None else not_val
-            if ":" not in addr:
-                ebpf_rule["dst_ip"] = struct.unpack("!I", socket.inet_aton(addr))[0]
-                ebpf_rule["match_mask"] |= MATCH_DST_IP
-                if val is None:
-                    ebpf_rule["invert_mask"] |= MATCH_DST_IP  # pragma: no cover
+            parts = addr.split("/")
+            ip = parts[0]
+            if ":" in ip:
+                ebpf_rule["is_ipv6"] = True
+                prefix = int(parts[1]) if len(parts) > 1 else 128
+                ebpf_rule["dst_ip_v6"] = socket.inet_pton(socket.AF_INET6, ip)
+                mask = bytearray(16)
+                bits = prefix
+                for idx in range(16):
+                    if bits >= 8:
+                        mask[idx] = 0xFF
+                        bits -= 8
+                    elif bits > 0:
+                        mask[idx] = (0xFF << (8 - bits)) & 0xFF
+                        bits = 0
+                ebpf_rule["dst_mask_v6"] = bytes(mask)
+            else:
+                prefix = int(parts[1]) if len(parts) > 1 else 32
+                ebpf_rule["dst_ip"] = struct.unpack("!I", socket.inet_aton(ip))[0]
+                ebpf_rule["dst_mask"] = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF if prefix > 0 else 0
+            ebpf_rule["match_mask"] |= MATCH_DST_IP
+            if val is None:
+                ebpf_rule["invert_mask"] |= MATCH_DST_IP
 
         # proto
         val = rule.get("proto")
@@ -598,10 +640,17 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
         if val is not None or not_val is not None:
             proto = (val if val is not None else not_val).lower()
             ebpf_rule["proto"] = PROTO_MAP.get(proto, 0)
+            if ebpf_rule["proto"] == 0:
+                try:
+                    ebpf_rule["proto"] = int(proto)
+                except ValueError:
+                    pass
             if ebpf_rule["proto"] != 0:
                 ebpf_rule["match_mask"] |= MATCH_PROTO
                 if val is None:
                     ebpf_rule["invert_mask"] |= MATCH_PROTO
+            if proto == "icmpv6" or ebpf_rule["proto"] == 58:
+                ebpf_rule["is_ipv6"] = True
 
         # sport
         val = rule.get("sport")
@@ -610,7 +659,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
             ebpf_rule["src_port"] = int(val if val is not None else not_val)
             ebpf_rule["match_mask"] |= MATCH_SRC_PORT
             if val is None:
-                ebpf_rule["invert_mask"] |= MATCH_SRC_PORT  # pragma: no cover
+                ebpf_rule["invert_mask"] |= MATCH_SRC_PORT
 
         # dport
         val = rule.get("dport")
@@ -632,7 +681,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
                 ebpf_rule["direction"] = 2
             ebpf_rule["match_mask"] |= MATCH_DIRECTION
             if val is None:
-                ebpf_rule["invert_mask"] |= MATCH_DIRECTION  # pragma: no cover
+                ebpf_rule["invert_mask"] |= MATCH_DIRECTION
 
         # loopback
         val = rule.get("loopback")
@@ -651,7 +700,7 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
             ebpf_rule["ttl"] = int(val if val is not None else not_val)
             ebpf_rule["match_mask"] |= MATCH_TTL
             if val is None:
-                ebpf_rule["invert_mask"] |= MATCH_TTL  # pragma: no cover
+                ebpf_rule["invert_mask"] |= MATCH_TTL
 
         # TCP Flags
         tcp_flags = 0
@@ -665,12 +714,15 @@ def transpile_to_ebpf(filter_str: str, sniff: bool = False, drop: bool = False) 
             elif f"!{flag}" in rule:
                 tcp_mask |= flag_bit
                 if not rule[f"!{flag}"]:
-                    tcp_flags |= flag_bit  # pragma: no cover
+                    tcp_flags |= flag_bit
 
         if tcp_mask:
             ebpf_rule["tcp_flags"] = tcp_flags
             ebpf_rule["tcp_flags_mask"] = tcp_mask
             ebpf_rule["match_mask"] |= MATCH_TCP_FLAGS
+
+        if "ipv6" in rule or "!ipv6" in rule:
+            ebpf_rule["is_ipv6"] = True
 
         ebpf_rules.append(ebpf_rule)
 

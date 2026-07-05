@@ -51,50 +51,29 @@ def download_windivert(version):
     print("Successfully fetched WinDivert binaries.")
 
 def download_ebpfdivert(version):
-    """Downloads eBPF object file and C shared library."""
-    import tarfile
-
+    """Downloads eBPF object file."""
     dst_dir = os.path.join(ROOT, "pydivert", "bpf")
     version_file = os.path.join(dst_dir, ".version")
     dst_o = os.path.join(dst_dir, "ebpfdivert.bpf.o")
-    dst_so = os.path.join(dst_dir, "libebpfdivert.so")
 
     if os.path.exists(version_file):
         with open(version_file) as f:
-            if f.read().strip() == version and os.path.exists(dst_o) and os.path.exists(dst_so):
-                print(f"eBPF driver & library {version} already present.")
+            if f.read().strip() == version and os.path.exists(dst_o):
+                print(f"eBPF driver {version} already present.")
                 return
 
     os.makedirs(dst_dir, exist_ok=True)
 
-    url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert-v{version}-linux-amd64.tar.gz"
-    print(f"Downloading eBPFDivert {version} tarball from {url}...")
-    
-    with urllib.request.urlopen(url) as response:
-        with tarfile.open(fileobj=io.BytesIO(response.read()), mode="r:gz") as tar:
-            # Extract libebpfdivert.so
-            try:
-                member_so = tar.getmember("lib/libebpfdivert.so")
-                with tar.extractfile(member_so) as src, open(dst_so, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            except KeyError:
-                member_so = tar.getmember("./lib/libebpfdivert.so")
-                with tar.extractfile(member_so) as src, open(dst_so, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-
-            # Extract ebpfdivert.bpf.o
-            try:
-                member_o = tar.getmember("lib/ebpfdivert/ebpfdivert.bpf.o")
-                with tar.extractfile(member_o) as src, open(dst_o, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            except KeyError:
-                member_o = tar.getmember("./lib/ebpfdivert/ebpfdivert.bpf.o")
-                with tar.extractfile(member_o) as src, open(dst_o, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
+    # Download architecture-independent BPF CO-RE object directly
+    bpf_url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert.bpf.o"
+    print(f"Downloading architecture-neutral BPF object from {bpf_url}...")
+    with urllib.request.urlopen(bpf_url) as response:
+        with open(dst_o, "wb") as dst:
+            shutil.copyfileobj(response, dst)
 
     with open(version_file, "w") as f:
         f.write(version)
-    print(f"Successfully fetched eBPF binaries: {dst_o}, {dst_so}")
+    print(f"Successfully fetched eBPF binaries: {dst_o}")
 
 def main():
     if os.environ.get("SKIP_FETCH_BINARIES") in ("1", "true", "TRUE"):

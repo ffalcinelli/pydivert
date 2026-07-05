@@ -96,28 +96,22 @@ def test_ebpf_not_equal_integration():
 
     # Filter out our specific test port, but only for our specific source port
     # to avoid capturing background noise or replies.
-    f = "udp.SrcPort == 1000 and udp.DstPort != 1234"
+    f = "udp.SrcPort == 10005 and udp.DstPort != 1234"
     with pydivert.Divert(f) as w:
 
         def send_packets():
             time.sleep(0.5)
-            # This should be captured (port 80 != 1234, sport == 1000)
-            try:
-                s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s1.bind(("127.0.0.1", 1000))
-                s1.sendto(b"test", ("127.0.0.1", 80))
-                s1.close()
-            except Exception:
-                pass
+            # This should be captured (port 80 != 1234, sport == 10005)
+            s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s1.bind(("127.0.0.1", 10005))
+            s1.sendto(b"test", ("127.0.0.1", 80))
+            s1.close()
 
             # This should NOT be captured (port 1234 == 1234)
-            try:
-                s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s2.bind(("127.0.0.1", 1000))
-                s2.sendto(b"test", ("127.0.0.1", 1234))
-                s2.close()
-            except Exception:
-                pass
+            s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s2.bind(("127.0.0.1", 10005))
+            s2.sendto(b"test", ("127.0.0.1", 1234))
+            s2.close()
 
         t = threading.Thread(target=send_packets)
         t.start()

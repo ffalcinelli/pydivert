@@ -11,6 +11,9 @@
 
 **PyDivert** is a high-performance, cross-platform Python binding for capturing, modifying, and dropping network packets. It supports **Windows** via [WinDivert](https://reqrypt.org/windivert.html) and **Linux** via **eBPF (CO-RE)**.
 
+> [!WARNING]
+> Linux support via eBPF is experimental and should not be used in production environments.
+
 ## Features
 
 - **Cross-Platform**: Unified API for Windows (WinDivert) and Linux (eBPF).
@@ -178,7 +181,7 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 - `Layer.SOCKET`: Socket-level events.
 - `Layer.REFLECT`: Reflected events.
 
-See the [Linux Backend Guide](docs/LINUX_BACKEND.md) for details on how these are implemented on Linux.
+See the [Linux Backend Guide](file:///home/fabio/Workspace/divert/pydivert/docs/LINUX_BACKEND.md) for details on how these are implemented on Linux.
 
 ### Flags
 
@@ -189,7 +192,7 @@ See the [Linux Backend Guide](docs/LINUX_BACKEND.md) for details on how these ar
 
 ## Filter Language
 
-Divert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](#windivert-filter-language).
+Divert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](file:///home/fabio/Workspace/divert/pydivert/docs/FILTER_LANGUAGE.md).
 
 For the original technical reference, please visit the [official WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
 

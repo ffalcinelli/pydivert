@@ -64,6 +64,27 @@ class BpfFilterRule(ctypes.Structure):
     ]
 
 
+class BpfFilterRuleIpv6(ctypes.Structure):
+    _fields_ = [
+        ("src_ip", ctypes.c_uint8 * 16),
+        ("dst_ip", ctypes.c_uint8 * 16),
+        ("src_mask", ctypes.c_uint8 * 16),
+        ("dst_mask", ctypes.c_uint8 * 16),
+        ("src_port_start", ctypes.c_uint16),
+        ("src_port_end", ctypes.c_uint16),
+        ("dst_port_start", ctypes.c_uint16),
+        ("dst_port_end", ctypes.c_uint16),
+        ("match_mask", ctypes.c_uint16),
+        ("invert_mask", ctypes.c_uint16),
+        ("proto", ctypes.c_uint8),
+        ("direction", ctypes.c_uint8),
+        ("loopback", ctypes.c_uint8),
+        ("ttl", ctypes.c_uint8),
+        ("tcp_flags", ctypes.c_uint8),
+        ("tcp_flags_mask", ctypes.c_uint8),
+    ]
+
+
 class BpfRuleOpt(ctypes.Structure):
     _fields_ = [
         ("proto", ctypes.c_char_p),
