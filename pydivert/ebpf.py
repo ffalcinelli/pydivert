@@ -34,6 +34,58 @@ _ebpf_lock = threading.Lock()
 libebpfdivert = "legacy_placeholder"
 
 
+_libc = None
+_vasprintf = None
+_free = None
+_libbpf_callback_ref = None
+
+
+def _setup_libbpf_logging() -> None:
+    global _libc, _vasprintf, _free, _libbpf_callback_ref
+    if _libbpf_callback_ref is not None or libbpf is None:
+        return
+
+    try:
+        import ctypes.util
+        libc_name = ctypes.util.find_library("c")
+        if libc_name:
+            _libc = ctypes.CDLL(libc_name)
+            _vasprintf = _libc.vasprintf
+            _vasprintf.argtypes = [ctypes.POINTER(ctypes.c_char_p), ctypes.c_char_p, ctypes.c_void_p]
+            _vasprintf.restype = ctypes.c_int
+            _free = _libc.free
+            _free.argtypes = [ctypes.c_void_p]
+            _free.restype = None
+
+            from .bpf import LIBBPF_PRINT_CB
+
+            def print_callback(level: int, fmt: bytes, args: ctypes.c_void_p) -> int:
+                try:
+                    buf = ctypes.c_char_p()
+                    if _vasprintf(ctypes.byref(buf), fmt, args) >= 0:
+                        msg = buf.value.decode("utf-8", errors="replace").rstrip()
+                        _free(buf)
+
+                        if any(x in msg for x in ("Invalid handle", "Exclusivity flag on", "Cannot find specified qdisc", "Kernel error message")):
+                            return 0
+
+                        if level == 0:  # LIBBPF_WARN
+                            logger.warning("libbpf: %s", msg)
+                        elif level == 1:  # LIBBPF_INFO
+                            logger.info("libbpf: %s", msg)
+                        else:
+                            logger.debug("libbpf: %s", msg)
+                except Exception:
+                    pass
+                return 0
+
+            _libbpf_callback_ref = LIBBPF_PRINT_CB(print_callback)
+            libbpf.libbpf_set_print(_libbpf_callback_ref)
+    except Exception as e:
+        logger.debug("Failed to setup libbpf print callback: %s", e)
+
+
+
 def rule_to_bpf(ebpf_rule: dict[str, Any]) -> tuple[Any, bool]:
     is_ipv6 = ebpf_rule.get("is_ipv6", False)
     if is_ipv6:
@@ -145,6 +197,7 @@ class EBPFDivert(BaseDivert):
         return max_prio + 1
 
     def _open_impl(self):  # noqa: C901
+        _setup_libbpf_logging()
         with _ebpf_lock:
             if self.priority == 0:
                 self._tc_priority = self._get_next_priority()
@@ -382,6 +435,7 @@ class EBPFDivert(BaseDivert):
 
         for hook, opts in self._hooks:
             libbpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
+            libbpf.bpf_tc_hook_destroy(ctypes.byref(hook))
         self._hooks.clear()
 
         if self._ringbuf:
