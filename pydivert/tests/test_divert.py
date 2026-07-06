@@ -99,6 +99,23 @@ def test_params_mock():
         assert w.get_param(Param.QUEUE_LEN) == 512
 
 
+def test_divert_fluent_filter_mock():
+    w = Divert("false")
+    p1 = pydivert.PacketBuilder().ipv4(src="10.0.0.1", dst="10.0.0.2").tcp(src_port=123, dst_port=80).build()
+    p2 = pydivert.PacketBuilder().ipv4(src="10.0.0.3", dst="10.0.0.4").udp(src_port=456, dst_port=53).build()
+
+    with patch.object(Divert, "__iter__", side_effect=lambda: iter([p1, p2])):
+        # filter by protocol
+        filtered = list(w.filter(proto=6))
+        assert len(filtered) == 1
+        assert filtered[0].src_port == 123
+
+        # filter by src_port
+        filtered = list(w.filter(src_port=456))
+        assert len(filtered) == 1
+        assert filtered[0].dst_port == 53
+
+
 # --- Divert closed handle errors ---
 
 

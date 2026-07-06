@@ -286,3 +286,45 @@ def test_header_raw_modification():
     proto.payload = bytearray([2] * 10)
     assert len(proto.payload) == 10
     assert proto.payload[0] == 2
+
+
+def test_packet_builder_ipv4_tcp():
+    p = (
+        pydivert.PacketBuilder()
+        .ipv4(src="10.0.0.1", dst="10.0.0.2", ttl=128)
+        .tcp(src_port=12345, dst_port=80)
+        .payload(b"hello-world")
+        .build()
+    )
+
+    assert p.ipv4 is not None
+    assert p.tcp is not None
+    assert p.src_addr == "10.0.0.1"
+    assert p.dst_addr == "10.0.0.2"
+    assert p.src_port == 12345
+    assert p.dst_port == 80
+    assert p.ipv4.ttl == 128
+    assert p.payload == b"hello-world"
+
+
+def test_packet_builder_ipv6_udp():
+    p = (
+        pydivert.PacketBuilder()
+        .ipv6(src="2001:db8::1", dst="2001:db8::2", hop_limit=32)
+        .udp(src_port=5555, dst_port=6666)
+        .payload(b"hello-udp")
+        .build()
+    )
+
+    assert p.ipv6 is not None
+    assert p.udp is not None
+    import ipaddress
+
+    assert p.src_addr is not None
+    assert p.dst_addr is not None
+    assert ipaddress.ip_address(p.src_addr) == ipaddress.ip_address("2001:db8::1")
+    assert ipaddress.ip_address(p.dst_addr) == ipaddress.ip_address("2001:db8::2")
+    assert p.src_port == 5555
+    assert p.dst_port == 6666
+    assert p.ipv6.hop_limit == 32
+    assert p.payload == b"hello-udp"

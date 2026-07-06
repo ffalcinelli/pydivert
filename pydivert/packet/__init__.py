@@ -64,8 +64,8 @@ class Packet:
     ) -> None:
         # Ensure we have a writable bytearray
         if isinstance(raw, memoryview):
-            raw = raw.tobytes()
-        if not isinstance(raw, bytearray):
+            raw = bytearray(raw)
+        elif not isinstance(raw, bytearray):
             raw = bytearray(raw)
         self._raw = raw
         self._l2_header = None

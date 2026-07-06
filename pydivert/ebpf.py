@@ -146,7 +146,7 @@ class EBPFDivert(BaseDivert):
 
         if libebpfdivert is None:
             raise ImportError("libebpfdivert not found on the system.")
-        if libbpf is None:
+        if libbpf is None and (isinstance(libebpfdivert, str) or libebpfdivert is None):
             raise ImportError("libbpf.so not found on the system.")
         self._obj = None
         self._ringbuf = None
@@ -193,7 +193,7 @@ class EBPFDivert(BaseDivert):
         max_prio = 29999
         try:
             output = subprocess.check_output(
-                ["sudo", "tc", "-j", "filter", "show", "dev", "lo", "ingress"],
+                ["sudo", "-n", "tc", "-j", "filter", "show", "dev", "lo", "ingress"],
                 stderr=subprocess.DEVNULL,
             )
             if output:
@@ -381,8 +381,8 @@ class EBPFDivert(BaseDivert):
         direction = Direction.INBOUND if buf.header.direction == 1 else Direction.OUTBOUND
         l2_len = buf.header.l2_len
 
-        raw_frame = bytes(buf.data)[:pkt_len]
-        l2_header = raw_frame[:l2_len]
+        raw_mv = memoryview(buf.data)[:pkt_len]
+        l2_header = bytes(raw_mv[:l2_len]) if l2_len > 0 else b""
 
         if self._interfaces and len(self._interfaces) > 1:
             try:
@@ -393,7 +393,7 @@ class EBPFDivert(BaseDivert):
                 return 0
 
         p = Packet(
-            raw_frame[l2_len:],
+            raw_mv[l2_len:],
             direction=direction,
             interface=ifindex,
             layer=self.layer,
@@ -473,7 +473,7 @@ class EBPFDivert(BaseDivert):
             sock.close()
         self._raw_packet_socks.clear()
 
-    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
+    def _recv_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:  # noqa: C901
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
 
@@ -491,10 +491,22 @@ class EBPFDivert(BaseDivert):
         assert libbpf is not None
         while not self._queue and self.is_open:
             if self._ringbuf:
-                libbpf.ring_buffer__poll(self._ringbuf, 10)
+                if timeout is not None:
+                    elapsed = time.time() - start
+                    remaining = timeout - elapsed
+                    if remaining <= 0:
+                        raise TimeoutError("The read operation timed out")
+                    poll_timeout = min(100, int(remaining * 1000))
+                    if poll_timeout <= 0:
+                        poll_timeout = 1
+                else:
+                    poll_timeout = 100
+                libbpf.ring_buffer__poll(self._ringbuf, poll_timeout)
+            else:
+                time.sleep(0.001)
+
             if timeout is not None and (time.time() - start) > timeout:
                 raise TimeoutError("The read operation timed out")
-            time.sleep(0.001)
 
         if not self._queue:
             raise OSError(errno.EBADF, "Handle closed while receiving")

@@ -32,6 +32,7 @@ from .consts import CalcChecksumsOption, Direction, Flag, Layer, Param, Protocol
 from .core import Divert
 from .ebpf import EBPFDivert
 from .packet import Packet
+from .packet.builder import PacketBuilder
 from .windivert import WinDivert
 
 __author__ = "fabio"
@@ -42,6 +43,7 @@ __all__ = [
     "WinDivert",
     "EBPFDivert",
     "Packet",
+    "PacketBuilder",
     "Layer",
     "Flag",
     "Param",

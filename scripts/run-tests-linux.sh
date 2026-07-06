@@ -21,4 +21,4 @@ uv sync --extra test
 
 echo "Running tests with coverage..."
 export COVERAGE_FILE=.coverage.linux
-uv run pytest --cov=pydivert --cov-config=.coveragerc pydivert/tests
+sudo -E .venv/bin/python -m pytest --cov=pydivert --cov-config=.coveragerc pydivert/tests

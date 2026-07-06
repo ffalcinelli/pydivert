@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+from hatchling.builders.hooks.plugin.interface import BuildHookInterface  # type: ignore
 
 
 class CustomBuildHook(BuildHookInterface):
