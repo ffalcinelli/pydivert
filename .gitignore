@@ -62,4 +62,3 @@ test_from_linux
 *.so
 *.o
 ebpfdivert/
-

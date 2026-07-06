@@ -9,6 +9,7 @@ import zipfile
 # Root directory of the project
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+
 def get_versions():
     """Reads versions from pyproject.toml without external dependencies."""
     path = os.path.join(ROOT, "pyproject.toml")
@@ -22,6 +23,7 @@ def get_versions():
         raise RuntimeError("Could not find binary versions in pyproject.toml")
 
     return windivert.group(1), ebpfdivert.group(1)
+
 
 def download_windivert(version):
     """Downloads and extracts WinDivert binaries."""
@@ -50,6 +52,7 @@ def download_windivert(version):
         f.write(version)
     print("Successfully fetched WinDivert binaries.")
 
+
 def download_ebpfdivert(version):
     """Downloads eBPF object file."""
     dst_dir = os.path.join(ROOT, "pydivert", "bpf")
@@ -75,6 +78,7 @@ def download_ebpfdivert(version):
         f.write(version)
     print(f"Successfully fetched eBPF binaries: {dst_o}")
 
+
 def main():
     if os.environ.get("SKIP_FETCH_BINARIES") in ("1", "true", "TRUE"):
         print("Skipping fetching binaries as requested by SKIP_FETCH_BINARIES env var.")
@@ -86,6 +90,7 @@ def main():
     except Exception as e:
         print(f"Error fetching binaries: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

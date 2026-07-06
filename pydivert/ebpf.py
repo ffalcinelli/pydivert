@@ -40,13 +40,14 @@ _free = None
 _libbpf_callback_ref = None
 
 
-def _setup_libbpf_logging() -> None:
+def _setup_libbpf_logging() -> None:  # noqa: C901
     global _libc, _vasprintf, _free, _libbpf_callback_ref
     if _libbpf_callback_ref is not None or libbpf is None:
         return
 
     try:
         import ctypes.util
+
         libc_name = ctypes.util.find_library("c")
         if libc_name:
             _libc = ctypes.CDLL(libc_name)
@@ -63,27 +64,36 @@ def _setup_libbpf_logging() -> None:
                 try:
                     buf = ctypes.c_char_p()
                     if _vasprintf(ctypes.byref(buf), fmt, args) >= 0:
-                        msg = buf.value.decode("utf-8", errors="replace").rstrip()
-                        _free(buf)
+                        val = buf.value
+                        try:
+                            if val is not None:
+                                msg = val.decode("utf-8", errors="replace").rstrip()
+                                ignored_errors = (
+                                    "Invalid handle",
+                                    "Exclusivity flag on",
+                                    "Cannot find specified qdisc",
+                                    "Kernel error message",
+                                )
+                                if any(x in msg for x in ignored_errors):
+                                    return 0
 
-                        if any(x in msg for x in ("Invalid handle", "Exclusivity flag on", "Cannot find specified qdisc", "Kernel error message")):
-                            return 0
-
-                        if level == 0:  # LIBBPF_WARN
-                            logger.warning("libbpf: %s", msg)
-                        elif level == 1:  # LIBBPF_INFO
-                            logger.info("libbpf: %s", msg)
-                        else:
-                            logger.debug("libbpf: %s", msg)
+                                if level == 0:  # LIBBPF_WARN
+                                    logger.warning("libbpf: %s", msg)
+                                elif level == 1:  # LIBBPF_INFO
+                                    logger.info("libbpf: %s", msg)
+                                else:
+                                    logger.debug("libbpf: %s", msg)
+                        finally:
+                            _free(buf)
                 except Exception:
                     pass
                 return 0
 
             _libbpf_callback_ref = LIBBPF_PRINT_CB(print_callback)
+            assert libbpf is not None
             libbpf.libbpf_set_print(_libbpf_callback_ref)
     except Exception as e:
         logger.debug("Failed to setup libbpf print callback: %s", e)
-
 
 
 def rule_to_bpf(ebpf_rule: dict[str, Any]) -> tuple[Any, bool]:
@@ -198,6 +208,7 @@ class EBPFDivert(BaseDivert):
 
     def _open_impl(self):  # noqa: C901
         _setup_libbpf_logging()
+        assert libbpf is not None
         with _ebpf_lock:
             if self.priority == 0:
                 self._tc_priority = self._get_next_priority()
@@ -349,6 +360,7 @@ class EBPFDivert(BaseDivert):
 
             if self._ringbuf:
                 import asyncio
+
                 try:
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
@@ -395,6 +407,7 @@ class EBPFDivert(BaseDivert):
         return 0
 
     def _on_ring_buffer_readable(self) -> None:
+        assert libbpf is not None
         if self._ringbuf and self.is_open:
             libbpf.ring_buffer__consume(self._ringbuf)
         while self._queue and self._read_futures:
@@ -433,6 +446,7 @@ class EBPFDivert(BaseDivert):
             self._obj = None
             return
 
+        assert libbpf is not None
         for hook, opts in self._hooks:
             libbpf.bpf_tc_detach(ctypes.byref(hook), ctypes.byref(opts))
             libbpf.bpf_tc_hook_destroy(ctypes.byref(hook))
@@ -474,6 +488,7 @@ class EBPFDivert(BaseDivert):
             return Packet(b"\x45" + b"\x00" * 19)
 
         start = time.time()
+        assert libbpf is not None
         while not self._queue and self.is_open:
             if self._ringbuf:
                 libbpf.ring_buffer__poll(self._ringbuf, 10)
@@ -506,7 +521,7 @@ class EBPFDivert(BaseDivert):
             packet.recalculate_checksums()
 
         l2_header = getattr(packet, "_l2_header", None)
-        if l2_header is not None and not isinstance(l2_header, (bytes, bytearray)):
+        if l2_header is not None and not isinstance(l2_header, bytes | bytearray):
             l2_header = None
 
         if l2_header is None:
@@ -566,9 +581,10 @@ class EBPFDivert(BaseDivert):
     def _get_or_create_af_packet_sock(self, direction: int, ifindex: int, lo_idx: int) -> socket.socket:
         sock_key = (direction, ifindex)
         if sock_key not in self._raw_packet_socks:
-            s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+            af_packet = getattr(socket, "AF_PACKET", 17)
+            s = socket.socket(af_packet, socket.SOCK_RAW, socket.htons(3))
 
-            is_redirect = (direction == 1)
+            is_redirect = direction == 1
             bind_ifindex = lo_idx if is_redirect else ifindex
             if ifindex == lo_idx:
                 is_redirect = True
@@ -589,6 +605,7 @@ class EBPFDivert(BaseDivert):
         if libebpfdivert != "legacy_placeholder" and libebpfdivert is not None:
             return {"diverted": 0, "dropped": 0, "sniffed": 0}
 
+        assert libbpf is not None
         map_ptr = libbpf.bpf_object__find_map_by_name(self._obj, b"stats_map")
         if not map_ptr:
             return {"diverted": 0, "dropped": 0, "sniffed": 0}
@@ -599,6 +616,7 @@ class EBPFDivert(BaseDivert):
             num_cpus = os.cpu_count() or 1
 
         def get_stat(key_idx):
+            assert libbpf is not None
             key = ctypes.c_uint32(key_idx)
             value_type = ctypes.c_uint64 * num_cpus
             values = value_type()
@@ -623,6 +641,7 @@ class EBPFDivert(BaseDivert):
 
         # Lazy reader registration if the event loop wasn't running/registered during open
         if self._ringbuf and not self._loop:
+            assert libbpf is not None
             try:
                 loop = asyncio.get_running_loop()
                 fd = libbpf.ring_buffer__epoll_fd(self._ringbuf)

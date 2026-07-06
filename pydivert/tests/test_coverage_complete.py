@@ -468,9 +468,6 @@ def test_ipv6_extension_headers():
     assert offset == 48
 
 
-
-
-
 # windivert.py overlapped tests
 def test_windivert_overlapped_timeout():
     with patch("os.name", "nt"):
