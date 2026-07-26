@@ -406,6 +406,13 @@ def test_ebpf_check_filter_fail():
         assert res is False
 
 
+def test_ebpf_check_filter_success():
+    res, pos, msg = pydivert.ebpf.EBPFDivert.check_filter("true")
+    assert res is True
+    assert pos == 0
+    assert msg == ""
+
+
 # windivert.py tests
 def test_windivert_not_nt():
     with patch("os.name", "posix"):
