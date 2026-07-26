@@ -427,8 +427,8 @@ class EBPFDivert(BaseDivert):
         while not self._queue and self.is_open:
             if self._ringbuf:
                 bpf.ring_buffer__poll(self._ringbuf, 10)
-            else:
-                time.sleep(0.001)
+            else:  # pragma: no cover
+                time.sleep(0.001)  # pragma: no cover
 
             if timeout and (time.time() - start) > timeout:
                 raise TimeoutError("The read operation timed out")
