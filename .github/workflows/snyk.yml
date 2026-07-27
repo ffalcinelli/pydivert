@@ -34,14 +34,16 @@ jobs:
         run: uv export --format requirements.txt --all-extras --all-groups --no-emit-project --output-file requirements.txt
 
       - name: Install dependencies
-        run: uv pip install --user --break-system-packages -r requirements.txt
+        run: |
+          uv sync --extra test --extra docs --extra lint --extra typecheck
+          uv pip install pip
 
       - name: Set up Snyk
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
 
       - name: Snyk Security Scan (CI Gate)
         run: |
-          snyk test --file=requirements.txt --package-manager=pip --json > snyk_results.json || true
+          snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python --json > snyk_results.json || true
           python3 -c "
           import json, sys
           try:
@@ -78,6 +80,6 @@ jobs:
 
       - name: Snyk Monitor
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: snyk monitor --file=requirements.txt --package-manager=pip
+        run: snyk monitor --file=requirements.txt --package-manager=pip --command=.venv/bin/python
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
