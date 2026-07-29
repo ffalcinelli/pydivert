@@ -350,6 +350,7 @@ def test_jit_safe_evaluator_attribute_private_access():
     class MockObj:
         def __init__(self):
             self.attr = "value"
+
     e = pydivert.jit.SafeEvaluator(MockObj())
 
     # Test valid attribute access
