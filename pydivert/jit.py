@@ -115,6 +115,8 @@ class SafeEvaluator(ast.NodeVisitor):
             return self.visit(node.orelse)
 
     def visit_Attribute(self, node):
+        if node.attr.startswith("_"):
+            raise ValueError(f"Access to private attribute '{node.attr}' is not allowed")
         value = self.visit(node.value)
         if value is None:
             return None

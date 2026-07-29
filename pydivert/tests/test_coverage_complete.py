@@ -341,6 +341,12 @@ def test_jit_safe_evaluator_unsupported():
         e.visit(ast.Dict(keys=[], values=[]))
 
 
+def test_jit_safe_evaluator_attribute_private_access():
+    e = pydivert.jit.SafeEvaluator(None)
+    with pytest.raises(ValueError, match="Access to private attribute '_private' is not allowed"):
+        e.visit(ast.parse("packet._private", mode="eval").body)
+
+
 # service.py tests
 def test_service_no_advapi():
     with patch("pydivert.service._get_advapi32", return_value=None):
