@@ -346,6 +346,22 @@ def test_jit_safe_evaluator_attribute_private_access():
     with pytest.raises(ValueError, match="Access to private attribute '_private' is not allowed"):
         e.visit(ast.parse("packet._private", mode="eval").body)
 
+    # Test coverage for lines 120-126
+    class MockObj:
+        def __init__(self):
+            self.attr = "value"
+    e = pydivert.jit.SafeEvaluator(MockObj())
+
+    # Test valid attribute access
+    assert e.visit(ast.parse("packet.attr", mode="eval").body) == "value"
+
+    # Test attribute not found
+    assert e.visit(ast.parse("packet.nonexistent", mode="eval").body) is None
+
+    # Test value is None
+    e = pydivert.jit.SafeEvaluator(None)
+    assert e.visit(ast.parse("packet.attr", mode="eval").body) is None
+
 
 # service.py tests
 def test_service_no_advapi():
