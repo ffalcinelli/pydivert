@@ -35,7 +35,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --extra test --extra docs --extra lint --extra typecheck
+          uv sync --all-extras --all-groups
           uv pip install pip
 
       - name: Set up Snyk
@@ -43,10 +43,14 @@ jobs:
 
       - name: Snyk Security Scan (CI Gate)
         run: |
-          snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python --json > snyk_results.json || true
+          snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true --json -- --allow-missing > snyk_results.json || true
           python3 -c "
-          import json, sys
+          import json, os, sys
           try:
+              if not os.path.exists('snyk_results.json') or os.path.getsize('snyk_results.json') == 0:
+                  print('Error: snyk_results.json is empty or does not exist. Snyk scan failed to output results.')
+                  sys.exit(1)
+
               with open('snyk_results.json') as f:
                   data = json.load(f)
 
@@ -55,8 +59,14 @@ jobs:
               if isinstance(data, list):
                   all_vulnerabilities = []
                   for project in data:
+                      if not project.get('ok', True) and 'vulnerabilities' not in project:
+                          print(f'Snyk project scan failed: {project.get(\"error\", \"Unknown error\")}')
+                          sys.exit(1)
                       all_vulnerabilities.extend(project.get('vulnerabilities', []))
               else:
+                  if not data.get('ok', True) and 'vulnerabilities' not in data:
+                      print(f'Snyk scan failed: {data.get(\"error\", \"Unknown error\")}')
+                      sys.exit(1)
                   all_vulnerabilities = data.get('vulnerabilities', [])
 
               # Filter out license issues and project-specific dual-license HIGH severity issue
@@ -80,6 +90,6 @@ jobs:
 
       - name: Snyk Monitor
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: snyk monitor --file=requirements.txt --package-manager=pip --command=.venv/bin/python
+        run: snyk monitor --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true -- --allow-missing
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
