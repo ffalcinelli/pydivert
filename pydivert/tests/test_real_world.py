@@ -1,3 +1,4 @@
+import logging
 import socket
 import threading
 import time
@@ -6,6 +7,8 @@ import pydivert
 from pydivert.consts import Flag
 
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+
+logger = logging.getLogger(__name__)
 
 # --- 1. Network Monitor (Passive Sniffer) ---
 # Goal: Log all TCP SYN packets without affecting connectivity.
@@ -40,8 +43,8 @@ def test_use_case_monitor():
         s.settimeout(0.1)
         try:
             s.connect(("127.0.0.1", port))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failure reason: %s", e)
 
     time.sleep(0.2)
     stop_event.set()
