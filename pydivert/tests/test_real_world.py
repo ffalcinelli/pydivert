@@ -43,7 +43,7 @@ def test_use_case_monitor():
         s.settimeout(0.1)
         try:
             s.connect(("127.0.0.1", port))
-        except Exception as e:
+        except OSError as e:
             logger.debug("Failure reason: %s", e)
 
     time.sleep(0.2)
