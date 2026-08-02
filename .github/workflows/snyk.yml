@@ -73,12 +73,13 @@ jobs:
               real_issues = [
                   v for v in all_vulnerabilities
                   if v.get('type') != 'license'
-                  and not (v.get('package') == 'pydivert' and 'Dual license' in v.get('title', ''))
+                  and not ((v.get('packageName') == 'pydivert' or v.get('package') == 'pydivert') and 'Dual license' in v.get('title', ''))
               ]
               if real_issues:
                   print(f'Found {len(real_issues)} real vulnerabilities.')
                   for v in real_issues:
-                      print(f'- {v.get(\"title\")} in {v.get(\"package\")} ({v.get(\"severity\")})')
+                      pkg = v.get('packageName') or v.get('package') or 'Unknown'
+                      print(f'- {v.get(\"title\")} in {pkg} ({v.get(\"severity\")})')
                   sys.exit(1)
               print('No real vulnerabilities found (excluding ignored licenses).')
           except Exception as e:
