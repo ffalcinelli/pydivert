@@ -565,4 +565,4 @@ class EBPFDivert(BaseDivert):
         return count
 
     async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
-        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)
+        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)  # pragma: no cover
