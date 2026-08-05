@@ -18,7 +18,7 @@ def get_tags():
         output = subprocess.check_output(["git", "tag", "-l", "v*"]).decode("utf-8")
         # Strict validation: only accept tags that match ^v\d+(\.\d+)*$
         tag_pattern = re.compile(r"^v\d+(\.\d+)*$")
-        tags = [t.strip() for t in output.split("\n") if t.strip() and tag_pattern.match(t.strip())]
+        tags = [stripped for t in output.split("\n") if (stripped := t.strip()) and tag_pattern.match(stripped)]
 
         def sort_key(tag):
             # Parse version into integer tuple for proper sorting (e.g. v3.1.0 -> (3, 1, 0))
