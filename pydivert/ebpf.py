@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
+import asyncio
 import ctypes
 import errno
 import logging
@@ -515,7 +516,6 @@ class EBPFDivert(BaseDivert):
         return sock.sendto(packet.raw, (dst_addr, 0))
 
     async def _recv_async_impl(self, bufsize: int = DEFAULT_PACKET_BUFFER_SIZE, timeout: float | None = None) -> Packet:
-        import asyncio
 
         if Flag.SEND_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is send-only")  # pragma: no cover
@@ -523,7 +523,6 @@ class EBPFDivert(BaseDivert):
         return await asyncio.to_thread(self._recv_impl, bufsize, timeout)
 
     async def _send_async_impl(self, packet: Packet, recalculate_checksum: bool = True) -> int:
-        import asyncio
 
         if Flag.RECV_ONLY in self.flags:
             raise OSError(socket.EBADF, "Handle is receive-only")  # pragma: no cover
@@ -566,6 +565,4 @@ class EBPFDivert(BaseDivert):
         return count
 
     async def _send_batch_async_impl(self, packets: list[Packet], recalculate_checksum: bool) -> int:
-        import asyncio
-
         return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)
