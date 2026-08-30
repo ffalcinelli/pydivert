@@ -341,6 +341,29 @@ def test_jit_safe_evaluator_unsupported():
         e.visit(ast.Dict(keys=[], values=[]))
 
 
+def test_jit_safe_evaluator_attribute_private_access():
+    e = pydivert.jit.SafeEvaluator(None)
+    with pytest.raises(ValueError, match="Access to private attribute '_private' is not allowed"):
+        e.visit(ast.parse("packet._private", mode="eval").body)
+
+    # Test coverage for lines 120-126
+    class MockObj:
+        def __init__(self):
+            self.attr = "value"
+
+    e = pydivert.jit.SafeEvaluator(MockObj())
+
+    # Test valid attribute access
+    assert e.visit(ast.parse("packet.attr", mode="eval").body) == "value"
+
+    # Test attribute not found
+    assert e.visit(ast.parse("packet.nonexistent", mode="eval").body) is None
+
+    # Test value is None
+    e = pydivert.jit.SafeEvaluator(None)
+    assert e.visit(ast.parse("packet.attr", mode="eval").body) is None
+
+
 # service.py tests
 def test_service_no_advapi():
     with patch("pydivert.service._get_advapi32", return_value=None):
@@ -404,6 +427,13 @@ def test_ebpf_check_filter_fail():
     with patch("pydivert.ebpf.transpile_to_ebpf", side_effect=Exception("fail")):
         res, pos, msg = pydivert.ebpf.EBPFDivert.check_filter("invalid")
         assert res is False
+
+
+def test_ebpf_check_filter_success():
+    res, pos, msg = pydivert.ebpf.EBPFDivert.check_filter("true")
+    assert res is True
+    assert pos == 0
+    assert msg == ""
 
 
 # windivert.py tests

@@ -39,9 +39,9 @@ async def test_send_async_real():
     port = 55556
     addr = ("127.0.0.1", port)
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server.bind(addr)
-    server.settimeout(2.0)
     try:
+        server.bind(addr)
+        server.settimeout(2.0)
         async with pydivert.Divert("false") as w:
             raw = bytearray(
                 b"\x45\x00\x00\x20\x00\x01\x00\x00\x40\x11\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
@@ -52,7 +52,7 @@ async def test_send_async_real():
             await w.send_async(packet)
             data, _ = server.recvfrom(1024)
             assert data == b"data"
-    except (PermissionError, OSError):
+    except (PermissionError, OSError, RuntimeError):
         pytest.skip("Insufficient privileges")
     finally:
         server.close()

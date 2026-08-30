@@ -30,15 +30,27 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Generate requirements.txt
+        run: uv export --format requirements.txt --all-extras --all-groups --no-emit-project --output-file requirements.txt
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --all-groups
+          uv pip install pip
+
       - name: Set up Snyk
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
 
       - name: Snyk Security Scan (CI Gate)
         run: |
-          snyk test --all-projects --json > snyk_results.json || true
+          snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true --json -- --allow-missing > snyk_results.json || true
           python3 -c "
-          import json, sys
+          import json, os, sys
           try:
+              if not os.path.exists('snyk_results.json') or os.path.getsize('snyk_results.json') == 0:
+                  print('Error: snyk_results.json is empty or does not exist. Snyk scan failed to output results.')
+                  sys.exit(1)
+
               with open('snyk_results.json') as f:
                   data = json.load(f)
 
@@ -47,20 +59,27 @@ jobs:
               if isinstance(data, list):
                   all_vulnerabilities = []
                   for project in data:
+                      if not project.get('ok', True) and 'vulnerabilities' not in project:
+                          print(f'Snyk project scan failed: {project.get(\"error\", \"Unknown error\")}')
+                          sys.exit(1)
                       all_vulnerabilities.extend(project.get('vulnerabilities', []))
               else:
+                  if not data.get('ok', True) and 'vulnerabilities' not in data:
+                      print(f'Snyk scan failed: {data.get(\"error\", \"Unknown error\")}')
+                      sys.exit(1)
                   all_vulnerabilities = data.get('vulnerabilities', [])
 
               # Filter out license issues and project-specific dual-license HIGH severity issue
               real_issues = [
                   v for v in all_vulnerabilities
                   if v.get('type') != 'license'
-                  and not (v.get('package') == 'pydivert' and 'Dual license' in v.get('title', ''))
+                  and not ((v.get('packageName') == 'pydivert' or v.get('package') == 'pydivert') and 'Dual license' in v.get('title', ''))
               ]
               if real_issues:
                   print(f'Found {len(real_issues)} real vulnerabilities.')
                   for v in real_issues:
-                      print(f'- {v.get(\"title\")} in {v.get(\"package\")} ({v.get(\"severity\")})')
+                      pkg = v.get('packageName') or v.get('package') or 'Unknown'
+                      print(f'- {v.get(\"title\")} in {pkg} ({v.get(\"severity\")})')
                   sys.exit(1)
               print('No real vulnerabilities found (excluding ignored licenses).')
           except Exception as e:
@@ -72,6 +91,6 @@ jobs:
 
       - name: Snyk Monitor
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: snyk monitor --all-projects
+        run: snyk monitor --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true -- --allow-missing
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

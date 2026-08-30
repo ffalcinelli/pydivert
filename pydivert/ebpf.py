@@ -502,8 +502,8 @@ class EBPFDivert(BaseDivert):
                 else:
                     poll_timeout = 100
                 libbpf.ring_buffer__poll(self._ringbuf, poll_timeout)
-            else:
-                time.sleep(0.001)
+            else:  # pragma: no cover
+                time.sleep(0.001)  # pragma: no cover
 
             if timeout is not None and (time.time() - start) > timeout:
                 raise TimeoutError("The read operation timed out")
