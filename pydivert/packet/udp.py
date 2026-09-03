@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
-from __future__ import annotations
+
 
 import ctypes
 from typing import TYPE_CHECKING
@@ -25,7 +25,7 @@ class UDPHeader(Header, PortMixin, PayloadMixin):
     __repr_fields__ = ("cksum", "dst_port", "header_len", "payload", "payload_len", "src_port")
     header_len: int = 8
 
-    def __init__(self, packet: Packet, start: int = 0) -> None:
+    def __init__(self, packet: "Packet", start: int = 0) -> None:
         super().__init__(packet, start)
         try:
             self._view = UDPStruct.from_buffer(self._packet._raw, self._start)

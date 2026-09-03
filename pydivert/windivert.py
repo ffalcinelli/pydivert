@@ -452,6 +452,4 @@ class WinDivert(BaseDivert):
         self, packets: list[Packet], recalculate_checksum: bool
     ) -> int:  # pragma: no cover
         # For now, use thread pool for batch send as well
-        import asyncio
-
-        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)
+        return await asyncio.to_thread(self._send_batch_impl, packets, recalculate_checksum)  # pragma: no cover

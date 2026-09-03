@@ -70,9 +70,8 @@ def download_ebpfdivert(version):
     # Download architecture-independent BPF CO-RE object directly
     bpf_url = f"https://github.com/ffalcinelli/ebpfdivert/releases/download/v{version}/ebpfdivert.bpf.o"
     print(f"Downloading architecture-neutral BPF object from {bpf_url}...")
-    with urllib.request.urlopen(bpf_url) as response:
-        with open(dst_o, "wb") as dst:
-            shutil.copyfileobj(response, dst)
+    with urllib.request.urlopen(bpf_url) as response, open(dst_o, "wb") as dst:
+        shutil.copyfileobj(response, dst)
 
     with open(version_file, "w") as f:
         f.write(version)
