@@ -1,88 +1,100 @@
-# Linux (eBPF) Backend Guide
+# Linux Backend Guide
 
-PyDivert introduces a high-performance Linux backend utilizing **eBPF (CO-RE)**. This allows PyDivert to offer an interface matching the Windows WinDivert API while exploiting native Linux kernel features.
-
-> [!WARNING]
-> Linux support via eBPF is experimental and should not be used in production environments.
-
----
-
-## 1. Architecture & Hooks
-
-On Linux, PyDivert attaches eBPF classifier programs to the **Traffic Control (TC)** subsystem on targeted network interfaces.
-
-- **Ingress Hook**: Intercepts packets entering the interface.
-- **Egress Hook**: Intercepts packets leaving the interface.
-- **Ring Buffers**: zero-copy data transfer is achieved using `BPF_MAP_TYPE_RINGBUF` maps, streaming packets to the user-space Python runtime with minimal overhead.
+On Linux, `pydivert.Divert` is backed by [eBPFDivert](https://github.com/ffalcinelli/ebpfdivert): `libebpfdivert.so`,
+a C library that implements the WinDivert API with eBPF. The wheel bundles it, and it is self-contained: the BPF
+programs and libbpf are built in. `pydivert.ebpf.EBPFDivert` is a thin ctypes shim over it, mirroring
+`pydivert.windivert.WinDivert` call for call. As a result, filters, layers, flags, parameters and packet metadata
+behave as on Windows.
 
 ---
 
-## 2. Multi-Instance Support & Loop Prevention
+## 1. Requirements
 
-PyDivert supports running multiple concurrent instances on the same interface using the Linux kernel's native **TC priority chaining**:
+- Linux **5.10 or newer** with BTF (`/sys/kernel/btf/vmlinux`), which is the default on current distributions.
+  It is tested on 5.15 and 6.8.
+- **cgroup v2**, for the FLOW and SOCKET layers.
+- x86_64 or aarch64, glibc 2.28+.
+- Root, or the capabilities `CAP_BPF`, `CAP_NET_ADMIN` and `CAP_NET_RAW`.
 
-1. **Classifier Chaining**: When multiple handles are opened, their filters are executed in sequence based on their priority.
-2. **Dynamic Priorities**: By default, if the priority is set to `0`, PyDivert automatically assigns a unique TC priority to place the new instance after existing ones.
-3. **Loop Prevention Mark**:
-   To prevent packets injected by PyDivert from being caught recursively by the same or higher priority handles, PyDivert marks injected packets using a socket mark:
-   $$\text{SO\_MARK} = \text{PREVENT\_MARK} \mid (\text{priority} \ \& \ \text{0xFFFF})$$
-   The BPF program checks this mark. If the classifier priority is higher or equal (lower or equal integer value) than the mark's priority, the BPF program ignores the packet (`TC_ACT_UNSPEC`), allowing lower-priority handles down the chain to capture it if needed.
-
----
-
-## 3. Asyncio Implementation
-
-Because the underlying BPF ring buffer polling and raw socket sending calls block, PyDivert's asynchronous functions (`recv_async`, `send_async`, `recv_batch_async`, `send_batch_async`) delegate blocking calls to worker threads using `asyncio.to_thread()`:
-
-```python
-# Under the hood
-async def _recv_async_impl(self, bufsize, timeout):
-    return await asyncio.to_thread(self._recv_impl, bufsize, timeout)
-```
-
-This ensures the asyncio event loop is not blocked during packet capture and reinjection.
+Nothing else needs to be installed (no libbpf, no kernel headers). Offloads (GSO/GRO/TSO) can stay enabled.
 
 ---
 
-## 4. Layer & Flag Translations
+## 2. How it works
 
-WinDivert layers and flags are translated to Linux eBPF equivalents:
+- **Filters.** They are compiled by WinDivert's own filter compiler, which is built into the library.
+  - The library lowers them to eBPF rules evaluated in the kernel, on TC ingress/egress of every interface.
+  - If a filter cannot be expressed exactly in the kernel (for example `tcp.PayloadLength > 100`), the kernel
+    captures a superset. The library then evaluates the exact filter and silently re-injects the packets that
+    don't match.
+  - Either way, `recv()` returns exactly what WinDivert would return. `Packet.matches()` uses the same evaluator.
+- **Loopback.** Loopback traffic is reported once, as outbound with `is_loopback` set, like on Windows.
+- **Priorities.** Handles chain by priority. A re-injected packet is seen only by lower-priority handles, with
+  `is_impostor` set. With `priority=0`, a handle is placed after the ones already open.
+- **Large packets.** Packets of up to 64 KB (GRO/TSO aggregates) are captured whole. Allow for this with
+  `bufsize` if you call `recv()` with a small buffer (the default buffer is large enough).
+- **Crashes.** If a process dies without closing its handles, the kernel programs stop diverting within
+  3 seconds, and they are removed by the next `Divert()` or by `Divert.unregister()`. A crashed script never
+  blackholes traffic.
+- **asyncio.** `recv_async()` waits on the library's event descriptor with `loop.add_reader()`, so no thread is
+  used.
 
-| WinDivert Layer | Linux eBPF Implementation | Status / Behavior |
+---
+
+## 3. Layers and flags
+
+| Layer | Linux implementation | Notes |
 | :--- | :--- | :--- |
-| `Layer.NETWORK` | TC Ingress/Egress hooks | **Full support** (Capture, Modify, Drop, Inject). |
-| `Layer.FLOW` | TC hooks + Event mapping | **Sniff-only**. Connection events are captured, but packets cannot be blocked. |
-| `Layer.SOCKET` | TC hooks + Event mapping | **Sniff-only**. Socket-level metadata is emulated where possible. |
-| `Layer.REFLECT` | N/A | **Not supported** on Linux. |
+| `Layer.NETWORK` | TC hooks | Full support: capture, modify, drop, inject. |
+| `Layer.NETWORK_FORWARD` | TC hooks | Routed packets only (IP forwarding enabled). |
+| `Layer.FLOW` | cgroup/sockops programs | TCP and UDP flows. `Flag.SNIFF \| Flag.RECV_ONLY` is required, as on Windows. |
+| `Layer.SOCKET` | cgroup programs | BIND, CONNECT, LISTEN, ACCEPT, CLOSE, with `process_id`. `Flag.RECV_ONLY` is required. |
+| `Layer.REFLECT` | handle registry | Divert handles of all processes. `Flag.SNIFF \| Flag.RECV_ONLY` is required. |
 
-| WinDivert Flag | eBPF Implementation |
+| Flag | Behaviour |
 | :--- | :--- |
-| `Flag.SNIFF` | BPF returns `TC_ACT_OK` after submitting a copy to the ring buffer. |
-| `Flag.DROP` | BPF returns `TC_ACT_SHOT` to discard the packet immediately. |
-| `Flag.FRAGMENTS` | Supported. BPF logic handles L3 detection for fragmented packets. |
-| `Flag.RECV_ONLY` | Disables the raw socket used for re-injection. |
-| `Flag.SEND_ONLY` | Disables TC hook attachment; used only for packet injection. |
+| `Flag.SNIFF` | Packets continue; you receive copies. |
+| `Flag.DROP` | Matching packets are dropped in the kernel. |
+| `Flag.FRAGMENTS` | Inbound IP fragments are also captured (they are skipped by default, as on Windows). |
+| `Flag.RECV_ONLY` / `Flag.SEND_ONLY` | As on Windows. |
+| `Flag.NO_INSTALL` | Accepted; nothing to install on Linux. |
+
+The `Param.QUEUE_LEN`, `Param.QUEUE_TIME` and `Param.QUEUE_SIZE` parameters, `shutdown()`, and `stats()`
+are all supported.
+
+### Differences from Windows
+
+- **SOCKET blocking.** A SOCKET handle without `Flag.SNIFF` blocks the matching BIND and CONNECT calls, and the
+  process gets `EPERM`. Linux cannot block LISTEN and ACCEPT. A filter that could match them, or that uses
+  fields other than event, protocol, local/remote address and port, and `processId`, raises
+  `NotImplementedError` unless `Flag.SNIFF` is set.
+- **Timestamps** are `CLOCK_MONOTONIC` nanoseconds.
+- **`sub_interface`** is always 0.
 
 ---
 
-## 5. Elevated Privileges & Capabilities
+## 4. Linux-only options
 
-Interacting with the TC subsystem, loading BPF bytecode, and creating raw packet sockets requires elevated privileges. Your application must be run:
-- With `root` privileges (e.g. `sudo python app.py`).
-- OR with the specific capabilities: `CAP_NET_ADMIN` (to manipulate TC) and `CAP_BPF` (to load BPF maps and programs).
-
----
-
-## 6. Linux-Specific Interface Selection
-
-Unlike WinDivert on Windows which captures packets system-wide, the Linux eBPF backend allows you to restrict capture to specific interfaces via the `interfaces` constructor parameter:
+`Divert` accepts two extra keyword arguments on Linux:
 
 ```python
 import pydivert
 
-# Linux-only: Capture only on interface 'eth0'
-with pydivert.Divert("tcp.DstPort == 80", interfaces=["eth0"]) as w:
+# Capture only on eth0 (loopback is always included)
+with pydivert.Divert("tcp.DstPort == 80", interfaces=["eth0"], ring_bytes=16 << 20) as w:
     for packet in w:
-        print(packet)
         w.send(packet)
 ```
+
+- `interfaces`: the list of interface names to attach to. The default is all interfaces.
+- `ring_bytes`: the size of the kernel ring buffer. The default is 8 MB.
+
+---
+
+## 5. Troubleshooting
+
+- **`PermissionError`**: run as root or grant the capabilities listed above.
+- **`NotImplementedError` for FLOW/SOCKET**: cgroup v2 is not mounted (`mount | grep cgroup2`).
+- **A different library build**: set `PYDIVERT_EBPFDIVERT_LIB=/path/to/libebpfdivert.so`.
+- **Programs left behind by killed processes**: `pydivert.Divert.unregister()` removes them. They already pass all
+  traffic.

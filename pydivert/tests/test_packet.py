@@ -5,7 +5,6 @@ from hypothesis import example, given
 from hypothesis import strategies as st
 
 import pydivert
-import pydivert.jit
 from pydivert import util
 from pydivert.consts import Direction
 
@@ -115,20 +114,6 @@ def test_checksum_recalculation():
     assert not p.is_checksum_valid
     p.recalculate_checksums()
     assert p.is_checksum_valid
-
-
-# --- JIT ---
-
-
-def test_jit_evaluation():
-    raw = (
-        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
-        + b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
-    )
-    packet = pydivert.Packet(raw)
-    assert pydivert.jit.compile_filter("True")(packet) is True
-    assert pydivert.jit.compile_filter("packet.tcp.src_port == 80")(packet) is True
-    assert pydivert.jit.compile_filter("1 + 2 == 3")(packet) is True
 
 
 # --- IPv4 Fields ---

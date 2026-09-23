@@ -1,3 +1,4 @@
+import os
 import socket
 import sys
 import threading
@@ -5,7 +6,7 @@ import threading
 import pytest
 
 import pydivert
-from pydivert.consts import Flag
+from pydivert.consts import Flag, Layer
 
 # SPDX-License-Identifier: LGPL-3.0-or-later OR GPL-2.0-or-later
 # Copyright (C) 2026  Fabio Falcinelli, Maximilian Hils
@@ -160,3 +161,162 @@ def test_flags_behavior():
                 w.send(pydivert.Packet(b"E" + b"\x00" * 19))
     except (PermissionError, OSError):
         pytest.skip("Insufficient privileges")
+
+
+# --- Linux parity with WinDivert ---
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_tcp_port_matches_both_directions():
+    """Both directions of a connection match (the old eBPF transpiler only matched destination ports)."""
+    port = 12362
+    seen = {"to": 0, "from": 0}
+    stop = threading.Event()
+    ready = threading.Event()
+
+    def diverter():
+        with pydivert.Divert(f"tcp.SrcPort == {port} or tcp.DstPort == {port}") as w:
+            ready.set()
+            while not stop.is_set():
+                try:
+                    p = w.recv(timeout=0.2)
+                except TimeoutError:
+                    continue
+                seen["to" if p.dst_port == port else "from"] += 1
+                w.send(p)
+
+    t = threading.Thread(target=diverter, daemon=True)
+    t.start()
+    assert ready.wait(timeout=10.0)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", port))
+        srv.listen(1)
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as c:
+            conn, _ = srv.accept()
+            with conn:
+                c.sendall(b"ping")
+                assert conn.recv(4) == b"ping"
+                conn.sendall(b"pong")
+                assert c.recv(4) == b"pong"
+    stop.set()
+    t.join(timeout=5.0)
+    assert seen["to"] > 0 and seen["from"] > 0, seen
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_inexact_filter_and_matches():
+    """Filters beyond the kernel rules are evaluated exactly; non-matching packets are not lost."""
+    port = 12363
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as srv:
+        srv.bind(("127.0.0.1", port))
+        srv.settimeout(2.0)
+        with pydivert.Divert(f"udp.DstPort == {port} and udp.PayloadLength > 10") as w:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as c:
+                c.sendto(b"short", ("127.0.0.1", port))
+                with pytest.raises(TimeoutError):
+                    w.recv(timeout=0.5)
+                assert srv.recv(64) == b"short"
+                c.sendto(b"long enough payload", ("127.0.0.1", port))
+                p = w.recv(timeout=2.0)
+                assert p.matches(f"udp.DstPort == {port} and outbound and loopback")
+                assert not p.matches("tcp")
+                w.send(p)
+                assert srv.recv(64) == b"long enough payload"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_params_and_stats_linux():
+    from pydivert.consts import Param
+
+    with pydivert.Divert("false") as w:
+        w.set_param(Param.QUEUE_LEN, 64)
+        assert w.get_param(Param.QUEUE_LEN) == 64
+        stats = w.stats()
+        assert stats["queue_len"] == 64
+        assert "diverted" in stats
+
+
+# --- Event layers (FLOW, SOCKET, REFLECT) ---
+
+EVENT_FLAGS = Flag.SNIFF | Flag.RECV_ONLY
+
+
+def _recv_within(w, timeout):
+    try:
+        return w.recv(timeout=timeout)
+    except TimeoutError:
+        return None
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_socket_layer_connect_event():
+    port = 12390
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", port))
+        srv.listen(1)
+        with pydivert.Divert(f"event == CONNECT and remotePort == {port}", Layer.SOCKET, flags=EVENT_FLAGS) as w:
+            with socket.create_connection(("127.0.0.1", port), timeout=5):
+                pass
+            p = _recv_within(w, 3.0)
+            assert p is not None
+            assert p.layer == Layer.SOCKET
+            assert p.event == 4  # WINDIVERT_EVENT_SOCKET_CONNECT
+            assert p.socket.RemotePort == port
+            assert p.socket.Protocol == 6
+            assert p.socket.ProcessId == os.getpid()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_socket_layer_blocks_connect():
+    port = 12391
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", port))
+        srv.listen(4)
+        with pydivert.Divert(f"event == CONNECT and remotePort == {port}", Layer.SOCKET, flags=Flag.RECV_ONLY):
+            with pytest.raises(PermissionError):
+                socket.create_connection(("127.0.0.1", port), timeout=5)
+        with socket.create_connection(("127.0.0.1", port), timeout=5):
+            pass
+    with pytest.raises(NotImplementedError):
+        # LISTEN/ACCEPT cannot be refused on Linux.
+        pydivert.Divert("localPort == 1", Layer.SOCKET, flags=Flag.RECV_ONLY).open()
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_flow_layer():
+    port = 12392
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", port))
+        srv.listen(1)
+        with pydivert.Divert(f"remotePort == {port}", Layer.FLOW, flags=EVENT_FLAGS) as w:
+            c = socket.create_connection(("127.0.0.1", port), timeout=5)
+            a, _ = srv.accept()
+            c.close()
+            a.close()
+            events = set()
+            for _ in range(4):
+                p = _recv_within(w, 2.0)
+                if p is None:
+                    break
+                assert p.layer == Layer.FLOW
+                events.add(p.event)
+            assert events >= {1, 2}  # ESTABLISHED, DELETED
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_reflect_layer():
+    with pydivert.Divert("event == OPEN and priority == 1234", Layer.REFLECT, flags=EVENT_FLAGS) as r:
+        with pydivert.Divert("false", priority=1234):
+            p = _recv_within(r, 3.0)
+            assert p is not None
+            assert p.layer == Layer.REFLECT
+            assert p.reflect.Priority == 1234
+            assert p.reflect.ProcessId == os.getpid()
+            assert bytes(p.raw).startswith(b"@WinDiv_")
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux-specific test")
+def test_event_layer_flags_validated():
+    with pytest.raises(OSError):
+        pydivert.Divert("true", Layer.FLOW, flags=Flag.RECV_ONLY).open()

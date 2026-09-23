@@ -77,11 +77,6 @@ jobs:
     steps:
     - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libbpf-dev
-
     - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
@@ -93,9 +88,6 @@ jobs:
 
     - name: Fetch pre-built binaries
       run: python scripts/fetch_binaries.py
-
-    - name: Configure loopback
-      run: sudo ethtool -K lo rx off tx off || true
 
     - name: Run tests
       run: sudo -E .venv/bin/python -m pytest pydivert --capture=no -v --cov pydivert --cov-report=xml

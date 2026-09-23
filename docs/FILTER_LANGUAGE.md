@@ -40,7 +40,7 @@ Filters can target different layers. Each layer has specific fields available:
 - `Layer.REFLECT`: Captures reflected events.
 
 > [!NOTE]
-> On Linux, `FLOW` and `SOCKET` layers are supported in **sniff-only** mode. See the [Linux Backend Documentation](LINUX_BACKEND.md) for details.
+> On Linux, filters are compiled by WinDivert's own compiler and behave identically on every layer. A `SOCKET` handle without `Flag.SNIFF` can only block BIND and CONNECT events. See the [Linux Backend Documentation](LINUX_BACKEND.md) for details.
 
 ## Protocols and Fields
 

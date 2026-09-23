@@ -1,4 +1,3 @@
-import ast
 import errno
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,8 +6,6 @@ import pytest
 import pydivert
 import pydivert.base
 import pydivert.ebpf
-import pydivert.filter
-import pydivert.jit
 import pydivert.service
 import pydivert.util
 import pydivert.windivert
@@ -195,52 +192,6 @@ async def test_base_divert_send_async_errors():
     d.close()
 
 
-def test_base_divert_jit_filter():
-    d = MockDivert()
-    d.open()
-    p1 = MagicMock()
-    p2 = MagicMock()
-    d._recv_impl = MagicMock(side_effect=[p1, p2])  # type: ignore
-    d._jit_filter = lambda p: p == p2
-    assert d.recv() == p2
-    d.close()
-
-
-@pytest.mark.asyncio
-async def test_base_divert_jit_filter_async():
-    d = MockDivert()
-    d.open()
-    p1 = MagicMock()
-    p2 = MagicMock()
-    d._recv_async_impl = AsyncMock(side_effect=[p1, p2])  # type: ignore
-    d._jit_filter = lambda p: p == p2
-    assert await d.recv_async() == p2
-    d.close()
-
-
-def test_base_divert_batch_jit():
-    d = MockDivert()
-    d.open()
-    p1 = MagicMock()
-    p2 = MagicMock()
-    d._recv_batch_impl = MagicMock(return_value=[p1, p2])  # type: ignore
-    d._jit_filter = lambda p: p == p2
-    assert d.recv_batch() == [p2]
-    d.close()
-
-
-@pytest.mark.asyncio
-async def test_base_divert_batch_jit_async():
-    d = MockDivert()
-    d.open()
-    p1 = MagicMock()
-    p2 = MagicMock()
-    d._recv_batch_async_impl = AsyncMock(return_value=[p1, p2])  # type: ignore
-    d._jit_filter = lambda p: p == p2
-    assert await d.recv_batch_async() == [p2]
-    d.close()
-
-
 def test_base_divert_stats():
     d = MockDivert()
     with d:
@@ -278,92 +229,6 @@ async def test_base_divert_aiter():
 
 
 # jit.py tests
-def test_jit_safe_evaluator_ops():
-    p = MagicMock()
-    e = pydivert.jit.SafeEvaluator(p)
-    assert e.visit(ast.parse("1 + 2", mode="eval").body) == 3
-    assert e.visit(ast.parse("3 - 1", mode="eval").body) == 2
-    assert e.visit(ast.parse("2 * 3", mode="eval").body) == 6
-    assert e.visit(ast.parse("6 / 2", mode="eval").body) == 3
-    assert e.visit(ast.parse("5 % 2", mode="eval").body) == 1
-    assert e.visit(ast.parse("1 & 1", mode="eval").body) == 1
-    assert e.visit(ast.parse("1 | 0", mode="eval").body) == 1
-    assert e.visit(ast.parse("1 ^ 1", mode="eval").body) == 0
-    assert e.visit(ast.parse("1 << 1", mode="eval").body) == 2
-    assert e.visit(ast.parse("2 >> 1", mode="eval").body) == 1
-
-    assert e.visit(ast.parse("True and True", mode="eval").body) is True
-    assert e.visit(ast.parse("True and False", mode="eval").body) is False
-    assert e.visit(ast.parse("False or True", mode="eval").body) is True
-    assert e.visit(ast.parse("not True", mode="eval").body) is False
-    assert e.visit(ast.parse("-1", mode="eval").body) == -1
-
-    assert e.visit(ast.parse("1 < 2", mode="eval").body) is True
-    assert e.visit(ast.parse("1 <= 1", mode="eval").body) is True
-    assert e.visit(ast.parse("2 > 1", mode="eval").body) is True
-    assert e.visit(ast.parse("1 >= 1", mode="eval").body) is True
-    assert e.visit(ast.parse("1 != 2", mode="eval").body) is True
-    assert e.visit(ast.parse("1 is 1", mode="eval").body) is True
-    assert e.visit(ast.parse("1 is not 2", mode="eval").body) is True
-    assert e.visit(ast.parse("1 in [1, 2]", mode="eval").body) is True
-    assert e.visit(ast.parse("3 not in [1, 2]", mode="eval").body) is True
-
-
-def test_jit_safe_evaluator_ternary():
-    e = pydivert.jit.SafeEvaluator(None)
-    assert e.visit(ast.parse("1 if True else 0", mode="eval").body) == 1
-    assert e.visit(ast.parse("1 if False else 0", mode="eval").body) == 0
-
-
-def test_jit_safe_evaluator_subscript():
-    e = pydivert.jit.SafeEvaluator(None)
-    assert e.visit(ast.parse("[1, 2, 3][1]", mode="eval").body) == 2
-
-
-def test_jit_safe_evaluator_call():
-    e = pydivert.jit.SafeEvaluator(None)
-    assert e.visit(ast.parse("len([1, 2])", mode="eval").body) == 2
-
-
-def test_jit_safe_evaluator_unsupported():
-    e = pydivert.jit.SafeEvaluator(None)
-    with pytest.raises(ValueError, match="Unsupported binary operator"):
-        e.visit(ast.parse("2 ** 3", mode="eval").body)
-    with pytest.raises(ValueError, match="Unsupported boolean operator"):
-        node = ast.BoolOp(op=ast.Not(), values=[])  # type: ignore
-        e.visit_BoolOp(node)
-    with pytest.raises(ValueError, match="Unsupported unary operator"):
-        node = ast.UnaryOp(op=ast.Add(), operand=ast.Constant(value=1))  # type: ignore
-        e.visit_UnaryOp(node)
-    with pytest.raises(ValueError, match="Unsupported name"):
-        e.visit(ast.Name(id="illegal", ctx=ast.Load()))
-    with pytest.raises(ValueError, match="Unsupported node type"):
-        e.visit(ast.Dict(keys=[], values=[]))
-
-
-def test_jit_safe_evaluator_attribute_private_access():
-    e = pydivert.jit.SafeEvaluator(None)
-    with pytest.raises(ValueError, match="Access to private attribute '_private' is not allowed"):
-        e.visit(ast.parse("packet._private", mode="eval").body)
-
-    # Test coverage for lines 120-126
-    class MockObj:
-        def __init__(self):
-            self.attr = "value"
-
-    e = pydivert.jit.SafeEvaluator(MockObj())
-
-    # Test valid attribute access
-    assert e.visit(ast.parse("packet.attr", mode="eval").body) == "value"
-
-    # Test attribute not found
-    assert e.visit(ast.parse("packet.nonexistent", mode="eval").body) is None
-
-    # Test value is None
-    e = pydivert.jit.SafeEvaluator(None)
-    assert e.visit(ast.parse("packet.attr", mode="eval").body) is None
-
-
 # service.py tests
 def test_service_no_advapi():
     with patch("pydivert.service._get_advapi32", return_value=None):
@@ -398,44 +263,7 @@ def test_service_control_fail():
 
 
 # filter.py tests
-def test_filter_syntax_error_real():
-    from pydivert.filter import transpile_to_rules
-
-    with pytest.raises(pydivert.filter.FilterSyntaxError):
-        transpile_to_rules("ip and !!!")
-
-
 # ebpf.py tests
-def test_ebpf_layer_unsupported():
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        with pytest.raises(NotImplementedError):
-            pydivert.ebpf.EBPFDivert(layer=pydivert.Layer.REFLECT)
-
-
-def test_ebpf_libebpfdivert_missing():
-    with patch("pydivert.ebpf.libebpfdivert", None):
-        with pytest.raises(ImportError):
-            pydivert.ebpf.EBPFDivert()
-
-
-def test_ebpf_unregister_fail():
-    with patch("pydivert.ebpf.libebpfdivert", None):
-        pydivert.ebpf.EBPFDivert.unregister()
-
-
-def test_ebpf_check_filter_fail():
-    with patch("pydivert.ebpf.transpile_to_ebpf", side_effect=Exception("fail")):
-        res, pos, msg = pydivert.ebpf.EBPFDivert.check_filter("invalid")
-        assert res is False
-
-
-def test_ebpf_check_filter_success():
-    res, pos, msg = pydivert.ebpf.EBPFDivert.check_filter("true")
-    assert res is True
-    assert pos == 0
-    assert msg == ""
-
-
 # windivert.py tests
 def test_windivert_not_nt():
     with patch("os.name", "posix"):
@@ -594,28 +422,6 @@ def test_packet_property_setters():
     assert p.is_loopback is False
 
 
-def test_ebpf_stats_error():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert(flags=pydivert.Flag.SEND_ONLY)
-        with pytest.raises(RuntimeError):
-            d.stats()
-
-
-@pytest.mark.asyncio
-async def test_ebpf_async_recv_thread():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert()
-        d._is_open = True
-        with patch.object(d, "_recv_impl") as mock_recv:
-            mock_recv.return_value = MagicMock()
-            res = await d.recv_async()
-            assert res is not None
-
-
 def test_windivert_check_filter_error():
     with patch("pydivert.windivert_dll.WinDivertHelperCompileFilter", return_value=False):
         with patch("pydivert.windivert_dll.GetLastError", return_value=123):
@@ -677,24 +483,6 @@ def test_ipv6_header_properties():
     assert p.ipv6.dst_addr == "fe80::1"
 
 
-def test_ebpf_priority_logic():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-        with patch("pydivert.ebpf.socket.socket"):
-            d = EBPFDivert(priority=100)
-            mock_libebpf.ebpfdivert_load.return_value = 0
-            mock_libebpf.ebpfdivert_open.return_value = 123
-            d._open_impl()
-            assert d._tc_priority == 30001 - 100
-
-            d2 = EBPFDivert(priority=0)
-            mock_libebpf.ebpfdivert_load.return_value = 0
-            mock_libebpf.ebpfdivert_open.return_value = 123
-            d2._open_impl()
-            assert d2._tc_priority >= 1000
-
-
 def test_packet_additional_properties():
     p = pydivert.Packet(b"\x45" + b"\x00" * 19)
     assert p.flow is None
@@ -715,31 +503,6 @@ def test_packet_additional_properties():
     assert p6.icmpv6 is not None
     assert p6.icmpv4 is None
     assert p6.icmp is not None
-
-
-def test_ebpf_send_errors():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert()
-        d._is_open = True
-        p = MagicMock(spec=pydivert.Packet)
-        p.dst_addr = None
-        p._l2_header = None
-        assert d._send_impl(p) == 0
-
-        p2 = MagicMock(spec=pydivert.Packet)
-        p2.dst_addr = "127.0.0.1"
-        p2.ipv6 = False
-        p2._l2_header = None
-        d._raw_sock = MagicMock()
-        d._raw_sock.sendto.return_value = 20
-        # No error if raw_sock is present
-        assert d._send_impl(p2) == 20
-
-        d._raw_sock = None
-        with pytest.raises(OSError, match="IPv4 raw socket not available"):
-            d._send_impl(p2)
 
 
 def test_packet_repr_unknown_proto():
@@ -765,17 +528,6 @@ def test_base_divert_error_messages():
         d.close()
     with pytest.raises(RuntimeError, match="not open"):
         d.stats()
-
-
-def test_jit_safe_evaluator_name_error():
-    e = pydivert.jit.SafeEvaluator(None)
-    with pytest.raises(ValueError, match="Unsupported name"):
-        e.visit(ast.Name(id="unknown_variable", ctx=ast.Load()))
-
-
-def test_ebpf_unregister_oserror():
-    with patch("os.listdir", side_effect=OSError()):
-        pydivert.ebpf.EBPFDivert.unregister()
 
 
 def test_ipv4_full_properties():
@@ -918,22 +670,6 @@ def test_udp_full_properties():
     assert udp.cksum == 0x1234
 
 
-def test_ebpf_open_errors():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-        d = EBPFDivert()
-
-        mock_libebpf.ebpfdivert_load.return_value = -1
-        with pytest.raises(RuntimeError):
-            d._open_impl()
-
-        mock_libebpf.ebpfdivert_load.return_value = 0
-        mock_libebpf.ebpfdivert_open.return_value = None
-        with pytest.raises(RuntimeError):
-            d._open_impl()
-
-
 def test_icmp_full_properties():
     raw = bytearray(b"\x45\x00\x00\x1c\x00\x00\x00\x00\x40\x01\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
     raw += b"\x08\x00\x00\x00\x00\x00\x00\x00"
@@ -1072,37 +808,6 @@ def test_divert_facade_hit():
             pydivert.Divert._get_implementation_class()
 
 
-def test_ebpf_send_batch_logic():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert()
-        d._is_open = True
-        p = MagicMock(spec=pydivert.Packet)
-        p.dst_addr = "127.0.0.1"
-        p.ipv6 = False
-        p._l2_header = None
-        d._raw_sock = MagicMock()
-        d._raw_sock.sendto.return_value = 20
-        assert d._send_batch_impl([p], True) == 1
-
-
-@pytest.mark.asyncio
-async def test_ebpf_send_batch_async_logic():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert()
-        d._is_open = True
-        p = MagicMock(spec=pydivert.Packet)
-        p.dst_addr = "127.0.0.1"
-        p.ipv6 = False
-        p._l2_header = None
-        d._raw_sock = MagicMock()
-        d._raw_sock.sendto.return_value = 20
-        assert await d._send_batch_async_impl([p], True) == 1
-
-
 def test_windivert_batch_logic():
     with patch("os.name", "nt"):
         with patch("pydivert.windivert.windivert_dll") as mock_dll:
@@ -1160,23 +865,6 @@ async def test_windivert_batch_async_logic():
             p.raw = bytearray(b"data")
             with patch.object(d, "_send_impl", return_value=4):
                 assert await d._send_batch_async_impl([p], False) == 1
-
-
-def test_ebpf_recv_batch_linux():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-        d = EBPFDivert()
-        d._is_open = True
-        mock_libebpf.ebpfdivert_recv.side_effect = [0, -11]
-        res = d.recv_batch(count=1)
-        assert len(res) == 1
-
-
-def test_ebpf_unregister_normal():
-    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-        pydivert.ebpf.EBPFDivert.unregister()
-        assert mock_libebpf.ebpfdivert_unload.called
 
 
 def test_packet_is_loopback_setter():
@@ -1352,129 +1040,3 @@ def test_packet_with_wd_addr():
 def test_packet_recalculate_checksums_no_headers():
     p = pydivert.Packet(b"\x00" * 4)
     assert p.recalculate_checksums() == 0
-
-
-def test_filter_coverage():
-    from pydivert.filter import transpile_to_rules
-
-    # Test ternary expression simplification
-    transpile_to_rules("ip ? tcp : udp")
-    # Test negated empty or contradiction rules
-    transpile_to_rules("not true")
-    transpile_to_rules("not false")
-    # Test negation of already negated property
-    transpile_to_rules("not (tcp.SrcPort != 80)")
-
-    # Test property parsing coverage
-    transpile_to_rules("ip.Length == 100")
-    transpile_to_rules("ip.Id == 100")
-    transpile_to_rules("ip.TOS == 1")
-    transpile_to_rules("ip.TTL == 64")
-    transpile_to_rules("ip.Protocol == 6")
-    transpile_to_rules("ip.Checksum == 0")
-    transpile_to_rules("tcp.SeqNum == 0")
-    transpile_to_rules("tcp.AckNum == 0")
-    transpile_to_rules("tcp.HeaderLength == 5")
-    transpile_to_rules("tcp.Reserved == 0")
-    transpile_to_rules("tcp.Checksum == 0")
-    transpile_to_rules("tcp.UrgentPtr == 0")
-    transpile_to_rules("udp.Length == 8")
-    transpile_to_rules("udp.Checksum == 0")
-    transpile_to_rules("icmp.Type == 8")
-    transpile_to_rules("icmp.Code == 0")
-    transpile_to_rules("icmp.Checksum == 0")
-
-    # Test layer mismatches (e.g. comparing ipv6 prop when rule expects ipv4)
-    # The filter parser shouldn't crash, but it might not be possible to express in BPF
-    transpile_to_rules("ipv6.FlowLabel == 1")
-
-
-def test_ebpf_stats_impl_unsupported():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        d = EBPFDivert()
-        d._is_open = True
-        # stats is not supported on EBPF, stats_impl should return dummy or raise
-        # Let's see what it does
-        try:
-            d._stats_impl()
-        except Exception:
-            pass
-
-
-def test_ebpf_empty_except_blocks():
-    import platform
-
-    if platform.system() == "Windows":
-        return
-
-    # Restores mock state
-    with patch("pydivert.ebpf.libebpfdivert", MagicMock()):
-        import importlib
-
-        import pydivert.ebpf
-
-        importlib.reload(pydivert.ebpf)
-
-    # Line 175: check existing TC filters error
-    with patch("subprocess.check_output", side_effect=Exception("check output error")):
-        assert pydivert.ebpf.EBPFDivert.check_filter("true") == (True, 0, "")
-
-    import platform
-
-    if platform.system() != "Windows":
-        with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-            d = pydivert.ebpf.EBPFDivert()
-            d._is_open = True
-
-            # ebpfdivert_load error handling
-            mock_libebpf.ebpfdivert_load.side_effect = RuntimeError("load error")
-            with patch("socket.socket"):
-                with pytest.raises(RuntimeError):
-                    d._open_impl()
-
-    # Line 562: send packet in batch error
-    with patch("pydivert.ebpf.EBPFDivert._send_impl", side_effect=Exception("send error")):
-        d = pydivert.ebpf.EBPFDivert()
-        d._is_open = True
-        assert d._send_batch_impl([MagicMock(spec=pydivert.Packet)], False) == 0
-
-    with patch("pydivert.ebpf.EBPFDivert._send_batch_impl", return_value=0):
-        # Trigger an extra line for codecov reporting
-        d = pydivert.ebpf.EBPFDivert()
-        d._is_open = True
-        # Just to ensure we've fully run the batch sender on this branch too
-        pass
-
-
-def test_ebpf_mock_transpile_empty_except_blocks():
-    import platform
-
-    if platform.system() == "Windows":
-        return
-
-    # Attempt to cover the remaining check_filter empty except
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.transpile_to_ebpf", side_effect=Exception("transpile error")):
-        assert EBPFDivert.check_filter("true") == (False, -1, "transpile error")
-
-    # Line 175: check existing TC filters error
-    with patch("subprocess.check_output", side_effect=Exception("check output error")):
-        # This function does not raise the exception and logs debug implicitly
-        assert EBPFDivert._get_next_priority() == 30000
-
-    with patch("subprocess.check_output", return_value=b'[{"options": {"bpf_name": "tc_divert_ingress"}, "pref": 1}]'):
-        # Just loop to check logic
-        assert EBPFDivert._get_next_priority() == 30000
-
-    # Ensure open_impl falls back if it can't load
-    with patch("pydivert.ebpf.libebpfdivert") as mock_libebpf:
-        mock_libebpf.ebpfdivert_load.return_value = -1
-        d = EBPFDivert()
-        d._is_open = True
-        try:
-            d._open_impl()
-        except RuntimeError:
-            pass

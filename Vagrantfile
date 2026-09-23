@@ -14,18 +14,10 @@ Vagrant.configure("2") do |config|
     end
     linux.vm.provision "shell", inline: <<-SHELL
       apt-get update
-      apt-get install -y python3-pip python3-venv libbpf-dev clang llvm libelf-dev
+      apt-get install -y python3-pip python3-venv
       curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
       cd /pydivert
-      uv sync --extra test --extra linux
-
-      # Configure sysctls for loopback packet injection
-      sysctl -w net.ipv4.conf.all.rp_filter=0
-      sysctl -w net.ipv4.conf.lo.rp_filter=0
-      sysctl -w net.ipv4.conf.all.route_localnet=1
-      sysctl -w net.ipv4.conf.lo.route_localnet=1
-      sysctl -w net.ipv4.conf.all.accept_local=1
-      sysctl -w net.ipv4.conf.lo.accept_local=1
+      UV_PROJECT_ENVIRONMENT=/opt/pydivert-venv SKIP_FETCH_BINARIES=1 uv sync --extra test
     SHELL
 
     linux.vm.provision "test-linux", type: "shell", path: "scripts/run-tests-linux.sh", run: "never"

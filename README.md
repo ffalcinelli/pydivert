@@ -9,32 +9,29 @@
 [![license](https://img.shields.io/pypi/l/pydivert.svg)](https://github.com/ffalcinelli/pydivert/blob/main/LICENSE)
 [![snyk](https://img.shields.io/badge/snyk-security-violet)](https://security.snyk.io/package/pip/pydivert)
 
-**PyDivert** is a high-performance, cross-platform Python binding for capturing, modifying, and dropping network packets. It supports **Windows** via [WinDivert](https://reqrypt.org/windivert.html) and **Linux** via **eBPF (CO-RE)**.
-
-> [!WARNING]
-> Linux support via eBPF is experimental and should not be used in production environments.
+**PyDivert** is a high-performance, cross-platform Python binding for capturing, modifying, and dropping network packets. It supports **Windows** via [WinDivert](https://reqrypt.org/windivert.html) and **Linux** via [eBPFDivert](https://github.com/ffalcinelli/ebpfdivert), an eBPF implementation of the WinDivert API. Both backends use the same filter language, layers, flags and packet metadata.
 
 ## Features
 
-- **Cross-Platform**: Unified API for Windows (WinDivert) and Linux (eBPF).
+- **Cross-Platform**: One API for Windows (WinDivert) and Linux (eBPF), with the same semantics.
 - **Seamless Multi-Handle Support**: Run multiple PyDivert applications simultaneously with kernel-level priority chaining on both platforms.
-- **Unified Filter Language**: Use the same WinDivert-style filter strings on both Windows and Linux.
+- **Unified Filter Language**: The same WinDivert filter strings on both platforms. On Linux they are compiled by WinDivert's own filter compiler, so they match exactly the same packets.
 - **Capture** network packets matching a specific filter.
 - **Modify** packet headers and payloads on the fly.
 - **Drop** unwanted packets.
 - **Inject** new or modified packets into the network stack.
 - **Modern Python Support**: Full integration with `asyncio` and Structural Pattern Matching (PEP 634).
-- **Support for WinDivert 2.2+** advanced features (FLOW, SOCKET, and REFLECT layers).
-- **Bundled Binaries**: No need to manually install WinDivert on Windows; the 64-bit DLL and driver are included.
+- **All WinDivert 2.2 layers**: NETWORK, NETWORK_FORWARD, FLOW, SOCKET and REFLECT, on both platforms.
+- **Bundled Binaries**: Nothing else to install. Windows wheels include the WinDivert DLL and driver; Linux wheels (x86_64, aarch64) include a self-contained `libebpfdivert.so`.
 
 ## Requirements
 
 - **Python 3.10+** (64-bit)
-- **Windows 11** (64-bit) or **Linux** (with eBPF support, kernel 5.8+)
+- **Windows 11** (64-bit) or **Linux** (x86_64/aarch64, kernel 5.10+ with BTF, glibc 2.28+; cgroup v2 for the FLOW/SOCKET layers)
 - **Administrator/Root Privileges** (required to interact with network drivers)
 
 > [!NOTE]
-> Windows Server is currently untested but likely works if it meets the architecture requirements. On Linux, `libbpf` and a modern kernel are required.
+> Windows Server is currently untested but likely works if it meets the architecture requirements. On Linux, root or `CAP_BPF` + `CAP_NET_ADMIN` + `CAP_NET_RAW` is enough.
 
 ## Installation
 
@@ -44,17 +41,13 @@ Install PyDivert using `pip`:
 pip install pydivert
 ```
 
-For Linux eBPF support, install with the `linux` extra:
-
-```bash
-pip install "pydivert[linux]"
-```
-
 Or using [uv](https://github.com/astral-sh/uv):
 
 ```bash
-uv add pydivert --extra linux
+uv add pydivert
 ```
+
+The same command works on Windows and Linux; the platform wheel carries the native backend.
 
 ## Quick Start
 
@@ -165,7 +158,7 @@ The `pydivert.Packet` object provides easy access to common fields:
 - **TCP/UDP Layer**: `packet.src_port`, `packet.dst_port`, `packet.tcp.flags`
 - **Payload**: `packet.payload` (bytes)
 - **Metadata**:
-  - **`timestamp`**: Capture time (QueryPerformanceCounter).
+  - **`timestamp`**: Capture time (QueryPerformanceCounter ticks on Windows, `CLOCK_MONOTONIC` nanoseconds on Linux).
   - **`is_loopback`**, **`is_impostor`**, **`is_sniffed`**: Boolean flags.
   - **`interface`**: Index of the capture interface.
   - **`direction`**: `Direction.INBOUND` or `Direction.OUTBOUND`.
@@ -176,12 +169,13 @@ Detailed protocol headers are available through `packet.ipv4`, `packet.ipv6`, `p
 
 ### WinDivert Layers
 
-- `Layer.NETWORK` (default): IP packets.
-- `Layer.FLOW`: Connection events.
-- `Layer.SOCKET`: Socket-level events.
-- `Layer.REFLECT`: Reflected events.
+- `Layer.NETWORK` (default): IP packets to and from the local host.
+- `Layer.NETWORK_FORWARD`: IP packets being routed through the host.
+- `Layer.FLOW`: Connection established/deleted events.
+- `Layer.SOCKET`: Socket bind/connect/listen/accept/close events.
+- `Layer.REFLECT`: Divert handles opened and closed on the system.
 
-See the [Linux Backend Guide](file:///home/fabio/Workspace/divert/pydivert/docs/LINUX_BACKEND.md) for details on how these are implemented on Linux.
+See the [Linux Backend Guide](docs/LINUX_BACKEND.md) for how these are implemented on Linux, and the few differences.
 
 ### Flags
 
@@ -192,7 +186,7 @@ See the [Linux Backend Guide](file:///home/fabio/Workspace/divert/pydivert/docs/
 
 ## Filter Language
 
-Divert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](file:///home/fabio/Workspace/divert/pydivert/docs/FILTER_LANGUAGE.md).
+Divert uses the WinDivert filter language to select which packets to capture. For a detailed reference on the syntax and available fields, see the [Filter Language Guide](docs/FILTER_LANGUAGE.md).
 
 For the original technical reference, please visit the [official WinDivert documentation](https://reqrypt.org/windivert-doc.html#filter_language).
 
@@ -200,7 +194,7 @@ For the original technical reference, please visit the [official WinDivert docum
 
 | Divert | Backend |
 | --- | --- |
-| 4.0.0+ | WinDivert 2.2.2 (bundled) / Linux eBPF (CO-RE) |
+| 4.0.0+ | WinDivert 2.2.2 (bundled) / eBPFDivert 0.1.0 (bundled) |
 | 3.0.0+ | WinDivert 2.2.2 (bundled) - Full support for modern metadata and layers |
 
 ## Development
@@ -227,9 +221,12 @@ To run tests on a Ubuntu VM with eBPF support:
 
 ```bash
 vagrant up linux
-# This will recompile the eBPF program and run tests automatically
+# This will run the test suite as root automatically
 vagrant provision linux --provision-with test-linux
+vagrant destroy -f linux
 ```
+
+To test against a local eBPFDivert build instead of the pinned release, set `PYDIVERT_EBPFDIVERT_LOCAL=/path/to/libebpfdivert.so` before `scripts/fetch_binaries.py`, or `PYDIVERT_EBPFDIVERT_LIB` at runtime.
 
 ## API Reference
 

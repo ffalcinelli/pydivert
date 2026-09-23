@@ -2,23 +2,21 @@
 set -e
 
 export PATH="/usr/local/bin:$PATH"
-export SKIP_FETCH_BINARIES=1
-
-echo "Applying network sysctl configurations for loopback injection..."
-sudo sysctl -w net.ipv4.conf.all.rp_filter=0
-sudo sysctl -w net.ipv4.conf.lo.rp_filter=0
-sudo sysctl -w net.ipv4.conf.all.route_localnet=1
-sudo sysctl -w net.ipv4.conf.lo.route_localnet=1
-sudo sysctl -w net.ipv4.conf.all.accept_local=1
-sudo sysctl -w net.ipv4.conf.lo.accept_local=1
-
-echo "Fetching pre-built binaries..."
+# Keep the VM's virtualenv out of the synced folder (the host has its own .venv).
+export UV_PROJECT_ENVIRONMENT=/opt/pydivert-venv
 cd /pydivert
-python3 scripts/fetch_binaries.py
+
+# libebpfdivert.so is self-contained (no libbpf, no sysctl tweaks needed).
+# Use an already present library (e.g. a local ebpfdivert build copied into
+# pydivert/bpf/), otherwise fetch the pinned release.
+if [ ! -f pydivert/bpf/libebpfdivert.so ]; then
+    echo "Fetching pre-built binaries..."
+    python3 scripts/fetch_binaries.py
+fi
 
 echo "Ensuring dependencies are up to date..."
-uv sync --extra test
+SKIP_FETCH_BINARIES=1 uv sync --extra test
 
 echo "Running tests with coverage..."
 export COVERAGE_FILE=.coverage.linux
-sudo -E .venv/bin/python -m pytest --cov=pydivert --cov-config=.coveragerc pydivert/tests
+sudo -E "$UV_PROJECT_ENVIRONMENT/bin/python" -m pytest --cov=pydivert --cov-config=.coveragerc pydivert/tests

@@ -91,7 +91,6 @@ class BaseDivert(abc.ABC):
         self._priority: int = priority
         self._flags: Flag = flags
         self._is_open: bool = False
-        self._jit_filter: Any | None = None
 
     @staticmethod
     @abc.abstractmethod
@@ -233,12 +232,9 @@ class BaseDivert(abc.ABC):
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
 
-        while True:
-            packet = self._recv_impl(bufsize, timeout)
-            if self._jit_filter is None or self._jit_filter(packet):
-                logger.debug("Packet captured: %s", packet)
-                return packet
-            logger.debug("Packet dropped by JIT filter: %s", packet)
+        packet = self._recv_impl(bufsize, timeout)
+        logger.debug("Packet captured: %s", packet)
+        return packet
 
     def recv_batch(
         self,
@@ -256,10 +252,6 @@ class BaseDivert(abc.ABC):
             raise OSError(errno.EBADF, "Handle is send-only")
 
         packets = self._recv_batch_impl(count, bufsize, timeout)
-        if self._jit_filter:
-            filtered = [p for p in packets if self._jit_filter(p)]
-            logger.debug("Batch captured: %d received, %d passed JIT", len(packets), len(filtered))
-            return filtered
         logger.debug("Batch captured: %d received", len(packets))
         return packets
 
@@ -289,12 +281,9 @@ class BaseDivert(abc.ABC):
         if Flag.SEND_ONLY in self.flags:
             raise OSError(errno.EBADF, "Handle is send-only")
 
-        while True:
-            packet = await self._recv_async_impl(bufsize, timeout)
-            if self._jit_filter is None or self._jit_filter(packet):
-                logger.debug("Packet captured (async): %s", packet)
-                return packet
-            logger.debug("Packet dropped by JIT filter (async): %s", packet)
+        packet = await self._recv_async_impl(bufsize, timeout)
+        logger.debug("Packet captured (async): %s", packet)
+        return packet
 
     async def recv_batch_async(
         self,
@@ -312,10 +301,6 @@ class BaseDivert(abc.ABC):
             raise OSError(errno.EBADF, "Handle is send-only")
 
         packets = await self._recv_batch_async_impl(count, bufsize, timeout)
-        if self._jit_filter:
-            filtered = [p for p in packets if self._jit_filter(p)]
-            logger.debug("Batch captured (async): %d received, %d passed JIT", len(packets), len(filtered))
-            return filtered
         logger.debug("Batch captured (async): %d received", len(packets))
         return packets
 

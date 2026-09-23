@@ -5,10 +5,10 @@ PyDivert is a high-performance, cross-platform Python binding for capturing, mod
 ## Core Architecture
 
 - **`pydivert.Divert`**: The primary class for managing the capture handle. It acts as a cross-platform facade, routing to `WinDivert` on Windows and `EBPFDivert` on Linux. It supports synchronous (`recv`/`send`) and asynchronous (`recv_async`/`send_async`) operations.
-- **`pydivert.EBPFDivert`**: The Linux counterpart using **eBPF (CO-RE)**. It provides a compatible API with `WinDivert` for seamless cross-platform usage.
+- **`pydivert.EBPFDivert`**: The Linux counterpart: a thin ctypes shim over the bundled `libebpfdivert.so` (eBPFDivert), which implements the WinDivert API, filter language and address layout with eBPF.
 - **`pydivert.Packet`**: Represents a network packet and its associated metadata. It handles lazy parsing of protocol headers and manages complex metadata across both backends.
 - **`pydivert.windivert_dll`**: A low-level `ctypes` wrapper for the bundled WinDivert binaries (Windows only).
-- **`pydivert.bpf`**: eBPF bytecode and Python bindings for Linux packet interception.
+- **`pydivert.bpf`**: Loader and ctypes declarations for `libebpfdivert.so`.
 - **`pydivert.packet` subpackage**: Contains protocol-specific header implementations (IPv4, IPv6, TCP, UDP, ICMP) and logic for automatic checksum recalculation.
 
 ## Key Technologies
@@ -58,11 +58,12 @@ PyDivert 4.0 provides a unified interface for packet manipulation:
 
 To ensure a safe and consistent environment with the required elevated privileges, use the provided Vagrant virtual machines.
 
-- **Initialize VMs**: `vagrant up`
+- **Initialize a VM**: `vagrant up linux` or `vagrant up windows` (only one at a time)
 - **Run Linux Tests (eBPF)**:
   ```bash
   # Requires root privileges inside the VM
-  vagrant ssh linux -c "sudo /pydivert/.venv/bin/python -m pytest /pydivert/pydivert/tests"
+  vagrant up linux && vagrant provision linux --provision-with test-linux
+  vagrant destroy -f linux   # one VM at a time; destroy when done
   ```
 - **Run Windows Tests (WinDivert)**:
   ```bash
