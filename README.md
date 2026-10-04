@@ -194,7 +194,7 @@ For the original technical reference, please visit the [official WinDivert docum
 
 | Divert | Backend |
 | --- | --- |
-| 4.0.0+ | WinDivert 2.2.2 (bundled) / eBPFDivert 0.1.0 (bundled) |
+| 4.0.0+ | WinDivert 2.2.2 (bundled) / eBPFDivert 0.0.5 (bundled) |
 | 3.0.0+ | WinDivert 2.2.2 (bundled) - Full support for modern metadata and layers |
 
 ## Development

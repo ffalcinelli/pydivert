@@ -1,5 +1,5 @@
 Version 4.0.0
-    - Linux Support: New backend over the bundled eBPFDivert 0.1.0 (libebpfdivert.so), an eBPF implementation of the WinDivert API. Requires kernel 5.10+ with BTF and glibc 2.28+; cgroup v2 for the FLOW/SOCKET layers.
+    - Linux Support: New backend over the bundled eBPFDivert 0.0.5 (libebpfdivert.so), an eBPF implementation of the WinDivert API. Requires kernel 5.10+ with BTF and glibc 2.28+; cgroup v2 for the FLOW/SOCKET layers.
     - Same Filters, Same Packets: Filters are compiled and evaluated by WinDivert's own filter engine, so they match exactly the same packets on both platforms.
     - All Layers: NETWORK, NETWORK_FORWARD, FLOW, SOCKET and REFLECT, plus params, shutdown, stats and asyncio on Linux.
     - Unified API: EBPFDivert mirrors WinDivert call for call behind pydivert.Divert. Linux-only options: interfaces, ring_bytes.
