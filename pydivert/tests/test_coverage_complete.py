@@ -11,6 +11,25 @@ import pydivert.util
 import pydivert.windivert
 
 
+@pytest.fixture(autouse=True)
+def _forget_fake_handles(monkeypatch):
+    """
+    Tests here fake open handles (e.g. ``_handle = 123``) under a mocked DLL. Mark them closed afterwards, so
+    that BaseDivert.__del__ never closes a made-up handle for real: on Windows it may be asyncio's IOCP handle.
+    """
+    created = []
+    original_init = pydivert.base.BaseDivert.__init__
+
+    def tracking_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        created.append(self)
+
+    monkeypatch.setattr(pydivert.base.BaseDivert, "__init__", tracking_init)
+    yield
+    for d in created:
+        d._is_open = False
+
+
 # util.py tests
 def test_util_fromhex():
     assert pydivert.util.fromhex("aabb") == b"\xaa\xbb"
