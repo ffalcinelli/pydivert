@@ -103,6 +103,32 @@ def test_divert_fluent_filter_mock():
         assert filtered[0].dst_port == 53
 
 
+@pytest.mark.parametrize(
+    "criteria, expected",
+    [
+        ({"proto": 6}, [0]),
+        ({"proto": 17}, [1]),
+        ({"src_addr": "10.0.0.3"}, [1]),
+        ({"dst_addr": "10.0.0.2"}, [0]),
+        ({"src_port": 123}, [0]),
+        ({"dst_port": 53}, [1]),
+        ({"direction": "OUTBOUND"}, [0, 1, 2]),
+        ({"direction": "inbound"}, []),
+        ({"proto": 6, "dst_port": 53}, []),
+    ],
+)
+def test_divert_fluent_filter_criteria(criteria, expected):
+    w = Divert("false")
+    tcp = pydivert.PacketBuilder().ipv4(src="10.0.0.1", dst="10.0.0.2").tcp(src_port=123, dst_port=80).build()
+    udp = pydivert.PacketBuilder().ipv4(src="10.0.0.3", dst="10.0.0.4").udp(src_port=456, dst_port=53).build()
+    not_ip = Packet(b"\x00" * 20)  # no protocol: never matches a proto criterion
+    packets = [tcp, udp, not_ip]
+
+    with patch.object(Divert, "__iter__", side_effect=lambda: iter(packets)):
+        filtered = list(w.filter(**criteria))
+    assert filtered == [packets[i] for i in expected]
+
+
 # --- Divert closed handle errors ---
 
 

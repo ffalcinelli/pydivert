@@ -12,7 +12,8 @@ import ctypes
 import errno
 import os
 import sys
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -311,3 +312,92 @@ async def test_send_async(lib):
         p = Packet(UDP_PACKET)
         assert await h.send_async(p) == len(UDP_PACKET)
         assert await h.send_batch_async([p]) == 1
+
+
+def test_native_errors(lib):
+    lib.ebpfdivert_shutdown = lambda h, how: -errno.EINVAL
+    lib.ebpfdivert_send = lambda h, buf, length, send_len, addr: -errno.EMSGSIZE
+    with ebpf.EBPFDivert("udp") as h:
+        with pytest.raises(OSError) as e:
+            h.shutdown()
+        assert e.value.errno == errno.EINVAL
+        with pytest.raises(OSError) as e:
+            h.send(Packet(UDP_PACKET), recalculate_checksum=False)
+        assert e.value.errno == errno.EMSGSIZE
+        with pytest.raises(OSError) as e:
+            h.get_param(99)  # type: ignore
+        assert e.value.errno == errno.EINVAL
+
+
+def test_send_batch_counts_only_sent_packets(lib):
+    outcomes = iter([(-errno.EMSGSIZE, 0), (0, 0), (0, len(UDP_PACKET))])  # (return code, bytes sent)
+
+    def send(h, buf, length, send_len, addr):
+        ret, sent = next(outcomes)
+        _deref(send_len).value = sent
+        return ret
+
+    lib.ebpfdivert_send = send
+    with ebpf.EBPFDivert("udp") as h:
+        # The first send fails, the second injects nothing, the third succeeds.
+        assert h.send_batch([Packet(UDP_PACKET)] * 3, recalculate_checksum=False) == 1
+
+
+def test_batch_stops_at_count_and_close_is_idempotent(lib):
+    h = ebpf.EBPFDivert("udp").open()
+    for _ in range(3):
+        lib.push(UDP_PACKET)
+    assert len(h.recv_batch(count=2, timeout=1)) == 2
+
+    # Waiters that already completed are left alone, on readiness and on close.
+    loop = asyncio.new_event_loop()
+    try:
+        done = loop.create_future()
+        done.set_result(None)
+        h._waiters = [done]
+        h._on_readable()
+        h._waiters = [done]
+        h.close()
+    finally:
+        loop.close()
+    assert h._stats_impl() == dict.fromkeys(ebpf.STAT_NAMES, 0)
+    h._close_impl()  # no handle left: nothing to close
+    assert lib.closed == [0x1234]
+
+
+async def test_recv_async_impl_send_only(lib):
+    with ebpf.EBPFDivert("udp", flags=Flag.SEND_ONLY) as h, pytest.raises(OSError) as e:
+        await h._recv_async_impl()
+    assert e.value.errno == errno.EBADF
+
+
+@async_only_posix
+async def test_wait_readable_keeps_reader_for_other_waiters(lib):
+    with ebpf.EBPFDivert("udp") as h:
+        other = asyncio.get_running_loop().create_future()
+        h._waiters.append(other)
+        await h._wait_readable(0.01)
+        assert h._waiters == [other]
+        h._waiters.clear()
+
+
+def test_library_loader(monkeypatch):
+    import pydivert.bpf as bpf
+
+    monkeypatch.setenv("PYDIVERT_EBPFDIVERT_LIB", "/opt/old/libebpfdivert.so")
+    assert bpf._candidates()[0] == "/opt/old/libebpfdivert.so"
+
+    complete = SimpleNamespace(**{name: SimpleNamespace() for name in bpf._FUNCTIONS})
+
+    def cdll(path, use_errno):
+        if path == "/opt/old/libebpfdivert.so":
+            return SimpleNamespace()  # an older library without the handle API
+        if path.endswith("libebpfdivert.so"):
+            return complete
+        raise OSError(path)
+
+    monkeypatch.setattr(bpf.ctypes, "CDLL", cdll)
+    assert bpf._load() is complete
+
+    monkeypatch.setattr(bpf.ctypes, "CDLL", Mock(side_effect=OSError))
+    assert bpf._load() is None

@@ -313,3 +313,55 @@ def test_packet_builder_ipv6_udp():
     assert p.dst_port == 6666
     assert p.ipv6.hop_limit == 32
     assert p.payload == b"hello-udp"
+
+
+def test_packet_raw_setter_accepts_any_buffer():
+    p = pydivert.PacketBuilder().ipv4().udp(src_port=1, dst_port=2).build()
+    original = bytes(p.raw)
+    for value in (original, bytearray(original), memoryview(original)):
+        p.raw = value
+        assert bytes(p.raw) == original
+        assert p.dst_port == 2  # header caches were rebuilt
+
+
+def test_packet_interface():
+    p = pydivert.Packet(b"\x45" + b"\x00" * 19, interface=5)
+    assert p.interface == (5, 0)
+    flow = pydivert.Packet(b"", layer=pydivert.Layer.FLOW)
+    flow.interface = 3
+    assert flow.interface == (3, 0)
+    assert flow.wd_addr.u.Network.IfIdx == 0  # the union belongs to the FLOW event
+
+
+@pytest.mark.parametrize("layer", [pydivert.Layer.FLOW, pydivert.Layer.SOCKET, pydivert.Layer.REFLECT])
+def test_packet_event_layer_address(layer):
+    p = pydivert.Packet(b"", layer=layer)
+    assert p.wd_addr.Layer == layer
+
+
+def test_packet_setters_without_headers():
+    not_ip = pydivert.Packet(b"\x00" * 20)
+    not_ip.src_addr = "10.0.0.1"
+    not_ip.dst_addr = "10.0.0.2"
+    assert not_ip.src_addr is None and not_ip.dst_addr is None
+
+    icmp = pydivert.Packet(bytes.fromhex("450000200000000040010000c0a80001c0a800020800f7ff00000000"))
+    icmp.src_port = 1
+    icmp.dst_port = 2
+    assert icmp.src_port is None and icmp.dst_port is None
+    not_ip.payload = b"x"
+    assert not_ip.payload is None
+
+
+def test_packet_native_helpers_errors():
+    from unittest.mock import MagicMock, patch
+
+    p = pydivert.PacketBuilder().ipv4().udp(src_port=1, dst_port=2).build()
+    lib = MagicMock()
+    lib.ebpfdivert_helper_eval_filter.return_value = -22
+    lib.ebpfdivert_strerror.return_value = b"Invalid argument"
+    with patch("sys.platform", "linux"), patch("pydivert.bpf.libebpfdivert", lib):
+        with pytest.raises(ValueError, match="Invalid argument"):
+            p.matches("udp and )")
+    with patch("pydivert.bpf.libebpfdivert", None):
+        assert p._recalculate_checksums_native(0) is None

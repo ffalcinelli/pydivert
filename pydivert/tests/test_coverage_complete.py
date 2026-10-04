@@ -160,6 +160,34 @@ def test_base_divert_open_close():
         d.close()
 
 
+def test_base_divert_non_str_filter():
+    class Filter:
+        def __str__(self):
+            return "udp"
+
+    assert MockDivert(filter=Filter()).filter == "udp"  # type: ignore
+
+
+async def test_base_divert_closed_inside_context():
+    with MockDivert() as d:
+        d.close()
+    assert not d.is_open
+    async with MockDivert() as d:
+        d.close()
+    assert not d.is_open
+
+
+def test_base_divert_del_closes_leaked_handle():
+    d = MockDivert().open()
+    with pytest.warns(ResourceWarning, match="Unclosed MockDivert"):
+        d.__del__()
+    assert not d.is_open
+
+    d = MockDivert().open()
+    with patch.object(d, "_close_impl", side_effect=OSError("gone")), pytest.warns(ResourceWarning):
+        d.__del__()  # close errors are swallowed
+
+
 @pytest.mark.asyncio
 async def test_base_divert_async_context():
     d = MockDivert()

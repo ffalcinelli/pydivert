@@ -45,7 +45,7 @@ class Packet:
     def __init__(
         self,
         raw: bytes | bytearray | memoryview,
-        interface: tuple[int, int] | None = None,
+        interface: int | tuple[int, int] | None = None,
         direction: Direction = Direction.OUTBOUND,
         timestamp: int = 0,
         loopback: bool = False,
@@ -130,9 +130,8 @@ class Packet:
         if not isinstance(val, bytearray):
             val = bytearray(val)
         self._raw = val
-        # Clear caches since underlying buffer changed
-        if hasattr(self, "__dict__"):
-            self.__dict__.clear()
+        # Clear the cached_property headers since the underlying buffer changed
+        self.__dict__.clear()
         self._invalidate_checksums()
 
     @cached_property

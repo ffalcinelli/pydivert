@@ -49,8 +49,6 @@ class FilterString(str):
             if proto:
                 pkt_proto = packet.protocol[0]
                 if pkt_proto is not None:
-                    if hasattr(pkt_proto, "value"):
-                        pkt_proto = pkt_proto.value
                     if pkt_proto != proto:
                         continue
                 else:

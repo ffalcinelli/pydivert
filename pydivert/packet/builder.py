@@ -52,12 +52,7 @@ class PacketBuilder:
     def build(self) -> Packet:
         # Calculate sizes
         ip_len = 20 if self._ip_version == 4 else 40
-        if self._proto == "tcp":
-            proto_len = 20
-        elif self._proto == "udp":
-            proto_len = 8
-        else:
-            proto_len = 0
+        proto_len = 20 if self._proto == "tcp" else 8
 
         total_len = ip_len + proto_len + len(self._payload)
         raw = bytearray(total_len)
@@ -101,7 +96,7 @@ class PacketBuilder:
         if self._proto == "tcp":
             packet.src_port = self._src_port
             packet.dst_port = self._dst_port
-        elif self._proto == "udp":
+        else:
             packet.src_port = self._src_port
             packet.dst_port = self._dst_port
             assert packet.udp is not None
