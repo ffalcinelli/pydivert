@@ -6,6 +6,8 @@ programs and libbpf are built in. `pydivert.ebpf.EBPFDivert` is a thin ctypes sh
 `pydivert.windivert.WinDivert` call for call. As a result, filters, layers, flags, parameters and packet metadata
 behave as on Windows.
 
+> **Experimental.** eBPFDivert is still at 0.0.x: expect rough edges and please report issues.
+
 ---
 
 ## 1. Requirements
