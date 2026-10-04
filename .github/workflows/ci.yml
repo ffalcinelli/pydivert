@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, linux-ebpf ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, linux-ebpf ]
+    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
