@@ -14,10 +14,10 @@ Vagrant.configure("2") do |config|
     end
     linux.vm.provision "shell", inline: <<-SHELL
       apt-get update
-      apt-get install -y python3-pip python3-venv libbpf-dev clang llvm libelf-dev
+      apt-get install -y python3-pip python3-venv
       curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
       cd /pydivert
-      uv sync --extra test --extra linux
+      UV_PROJECT_ENVIRONMENT=/opt/pydivert-venv SKIP_FETCH_BINARIES=1 uv sync --extra test
     SHELL
 
     linux.vm.provision "test-linux", type: "shell", path: "scripts/run-tests-linux.sh", run: "never"

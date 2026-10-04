@@ -5,11 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import pydivert
-import pydivert.filter
 from pydivert import Divert, service
 from pydivert.consts import Param
-from pydivert.filter import normalize_filter, transpile_to_ebpf, transpile_to_python
-from pydivert.jit import compile_filter
 from pydivert.packet import Packet
 from pydivert.util import fromhex, internet_checksum
 
@@ -49,11 +46,11 @@ def test_check_filter():
 def test_check_filter_invalid():
     res, pos, msg = Divert.check_filter("invalid filter string")
     assert res is False
-    if sys.platform == "win32":
-        assert pos >= 0
-    else:
-        # On Linux/eBPF it typically returns -1
-        assert pos != 0
+    assert pos >= 0
+    assert msg
+    # Same compiler on both platforms: the error position is exact.
+    res, pos, msg = Divert.check_filter("tcp and (")
+    assert (res, pos) == (False, 9)
 
 
 # --- OS Edge Cases & Mocks ---
@@ -67,17 +64,6 @@ def test_windivert_unregister_fallback_mock():
             mock_run.return_value = MagicMock(returncode=0)
             Divert.unregister()
             assert mock_run.call_count >= 1
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="eBPF mocks are Linux-specific")
-def test_ebpf_load_failure_mock():
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libbpf") as mock_lib:
-        mock_lib.bpf_object__open_file.return_value = 1
-        mock_lib.bpf_object__load.return_value = -1
-        with pytest.raises(RuntimeError, match="Failed to load BPF object"):
-            EBPFDivert("false").open()
 
 
 # --- Parameters ---
@@ -98,6 +84,49 @@ def test_params_mock():
 
         mock_dll.WinDivertGetParam.side_effect = side_effect
         assert w.get_param(Param.QUEUE_LEN) == 512
+
+
+def test_divert_fluent_filter_mock():
+    w = Divert("false")
+    p1 = pydivert.PacketBuilder().ipv4(src="10.0.0.1", dst="10.0.0.2").tcp(src_port=123, dst_port=80).build()
+    p2 = pydivert.PacketBuilder().ipv4(src="10.0.0.3", dst="10.0.0.4").udp(src_port=456, dst_port=53).build()
+
+    with patch.object(Divert, "__iter__", side_effect=lambda: iter([p1, p2])):
+        # filter by protocol
+        filtered = list(w.filter(proto=6))
+        assert len(filtered) == 1
+        assert filtered[0].src_port == 123
+
+        # filter by src_port
+        filtered = list(w.filter(src_port=456))
+        assert len(filtered) == 1
+        assert filtered[0].dst_port == 53
+
+
+@pytest.mark.parametrize(
+    "criteria, expected",
+    [
+        ({"proto": 6}, [0]),
+        ({"proto": 17}, [1]),
+        ({"src_addr": "10.0.0.3"}, [1]),
+        ({"dst_addr": "10.0.0.2"}, [0]),
+        ({"src_port": 123}, [0]),
+        ({"dst_port": 53}, [1]),
+        ({"direction": "OUTBOUND"}, [0, 1, 2]),
+        ({"direction": "inbound"}, []),
+        ({"proto": 6, "dst_port": 53}, []),
+    ],
+)
+def test_divert_fluent_filter_criteria(criteria, expected):
+    w = Divert("false")
+    tcp = pydivert.PacketBuilder().ipv4(src="10.0.0.1", dst="10.0.0.2").tcp(src_port=123, dst_port=80).build()
+    udp = pydivert.PacketBuilder().ipv4(src="10.0.0.3", dst="10.0.0.4").udp(src_port=456, dst_port=53).build()
+    not_ip = Packet(b"\x00" * 20)  # no protocol: never matches a proto criterion
+    packets = [tcp, udp, not_ip]
+
+    with patch.object(Divert, "__iter__", side_effect=lambda: iter(packets)):
+        filtered = list(w.filter(**criteria))
+    assert filtered == [packets[i] for i in expected]
 
 
 # --- Divert closed handle errors ---
@@ -127,69 +156,7 @@ def test_closed_handle_errors():
 # --- filter.py Coverage ---
 
 
-def test_filter_ternary():
-    # ternary logic is parsed but simplified in eBPF transpilation
-    f = "tcp ? tcp.DstPort == 80 : udp"
-    rules = transpile_to_ebpf(f)
-    assert isinstance(rules, list)
-
-
-def test_filter_complex_logic():
-    # tcp.DstPort == 80 or udp.DstPort == 53 -> 2 rules
-    # and ip.SrcAddr == 1.2.3.4 -> should still be 2 rules
-    f = "(tcp.DstPort == 80 or udp.DstPort == 53) and ip.SrcAddr == 1.2.3.4"
-    rules = transpile_to_ebpf(f)
-    assert len(rules) >= 1
-    # Check that we at least have some rule content
-    assert any("src_ip" in r for r in rules)
-
-
-def test_filter_not():
-    f = "not tcp"
-    rules = transpile_to_ebpf(f)
-    assert isinstance(rules, list)
-
-
-def test_filter_indexing():
-    f = "ip[0] == 0x45"
-    rules = transpile_to_ebpf(f)
-    assert isinstance(rules, list)
-
-
-def test_filter_macros():
-    # Test common macros
-    macros = ["WINDIVERT_LAYER_NETWORK", "TCP", "UDP", "ICMP", "IP"]
-    for m in macros:
-        rules = transpile_to_ebpf(m)
-        assert isinstance(rules, list)
-
-
-def test_normalize_filter_extra():
-    assert "ip.SrcAddr" in normalize_filter("ip.srcaddr == 1.1.1.1")
-    assert "ipv6.SrcAddr" in normalize_filter("ipv6.src == ::1")
-    assert "AggregateField" in transpile_to_python("ip.addr == 1.1.1.1")
-
-
 # --- jit.py Coverage ---
-
-
-def test_jit_all_ops():
-    raw = bytearray(b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01")
-    raw += b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
-    p = Packet(raw)
-
-    # BinOp
-    assert compile_filter("1 + 2 * 3 / 2 - 1 == 3")(p)
-    # Compare
-    assert compile_filter("1 < 2 <= 2 > 0 >= 0 != 5 == 5")(p)
-    # UnaryOp
-    assert compile_filter("not False and -1 < 0")(p)
-    # IfExp
-    assert compile_filter("1 if True else 0")(p) == 1
-    # Call
-    assert compile_filter("len(packet.raw) == 40")(p)
-    # Error handling
-    assert compile_filter("1 ** 2")(p) is False  # Unsupported op
 
 
 # --- util.py Coverage ---
@@ -278,12 +245,8 @@ def test_divert_stats():
 
 
 def test_invalid_filter_error():
-    if sys.platform == "win32":
-        with pytest.raises(OSError):
-            pydivert.Divert("something invalid").open()
-    else:
-        # eBPF transpiler might not raise on all invalid strings if they don't produce rules
-        pass
+    with pytest.raises(OSError):
+        pydivert.Divert("something invalid").open()
 
 
 def test_double_open_error():
@@ -363,28 +326,6 @@ def test_packet_all_properties_exhaustive():
                             pass
 
 
-def test_filter_transpiler_errors():
-    from pydivert.filter import transpile_to_rules
-
-    # Test invalid syntax
-    with pytest.raises(pydivert.filter.FilterSyntaxError):
-        transpile_to_rules("!!!")
-
-    # Test edge case field names
-    assert transpile_to_rules("UnknownField == 1")
-    assert transpile_to_rules("tcp.Unknown == 1")
-
-
-def test_jit_edge_cases():
-    p = Packet(fromhex("4500001c00004000401100007f0000017f000001" + "1234123400080000"))
-    # Test non-bool results are cast to bool by compile_filter
-    assert compile_filter("1 + 1")(p) is True
-    # Test exceptions in JIT
-    assert compile_filter("packet.unknown_attr")(p) is False
-    # Test attribute access on None
-    assert compile_filter("packet.tcp.src_port")(p) is False  # UDP packet
-
-
 # --- WinDivert / EBPF Mock Edge Cases ---
 
 
@@ -397,26 +338,10 @@ def test_windivert_open_failure_mock():
             pydivert.Divert().open()
 
 
-def test_ebpf_attach_failure_mock():
-    if sys.platform == "win32":
-        pytest.skip("Linux only")
-    from pydivert.ebpf import EBPFDivert
-
-    with patch("pydivert.ebpf.libbpf") as mock_lib:
-        mock_lib.bpf_object__open_file.return_value = 1
-        mock_lib.bpf_object__load.return_value = 0
-        mock_lib.bpf_program__name.return_value = b"test"
-        mock_lib.bpf_tc_attach.return_value = -1
-        with pytest.raises(RuntimeError, match="Failed to attach"):
-            EBPFDivert("false").open()
-
-
 # --- WinDivert Params exhaustive ---
 
 
 def test_windivert_params_all():
-    if sys.platform != "win32":
-        pytest.skip("Windows only")
     from pydivert.consts import Param
 
     try:
@@ -494,45 +419,6 @@ def test_unregister_sc_failure_mock():
 
 
 # --- eBPF transpile exhaustive ---
-
-
-def test_transpile_ebpf_exhaustive():
-    from pydivert.filter import transpile_to_ebpf
-
-    filters = [
-        "tcp.Syn",
-        "tcp.Ack",
-        "tcp.Fin",
-        "tcp.Rst",
-        "tcp.Psh",
-        "tcp.Urg",
-        "inbound",
-        "outbound",
-        "loopback",
-        "ip",
-        "udp",
-        "icmp",
-        "ip.SrcAddr == 1.1.1.1",
-        "ipv6.SrcAddr == ::1",
-        "tcp.SrcPort == 80",
-        "udp.DstPort == 53",
-        "ip.TTL == 64",
-        "not tcp",
-        "WINDIVERT_LAYER_NETWORK",
-        "tcp.Port == 80",
-        "ip.Addr == 127.0.0.1",
-    ]
-    for f in filters:
-        res = transpile_to_ebpf(f, sniff=True, drop=True)
-        assert isinstance(res, list)
-
-
-def test_transpile_python_extra():
-    from pydivert.filter import transpile_to_python
-
-    assert "packet.src_addr" in transpile_to_python("ip.Addr == 1.1.1.1")
-    assert "packet.src_port" in transpile_to_python("tcp.Port == 80")
-    assert "True" == transpile_to_python("!!!")  # fallback
 
 
 # --- BaseDivert Extra ---

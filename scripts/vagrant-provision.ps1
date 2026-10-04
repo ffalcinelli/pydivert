@@ -2,9 +2,23 @@
 # This script installs uv and synchronizes dependencies for PyDivert testing on Windows.
 
 Write-Host "Installing uv..."
-Invoke-WebRequest -Uri https://astral.sh/uv/install.ps1 -OutFile install-uv.ps1
-powershell -ExecutionPolicy ByPass -File install-uv.ps1
-Remove-Item install-uv.ps1
+# The guest resolves names through the host; retry transient network failures.
+$installer = Join-Path $env:TEMP "install-uv.ps1"
+for ($i = 1; $i -le 10; $i++) {
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri https://astral.sh/uv/install.ps1 -OutFile $installer -TimeoutSec 60
+        break
+    } catch {
+        Write-Warning "Downloading the uv installer failed (attempt $i): $($_.Exception.Message)"
+        Start-Sleep -Seconds 5
+    }
+}
+if (!(Test-Path $installer)) {
+    Write-Error "Could not download the uv installer"
+    exit 1
+}
+powershell -ExecutionPolicy ByPass -File $installer
+Remove-Item $installer
 
 # Find where uv was installed
 $uvPath = ""

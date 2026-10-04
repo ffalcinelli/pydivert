@@ -41,7 +41,7 @@ objects.json
 pydivert/windivert_dll/WinDivert64.dll
 pydivert/windivert_dll/WinDivert64.sys
 pydivert/windivert_dll/.version
-pydivert/bpf/ebpfdivert.bpf.o
+pydivert/bpf/libebpfdivert.so
 pydivert/bpf/.version
 
 # Snyk / SBOM
@@ -58,6 +58,7 @@ gha-creds-*.json
 .antigravitycli/
 debug_windivert.py
 test_from_linux
-*.so
 *.pcap
+*.so
+*.o
 ebpfdivert/

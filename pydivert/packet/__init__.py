@@ -45,7 +45,7 @@ class Packet:
     def __init__(
         self,
         raw: bytes | bytearray | memoryview,
-        interface: tuple[int, int] | None = None,
+        interface: int | tuple[int, int] | None = None,
         direction: Direction = Direction.OUTBOUND,
         timestamp: int = 0,
         loopback: bool = False,
@@ -63,8 +63,8 @@ class Packet:
     ) -> None:
         # Ensure we have a writable bytearray
         if isinstance(raw, memoryview):
-            raw = raw.tobytes()
-        if not isinstance(raw, bytearray):
+            raw = bytearray(raw)
+        elif not isinstance(raw, bytearray):
             raw = bytearray(raw)
         self._raw = raw
 
@@ -130,9 +130,8 @@ class Packet:
         if not isinstance(val, bytearray):
             val = bytearray(val)
         self._raw = val
-        # Clear caches since underlying buffer changed
-        if hasattr(self, "__dict__"):
-            self.__dict__.clear()
+        # Clear the cached_property headers since the underlying buffer changed
+        self.__dict__.clear()
         self._invalidate_checksums()
 
     @cached_property
@@ -585,29 +584,32 @@ class Packet:
 
     def matches(self, filter_str: str) -> bool:
         """
-        Returns True if the packet matches the given filter string.
-        (Only supported on Windows)
+        Returns True if the packet matches the given WinDivert filter string.
         """
-        import sys  # pragma: no cover
+        import sys
 
-        if sys.platform != "win32":  # pragma: no cover
-            raise NotImplementedError("matches() is only supported on Windows.")
-        self._populate_wd_addr()  # pragma: no cover
-        from pydivert.windivert_dll import WinDivertHelperEvalFilter  # pragma: no cover
+        self._populate_wd_addr()
+        buff = (ctypes.c_char * len(self._raw)).from_buffer(self._raw)
+        addr = self._wd_addr
+        if sys.platform == "win32":
+            from pydivert.windivert_dll import WinDivertHelperEvalFilter  # pragma: no cover
 
-        # Ensure we have a valid buffer and address
-        buff = (ctypes.c_char * len(self._raw)).from_buffer(self._raw)  # pragma: no cover
-        addr = self._wd_addr  # pragma: no cover
-        # Ensure null-termination and correct encoding
-        f_bytes = filter_str.encode("ascii") + b"\0"  # pragma: no cover
-        return bool(  # pragma: no cover
-            WinDivertHelperEvalFilter(
-                f_bytes,
-                ctypes.cast(buff, ctypes.c_void_p),
-                len(self._raw),
-                ctypes.byref(addr),
+            return bool(  # pragma: no cover
+                WinDivertHelperEvalFilter(
+                    filter_str.encode("ascii") + b"\0",
+                    ctypes.cast(buff, ctypes.c_void_p),
+                    len(self._raw),
+                    ctypes.byref(addr),
+                )
             )
-        )
+        from pydivert.bpf import libebpfdivert, strerror
+
+        if libebpfdivert is None:
+            raise NotImplementedError("matches() needs libebpfdivert on Linux.")
+        ret = libebpfdivert.ebpfdivert_helper_eval_filter(filter_str.encode("ascii"), buff, len(self._raw), addr)
+        if ret < 0:
+            raise ValueError(f"Cannot evaluate filter {filter_str!r}: {strerror(ret)}")
+        return ret == 1
 
     def _populate_wd_addr(self) -> None:
         address = self._wd_addr
@@ -618,6 +620,7 @@ class Packet:
         address.Loopback = 1 if self._loopback else 0
         address.Impostor = 1 if self._impostor else 0
         address.Sniffed = 1 if self._sniffed else 0
+        address.IPv6 = 1 if len(self._raw) > 0 and (self._raw[0] >> 4) == 6 else 0
 
         if self._layer in (Layer.NETWORK, Layer.NETWORK_FORWARD):
             address.u.Network.IfIdx, address.u.Network.SubIfIdx = self._interface
@@ -636,11 +639,29 @@ class Packet:
     def wd_addr(self) -> WinDivertAddress:
         return self._wd_addr
 
+    def _recalculate_checksums_native(self, flags: int) -> int | None:
+        """Linux: libebpfdivert's copy of WinDivertHelperCalcChecksums (None if unavailable)."""
+        from pydivert.bpf import libebpfdivert
+
+        if libebpfdivert is None:
+            return None
+        buff = (ctypes.c_char * len(self._raw)).from_buffer(self._raw)
+        ok = libebpfdivert.ebpfdivert_helper_calc_checksums(buff, len(self._raw), None, flags) == 0
+        if ok:
+            self._ip_checksum = self._tcp_checksum = self._udp_checksum = self._icmp_checksum = True
+            addr = self._wd_addr
+            addr.IPChecksum = addr.TCPChecksum = addr.UDPChecksum = 1
+        return int(ok)
+
     def recalculate_checksums(self, flags: int = 0) -> int:
         import os
 
         if os.name != "nt":  # pragma: no cover:
-            # Recalculate all present checksums
+            native = self._recalculate_checksums_native(flags)
+            if native is not None:
+                return native
+
+            # Pure-Python fallback: recalculate all present checksums
             count = 0
             from pydivert.util import internet_checksum
 

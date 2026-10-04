@@ -5,7 +5,6 @@ from hypothesis import example, given
 from hypothesis import strategies as st
 
 import pydivert
-import pydivert.jit
 from pydivert import util
 from pydivert.consts import Direction
 
@@ -115,20 +114,6 @@ def test_checksum_recalculation():
     assert not p.is_checksum_valid
     p.recalculate_checksums()
     assert p.is_checksum_valid
-
-
-# --- JIT ---
-
-
-def test_jit_evaluation():
-    raw = (
-        b"\x45\x00\x00\x28\x00\x00\x40\x00\x40\x06\x00\x00\x7f\x00\x00\x01\x7f\x00\x00\x01"
-        + b"\x00\x50\x1f\x90\x00\x00\x00\x00\x00\x00\x00\x00\x50\x02\x20\x00\x91\x7c\x00\x00"
-    )
-    packet = pydivert.Packet(raw)
-    assert pydivert.jit.compile_filter("True")(packet) is True
-    assert pydivert.jit.compile_filter("packet.tcp.src_port == 80")(packet) is True
-    assert pydivert.jit.compile_filter("1 + 2 == 3")(packet) is True
 
 
 # --- IPv4 Fields ---
@@ -286,3 +271,97 @@ def test_header_raw_modification():
     proto.payload = bytearray([2] * 10)
     assert len(proto.payload) == 10
     assert proto.payload[0] == 2
+
+
+def test_packet_builder_ipv4_tcp():
+    p = (
+        pydivert.PacketBuilder()
+        .ipv4(src="10.0.0.1", dst="10.0.0.2", ttl=128)
+        .tcp(src_port=12345, dst_port=80)
+        .payload(b"hello-world")
+        .build()
+    )
+
+    assert p.ipv4 is not None
+    assert p.tcp is not None
+    assert p.src_addr == "10.0.0.1"
+    assert p.dst_addr == "10.0.0.2"
+    assert p.src_port == 12345
+    assert p.dst_port == 80
+    assert p.ipv4.ttl == 128
+    assert p.payload == b"hello-world"
+
+
+def test_packet_builder_ipv6_udp():
+    p = (
+        pydivert.PacketBuilder()
+        .ipv6(src="2001:db8::1", dst="2001:db8::2", hop_limit=32)
+        .udp(src_port=5555, dst_port=6666)
+        .payload(b"hello-udp")
+        .build()
+    )
+
+    assert p.ipv6 is not None
+    assert p.udp is not None
+    import ipaddress
+
+    assert p.src_addr is not None
+    assert p.dst_addr is not None
+    assert ipaddress.ip_address(p.src_addr) == ipaddress.ip_address("2001:db8::1")
+    assert ipaddress.ip_address(p.dst_addr) == ipaddress.ip_address("2001:db8::2")
+    assert p.src_port == 5555
+    assert p.dst_port == 6666
+    assert p.ipv6.hop_limit == 32
+    assert p.payload == b"hello-udp"
+
+
+def test_packet_raw_setter_accepts_any_buffer():
+    p = pydivert.PacketBuilder().ipv4().udp(src_port=1, dst_port=2).build()
+    original = bytes(p.raw)
+    for value in (original, bytearray(original), memoryview(original)):
+        p.raw = value
+        assert bytes(p.raw) == original
+        assert p.dst_port == 2  # header caches were rebuilt
+
+
+def test_packet_interface():
+    p = pydivert.Packet(b"\x45" + b"\x00" * 19, interface=5)
+    assert p.interface == (5, 0)
+    flow = pydivert.Packet(b"", layer=pydivert.Layer.FLOW)
+    flow.interface = 3
+    assert flow.interface == (3, 0)
+    assert flow.wd_addr.u.Network.IfIdx == 0  # the union belongs to the FLOW event
+
+
+@pytest.mark.parametrize("layer", [pydivert.Layer.FLOW, pydivert.Layer.SOCKET, pydivert.Layer.REFLECT])
+def test_packet_event_layer_address(layer):
+    p = pydivert.Packet(b"", layer=layer)
+    assert p.wd_addr.Layer == layer
+
+
+def test_packet_setters_without_headers():
+    not_ip = pydivert.Packet(b"\x00" * 20)
+    not_ip.src_addr = "10.0.0.1"
+    not_ip.dst_addr = "10.0.0.2"
+    assert not_ip.src_addr is None and not_ip.dst_addr is None
+
+    icmp = pydivert.Packet(bytes.fromhex("450000200000000040010000c0a80001c0a800020800f7ff00000000"))
+    icmp.src_port = 1
+    icmp.dst_port = 2
+    assert icmp.src_port is None and icmp.dst_port is None
+    not_ip.payload = b"x"
+    assert not_ip.payload is None
+
+
+def test_packet_native_helpers_errors():
+    from unittest.mock import MagicMock, patch
+
+    p = pydivert.PacketBuilder().ipv4().udp(src_port=1, dst_port=2).build()
+    lib = MagicMock()
+    lib.ebpfdivert_helper_eval_filter.return_value = -22
+    lib.ebpfdivert_strerror.return_value = b"Invalid argument"
+    with patch("sys.platform", "linux"), patch("pydivert.bpf.libebpfdivert", lib):
+        with pytest.raises(ValueError, match="Invalid argument"):
+            p.matches("udp and )")
+    with patch("pydivert.bpf.libebpfdivert", None):
+        assert p._recalculate_checksums_native(0) is None

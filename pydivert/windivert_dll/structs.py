@@ -42,7 +42,8 @@ class Overlapped(ctypes.Structure):
 
 class WinDivertAddress(ctypes.Structure):
     """
-    Ctypes Structure for WINDIVERT_ADDRESS (WinDivert 2.2).
+    Ctypes Structure for WINDIVERT_ADDRESS (WinDivert 2.2), also used for the
+    identical ``struct ebpfdivert_address`` of the Linux backend.
     """
 
     class _Union(ctypes.Union):
@@ -80,8 +81,9 @@ class WinDivertAddress(ctypes.Structure):
             _fields_ = [
                 ("Timestamp", ctypes.c_int64),
                 ("ProcessId", ctypes.c_uint32),
-                ("Layer", ctypes.c_uint32, 8),
-                ("Reserved2", ctypes.c_uint32, 24),
+                ("Layer", ctypes.c_uint32),
+                ("Flags", ctypes.c_uint64),
+                ("Priority", ctypes.c_int16),
             ]
 
         _fields_ = [
@@ -101,11 +103,18 @@ class WinDivertAddress(ctypes.Structure):
         ("Outbound", ctypes.c_uint32, 1),
         ("Loopback", ctypes.c_uint32, 1),
         ("Impostor", ctypes.c_uint32, 1),
-        ("IPv4", ctypes.c_uint32, 1),
         ("IPv6", ctypes.c_uint32, 1),
         ("IPChecksum", ctypes.c_uint32, 1),
         ("TCPChecksum", ctypes.c_uint32, 1),
         ("UDPChecksum", ctypes.c_uint32, 1),
-        ("Reserved1", ctypes.c_uint32, 7),
+        ("Reserved1", ctypes.c_uint32, 8),
+        ("Reserved2", ctypes.c_uint32),
         ("u", _Union),
     ]
+
+
+# The layout must match WINDIVERT_ADDRESS byte for byte: it is shared with the
+# Linux backend (struct ebpfdivert_address) and passed to native code.
+assert ctypes.sizeof(WinDivertAddress) == 80
+assert WinDivertAddress.u.offset == 16
+assert WinDivertAddress._Union._Reflect.Priority.offset == 24
