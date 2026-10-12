@@ -245,6 +245,17 @@ def test_ipv6_fragments():
         assert not later.matches("tcp")
 
 
+def test_ipv6_truncated_fragment_header():
+    hdr = bytearray(ipv6_hdr)
+    hdr[4:6] = (4).to_bytes(2, "big")
+    hdr[6] = 44  # Fragment header, but only 4 of its 8 bytes follow
+    truncated = p(bytes(hdr) + bytes([socket.IPPROTO_TCP, 0, 0, 0]))
+    assert truncated.protocol == (44, 40)
+    assert truncated.tcp is None
+    if _filter_eval_available():
+        assert truncated.matches("ipv6 and not tcp")
+
+
 # --- TCP Fields ---
 
 
