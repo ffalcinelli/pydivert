@@ -1,4 +1,5 @@
 import socket
+import sys
 
 import pytest
 from hypothesis import example, given
@@ -175,6 +176,73 @@ def test_ipv4_fragmentation_flags():
     assert ip.rf
     assert ip.df
     assert not ip.mf
+
+
+def _filter_eval_available():
+    if sys.platform == "win32":
+        return True
+    from pydivert.bpf import libebpfdivert
+
+    return libebpfdivert is not None
+
+
+def test_ipv4_first_fragment_has_transport_header():
+    p = create_base_ipv4_tcp()
+    p.ipv4.mf = True
+    assert p.tcp is not None
+    assert p.src_port == 80
+    if _filter_eval_available():
+        assert p.matches("tcp")
+
+
+def test_ipv4_later_fragment_has_no_transport_header():
+    p = create_base_ipv4_tcp()
+    p.ipv4.frag_offset = 2
+    assert p.protocol == (socket.IPPROTO_TCP, 20)
+    assert p.tcp is None
+    assert p.src_port is None
+    assert p.payload is None
+    if _filter_eval_available():
+        assert not p.matches("tcp")
+        assert p.matches("fragment and ip.Protocol == 6")
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_ipv4_later_fragment_checksum_keeps_payload(native, monkeypatch):
+    if not native:
+        if sys.platform == "win32":
+            pytest.skip("the pure-Python checksum fallback is Linux-only")
+        monkeypatch.setattr("pydivert.bpf.libebpfdivert", None)
+    p = create_base_ipv4_tcp()
+    p.ipv4.frag_offset = 2
+    data = bytes(p.raw[20:])
+    p.recalculate_checksums()
+    assert bytes(p.raw[20:]) == data
+    assert p.ipv4.cksum != 0
+
+
+def _ipv6_tcp_fragment(frag_offset_units):
+    tcp = util.fromhex("00501f90000000000000000050022000917c0000")
+    frag = bytes([socket.IPPROTO_TCP, 0]) + (frag_offset_units << 3).to_bytes(2, "big") + b"\x00\x00\x00\x01"
+    hdr = bytearray(ipv6_hdr)
+    hdr[4:6] = (len(frag) + len(tcp)).to_bytes(2, "big")
+    hdr[6] = 44  # Fragment header
+    return p(bytes(hdr) + frag + tcp)
+
+
+def test_ipv6_fragments():
+    first = _ipv6_tcp_fragment(0)
+    assert first.protocol == (socket.IPPROTO_TCP, 48)
+    assert first.tcp is not None
+    assert first.dst_port == 8080
+
+    later = _ipv6_tcp_fragment(2)
+    assert later.protocol == (socket.IPPROTO_TCP, 48)
+    assert later.tcp is None
+    assert later.dst_port is None
+    if _filter_eval_available():
+        assert first.matches("tcp")
+        assert not later.matches("tcp")
 
 
 # --- TCP Fields ---
