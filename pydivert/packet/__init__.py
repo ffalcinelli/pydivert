@@ -166,8 +166,13 @@ class Packet:
 
     @cached_property
     def protocol(self) -> tuple[int | None, int | None]:
+        return self._parse_ip[:2]
+
+    @cached_property
+    def _parse_ip(self) -> tuple[int | None, int | None, bool]:
+        """(protocol, transport offset, True if this is a non-first IP fragment)."""
         if self.ipv4:
-            return self.ipv4.protocol, self.ipv4.header_len
+            return self.ipv4.protocol, self.ipv4.header_len, self.ipv4.frag_offset != 0
         if self.ipv6:
             proto = self.ipv6.next_hdr
             offset = 40
@@ -178,48 +183,54 @@ class Packet:
                     break
                 next_proto = self._raw[offset]
                 if proto == 44:  # Fragment Header is fixed 8 bytes
-                    hdr_len = 8  # pragma: no cover
-                elif proto == 51:  # AH Header length is in 4-byte units, -2
+                    if len(self._raw) < offset + 8:
+                        break
+                    proto = next_proto
+                    offset += 8
+                    # Like WinDivert, stop at a non-first fragment: what follows is payload, not headers.
+                    if struct.unpack_from("!H", self._raw, offset - 6)[0] & 0xFFF8:
+                        return proto, offset, True
+                    continue
+                if proto == 51:  # AH Header length is in 4-byte units, -2
                     hdr_len = (self._raw[offset + 1] + 2) * 4  # pragma: no cover
                 else:  # Others use 8-byte units
                     hdr_len = (self._raw[offset + 1] + 1) * 8
 
                 proto = next_proto
                 offset += hdr_len
-            return proto, offset
-        return None, None
+            return proto, offset, False
+        return None, None, False
+
+    def _transport_start(self, proto: int) -> int | None:
+        """Offset of the `proto` header, or None if absent. Non-first fragments carry none, as in WinDivert."""
+        ip_proto, start, later_fragment = self._parse_ip
+        if ip_proto == proto and start is not None and not later_fragment:
+            return start
+        return None
 
     @cached_property
     def tcp(self) -> TCPHeader | None:
         """The TCP header (if present)."""
-        proto, start = self.protocol
-        if proto == Protocol.TCP and start is not None:
-            return TCPHeader(self, start)
-        return None
+        start = self._transport_start(Protocol.TCP)
+        return TCPHeader(self, start) if start is not None else None
 
     @cached_property
     def udp(self) -> UDPHeader | None:
         """The UDP header (if present)."""
-        proto, start = self.protocol
-        if proto == Protocol.UDP and start is not None:
-            return UDPHeader(self, start)
-        return None
+        start = self._transport_start(Protocol.UDP)
+        return UDPHeader(self, start) if start is not None else None
 
     @cached_property
     def icmpv4(self) -> ICMPv4Header | None:
         """The ICMPv4 header (if present)."""
-        proto, start = self.protocol
-        if proto == Protocol.ICMP and start is not None:
-            return ICMPv4Header(self, start)
-        return None
+        start = self._transport_start(Protocol.ICMP)
+        return ICMPv4Header(self, start) if start is not None else None
 
     @cached_property
     def icmpv6(self) -> ICMPv6Header | None:
         """The ICMPv6 header (if present)."""
-        proto, start = self.protocol
-        if proto == Protocol.ICMPV6 and start is not None:
-            return ICMPv6Header(self, start)
-        return None
+        start = self._transport_start(Protocol.ICMPV6)
+        return ICMPv6Header(self, start) if start is not None else None
 
     @cached_property
     def icmp(self) -> ICMPHeader | None:
