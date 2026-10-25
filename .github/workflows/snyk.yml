@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -38,11 +40,21 @@ jobs:
           uv sync --all-extras --all-groups
           uv pip install pip
 
+      - name: Skip Snyk scan if unauthenticated
+        if: env.SNYK_TOKEN == ''
+        run: echo "::notice::SNYK_TOKEN is not set (e.g. pull request from Dependabot or fork). Skipping Snyk scan."
+
       - name: Set up Snyk
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04 # v1.0.0
 
       - name: Snyk Security Scan (CI Gate)
+        if: env.SNYK_TOKEN != ''
         run: |
+          if [ -z "$SNYK_TOKEN" ]; then
+            echo "SNYK_TOKEN is not set. Skipping Snyk scan."
+            exit 0
+          fi
           snyk test --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true --json -- --allow-missing > snyk_results.json || true
           python3 -c "
           import json, os, sys
@@ -86,11 +98,7 @@ jobs:
               print(f'Error processing Snyk results: {e}')
               sys.exit(1)
           "
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Snyk Monitor
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.SNYK_TOKEN != ''
         run: snyk monitor --file=requirements.txt --package-manager=pip --command=.venv/bin/python --skip-unresolved=true -- --allow-missing
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
