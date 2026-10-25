@@ -36,7 +36,7 @@ from .packet.builder import PacketBuilder
 from .windivert import WinDivert
 
 __author__ = "fabio"
-__version__ = "4.0.0"
+__version__ = "4.0.1"
 
 __all__ = [
     "Divert",
