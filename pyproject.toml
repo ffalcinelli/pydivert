@@ -143,5 +143,5 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
-    "pre-commit",
+    "pre-commit; python_version >= '3.11'",
 ]
