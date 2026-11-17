@@ -35,7 +35,6 @@ logs/
 site/
 docs/api/
 objects.json
-.vagrant/
 .cache/
 *~
 pydivert/windivert_dll/WinDivert64.dll
