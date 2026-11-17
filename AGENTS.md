@@ -17,14 +17,16 @@ uv run --extra docs python docs/build.py                   # pdoc site (README +
 uv run pre-commit run --all-files                          # ruff, ruff-format, ty, whitespace hooks
 ```
 
-Tests touch the real network stack and need root on Linux or Administrator on Windows. Run them in the Vagrant
-VMs, one VM at a time:
+Tests touch the real network stack and need root on Linux or Administrator on Windows. Run them via Docker
+(Linux, host kernel) or the QEMU/KVM VMs (`scripts/vm.py`), one VM at a time:
 
 ```bash
-python scripts/run_tests.py --linux --up                   # or --windows; with neither it runs both
+./scripts/test-docker.sh                                   # fast Linux privileged run in Docker
+python scripts/run_tests.py --linux --docker               # run Linux suite in Docker and update coverage
+python scripts/run_tests.py --linux                        # or --windows; with neither it runs both VMs
                                                            # and merges coverage into htmlcov/
-vagrant up linux && vagrant provision linux --provision-with test-linux; vagrant destroy -f linux
-vagrant up windows && vagrant provision windows --provision-with test-windows
+python3 scripts/vm.py run linux                            # isolated Ubuntu 24.04 QEMU/KVM VM
+python3 scripts/vm.py run windows                          # Windows 11 QEMU/KVM VM
 ```
 
 Run a single test on a Linux machine as root:

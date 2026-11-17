@@ -1,28 +1,34 @@
 #!/bin/bash
 
-# This script executes tests with coverage on both Linux and Windows Vagrant VMs,
+# This script executes tests with coverage on both Linux and Windows test runners,
 # collects the coverage reports, merges them, and produces an aggregated report on the host.
 
-# Ensure we have the coverage tool installed on the host
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_DIR"
+
 if ! uv run --extra test python -m coverage --version >/dev/null 2>&1; then
     echo "--- Installing coverage tool on host ---"
     uv sync --extra test
 fi
 
-echo "--- Starting Linux tests on Vagrant VM ---"
-if ! vagrant ssh linux -c "sudo bash /pydivert/scripts/run-tests-linux.sh"; then
-    echo "Warning: Linux tests encountered errors, but attempting to proceed with aggregation."
+echo "--- Starting Linux tests ---"
+if [ "${USE_DOCKER:-0}" = "1" ]; then
+    if ! ./scripts/test-docker.sh; then
+        echo "Warning: Linux tests encountered errors, but attempting to proceed with aggregation."
+    fi
+else
+    if ! python3 scripts/vm.py run linux; then
+        echo "Warning: Linux tests encountered errors, but attempting to proceed with aggregation."
+    fi
 fi
 
-echo "--- Starting Windows tests on Vagrant VM ---"
-if ! vagrant winrm windows -c "powershell -ExecutionPolicy Bypass -File C:\pydivert\scripts\run-tests-windows.ps1"; then
-    echo "Warning: Windows tests encountered errors (possibly due to WinRM/PowerShell stderr handling), but attempting to proceed with aggregation."
+echo "--- Starting Windows tests ---"
+if ! python3 scripts/vm.py run windows; then
+    echo "Warning: Windows tests encountered errors, but attempting to proceed with aggregation."
 fi
 
 echo "--- Aggregating coverage reports ---"
-# Check if we have any coverage files to combine
 if [ -f .coverage.linux ] || [ -f .coverage.windows ]; then
-    # Combine the coverage files. 'uv run python -m coverage combine' will look for .coverage.* files by default.
     uv run --extra test python -m coverage combine
 
     echo "--- Generating Terminal Report ---"
