@@ -226,7 +226,15 @@ python3 scripts/vm.py run linux
 ```
 
 #### Windows (WinDivert)
-To run tests on a Windows 11 QEMU/KVM VM (create the base image once with `python3 scripts/vm.py init-windows --iso /path/to/win11.iso`):
+To run tests on a Windows 11 QEMU/KVM VM, first build the base image once from a Windows 11 ISO (an unattended
+install of about 30 minutes; pass the ISO's language, e.g. `--lang it-IT`, if it is not `en-US`). The image is kept in
+`~/.cache/divert-vm/images` and shared with jdivert and avulse:
+
+```bash
+python3 scripts/vm.py init-windows --iso /path/to/win11.iso
+```
+
+Then:
 
 ```bash
 python3 scripts/vm.py run windows

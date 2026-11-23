@@ -11,7 +11,7 @@ if (!(Test-Path $DestDir)) {
     New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
 }
 
-robocopy $SourceDir $DestDir /MIR /XD .venv .git .vagrant .idea .antigravitycli .venv.old /XF *.json /R:1 /W:1 /NFL /NDL /NJH /NJS
+robocopy $SourceDir $DestDir /MIR /XD .venv .git .idea .antigravitycli .venv.old /XF *.json /R:1 /W:1 /NFL /NDL /NJH /NJS
 
 if ($LASTEXITCODE -ge 8) {
     Write-Error "Robocopy failed with exit code $LASTEXITCODE"
