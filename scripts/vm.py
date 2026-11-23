@@ -430,23 +430,27 @@ for ($i = 1; $i -le 60; $i++) {{
     catch {{ Start-Sleep 5 }}
 }}
 
-$cap = Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*' | Select-Object -First 1
-if ($cap -and $cap.State -ne 'Installed') {{
-    try {{ Add-WindowsCapability -Online -Name $cap.Name -ErrorAction Stop | Out-Null }}
-    catch {{ Write-Warning "Add-WindowsCapability failed: $($_.Exception.Message)" }}
+# The Win32-OpenSSH MSI is quick and works on every build; the OpenSSH.Server capability comes from Windows
+# Update and can hang for a long time on a fresh install, so it is only the fallback.
+Write-Host 'Installing Win32-OpenSSH from GitHub'
+for ($i = 1; $i -le 10; $i++) {{
+    try {{
+        $rel = Invoke-RestMethod -UseBasicParsing https://api.github.com/repos/PowerShell/Win32-OpenSSH/releases/latest
+        $asset = $rel.assets | Where-Object name -like 'OpenSSH-Win64-v*.msi' | Select-Object -First 1
+        Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile C:\\openssh.msi
+        break
+    }} catch {{ Write-Warning "Download failed (attempt $i): $($_.Exception.Message)"; Start-Sleep 10 }}
 }}
-if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {{
-    Write-Host 'Installing Win32-OpenSSH from GitHub'
-    for ($i = 1; $i -le 10; $i++) {{
-        try {{
-            $rel = Invoke-RestMethod -UseBasicParsing https://api.github.com/repos/PowerShell/Win32-OpenSSH/releases/latest
-            $asset = $rel.assets | Where-Object name -like 'OpenSSH-Win64-v*.msi' | Select-Object -First 1
-            Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile C:\\openssh.msi
-            break
-        }} catch {{ Write-Warning "Download failed (attempt $i): $($_.Exception.Message)"; Start-Sleep 10 }}
-    }}
+if (Test-Path C:\\openssh.msi) {{
     Start-Process msiexec.exe -Wait -ArgumentList '/i C:\\openssh.msi /qn'
     Remove-Item C:\\openssh.msi -ErrorAction SilentlyContinue
+}}
+if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) {{
+    Write-Host 'Falling back to the OpenSSH.Server capability (at most 30 minutes)'
+    $job = Start-Job {{
+        Get-WindowsCapability -Online | Where-Object Name -like 'OpenSSH.Server*' | Add-WindowsCapability -Online
+    }}
+    Wait-Job $job -Timeout 1800 | Out-Null
 }}
 Set-Service -Name sshd -StartupType Automatic
 Start-Service sshd
@@ -456,6 +460,12 @@ $keys = 'C:\\ProgramData\\ssh\\administrators_authorized_keys'
 Set-Content -Path $keys -Value '{pubkey}' -Encoding Ascii
 icacls $keys /inheritance:r /grant '*S-1-5-32-544:F' /grant 'SYSTEM:F'
 Stop-Transcript
+# Report the result on COM1: init-windows only keeps the image when sshd is running.
+$sshd = Get-Service sshd -ErrorAction SilentlyContinue
+$com = New-Object System.IO.Ports.SerialPort COM1, 115200
+$com.Open()
+$com.WriteLine("divert-setup: sshd=$(if ($sshd) {{ $sshd.Status }} else {{ 'missing' }})")
+$com.Close()
 shutdown /s /t 10 /f
 """
 
@@ -484,8 +494,13 @@ def run_installer(cmd: list[str], rdir: Path, monitor: Path, timeout_h: float) -
         if proc.poll() is None:
             proc.kill()
             proc.wait()
-    if proc.returncode != 0:
-        sys.exit(f"QEMU exited with {proc.returncode} during the Windows installation.")
+    # QEMU also exits with 0 when killed by a signal: only the setup script's report counts as success.
+    report = (rdir / "serial.log").read_text(errors="replace") if (rdir / "serial.log").exists() else ""
+    if "divert-setup: sshd=Running" not in report:
+        sys.exit(
+            f"The Windows installation did not finish (QEMU exit code {proc.returncode}, "
+            f"setup report: {report.strip()!r}); see {shot} and C:\\divert-setup.log in the image."
+        )
 
 
 def cmd_init_windows(iso_path: Path, lang: str, timeout_h: float) -> None:
@@ -537,6 +552,8 @@ def cmd_init_windows(iso_path: Path, lang: str, timeout_h: float) -> None:
         "e1000e,netdev=net0",
         "-monitor",
         f"unix:{monitor},server,nowait",
+        "-serial",
+        f"file:{rdir / 'serial.log'}",
     ]
     add_kvm_flags(cmd, windows=True)
     print(f"Installing Windows into {part} (progress screenshots in {rdir / 'screen.png'}) ...")
