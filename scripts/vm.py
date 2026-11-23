@@ -763,7 +763,7 @@ def cmd_run(target: str, extra: list[str]) -> int:
                 "if [ -f /tmp/work/.coverage.linux ]; then cp /tmp/work/.coverage.linux /workspace/; fi; "
                 "exit $rc"
             )
-            return cmd_exec(target, f"bash -lc {shlex.quote(script)}")
+            return cmd_exec(target, f"bash -c {shlex.quote(script)}")
         sync_to_windows(port)
         ps = "powershell -NoProfile -ExecutionPolicy Bypass -File"
         rc = cmd_exec("windows", f"{ps} {WINDOWS_DIR}\\scripts\\provision-windows.ps1")
