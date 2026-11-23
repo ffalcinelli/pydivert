@@ -617,11 +617,11 @@ wheels = [
 
 [[package]]
 name = "scapy"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/82/97/7caec64f05eae3d305d83e7cce1ef2f337710513b89efb334f7278202e79/scapy-2.7.0.tar.gz", hash = "sha256:bfc1ef1b93280aea1ddee53be7f74232aa28ac3d891244d41ee85200d24aa446", size = 2412897, upload-time = "2025-12-26T22:10:53.359Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/06/f7e09b3240196326fb343d6bd931cafedd26ae1dfdbd7cd0183cae3029d3/scapy-2.8.0.tar.gz", hash = "sha256:0eacd1f940d115611c1b8a4696f315b4b80caf2951e546893a3d0cd7f6bfd6fd", size = 2578223, upload-time = "2026-10-02T16:25:18.874Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/6f/bd32e5e8adc391063858da17271bb444e4b009842cffa593bca8b2b78af7/scapy-2.7.0-py3-none-any.whl", hash = "sha256:eb22786da92be6fd8e5c694ae5595e4f5b9ac1f4364c9c45986844f3e3063561", size = 2590982, upload-time = "2025-12-26T22:07:48.941Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/1e/f07107ed79e69a659f1ab65ee7894d71fc1cf15108cf475782d3979a480d/scapy-2.8.0-py3-none-any.whl", hash = "sha256:abf855145ee829a42b2eb28983cd6a0a52b12a31d3f861cb7be36791195ed9aa", size = 2762122, upload-time = "2026-10-02T16:25:17.26Z" },
 ]
 
 [[package]]

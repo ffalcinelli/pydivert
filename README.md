@@ -207,27 +207,37 @@ For the original technical reference, please visit the [official WinDivert docum
 2. Install dependencies: `uv sync --extra test --extra docs`
 3. Run tests (requires Admin): `uv run pytest`
 
-### Testing with Vagrant
+### Testing in Containers and VMs
 
-PyDivert includes a `Vagrantfile` to easily run tests in a clean environment with the necessary privileges.
-
-#### Windows (WinDivert)
-To run tests on a Windows 11 VM:
-
-```bash
-vagrant up windows
-# This will sync the project and run tests automatically
-vagrant provision windows --provision-with test-windows
-```
+PyDivert includes a privileged Docker runner (`scripts/test-docker.sh`) for fast host-kernel Linux runs
+and a QEMU/KVM VM manager (`scripts/vm.py`) for isolated Linux and Windows 11 test runs.
 
 #### Linux (eBPF)
-To run tests on a Ubuntu VM with eBPF support:
+To run tests in a privileged Docker container (host kernel):
 
 ```bash
-vagrant up linux
-# This will run the test suite as root automatically
-vagrant provision linux --provision-with test-linux
-vagrant destroy -f linux
+./scripts/test-docker.sh
+```
+
+Or in an isolated Ubuntu 24.04 QEMU/KVM VM:
+
+```bash
+python3 scripts/vm.py run linux
+```
+
+#### Windows (WinDivert)
+To run tests on a Windows 11 QEMU/KVM VM, first build the base image once from a Windows 11 ISO (an unattended
+install of about 30 minutes; pass the ISO's language, e.g. `--lang it-IT`, if it is not `en-US`). The image is kept in
+`~/.cache/divert-vm/images` and shared with jdivert and avulse:
+
+```bash
+python3 scripts/vm.py init-windows --iso /path/to/win11.iso
+```
+
+Then:
+
+```bash
+python3 scripts/vm.py run windows
 ```
 
 To test against a local eBPFDivert build instead of the pinned release, set `PYDIVERT_EBPFDIVERT_LOCAL=/path/to/libebpfdivert.so` before `scripts/fetch_binaries.py`, or `PYDIVERT_EBPFDIVERT_LIB` at runtime.

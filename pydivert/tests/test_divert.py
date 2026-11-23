@@ -270,7 +270,7 @@ def test_service_registration():
         # Just check it doesn't crash
         res = pydivert.service.is_registered()
         assert isinstance(res, bool)
-        # Try stop if possible (might fail in VM if not Admin, but we are usually Admin in Vagrant)
+        # Try stop if possible (might fail if not Admin; the test VMs run as Administrator)
         if sys.platform == "win32":
             try:
                 pydivert.service.stop_service()
