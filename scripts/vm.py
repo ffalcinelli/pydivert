@@ -684,10 +684,28 @@ def cmd_destroy(target: str) -> None:
     print(f"Destroyed {target}")
 
 
+def sync_list() -> Path:
+    """What git sees (tracked files plus untracked, non-ignored ones), minus SYNC_EXCLUDES: host build output such
+    as .venv or target (Linux symlinks Windows cannot recreate) never reaches the VM."""
+    out = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        stdout=subprocess.PIPE,
+        check=True,
+    ).stdout.decode()
+    files = [
+        f for f in out.split("\0") if f and (REPO_ROOT / f).is_file() and not set(Path(f).parts) & set(SYNC_EXCLUDES)
+    ]
+    listing = run_dir_for("windows") / "sync.list"
+    listing.write_text("".join(f"{f}\0" for f in files))
+    return listing
+
+
 def sync_to_windows(port: int) -> None:
-    excludes = [f"--exclude={e}" for e in SYNC_EXCLUDES]
+    listing = sync_list()
     subprocess.run([*ssh_base(port), f"if not exist {WINDOWS_DIR} mkdir {WINDOWS_DIR}"], check=True)
-    tar_proc = subprocess.Popen(["tar", "-C", str(REPO_ROOT), *excludes, "-cf", "-", "."], stdout=subprocess.PIPE)
+    tar_proc = subprocess.Popen(
+        ["tar", "-C", str(REPO_ROOT), "--null", "-T", str(listing), "-cf", "-"], stdout=subprocess.PIPE
+    )
     ssh_rc = subprocess.run([*ssh_base(port), f"tar -C {WINDOWS_DIR} -xf -"], stdin=tar_proc.stdout).returncode
     if tar_proc.stdout is not None:
         tar_proc.stdout.close()
