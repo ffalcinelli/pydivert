@@ -45,6 +45,8 @@ if ($uvPath) {
 }
 
 $env:UV_PROJECT_ENVIRONMENT = "C:\pydivert_venv"
+# The newest CPython may have no wheels yet for some test dependencies (pyyaml); use the newest one CI tests.
+if (-not $env:UV_PYTHON) { $env:UV_PYTHON = "3.14" }
 if (Test-Path $SourceDir) {
     Set-Location $SourceDir
     Write-Host "Installing dependencies with uv..."

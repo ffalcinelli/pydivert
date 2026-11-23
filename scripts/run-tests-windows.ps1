@@ -33,6 +33,8 @@ foreach ($uvPath in @("$env:USERPROFILE\.local\bin", "$env:USERPROFILE\.cargo\bi
     }
 }
 
+# The newest CPython may have no wheels yet for some test dependencies (pyyaml); use the newest one CI tests.
+if (-not $env:UV_PYTHON) { $env:UV_PYTHON = "3.14" }
 Write-Host "Ensuring dependencies are up to date..."
 & uv sync --extra test
 
