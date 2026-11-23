@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import shlex
 import shutil
 import socket
@@ -319,7 +320,9 @@ def windows_qemu_cmd(rdir: Path, port: int) -> list[str]:
     return cmd
 
 
-def unattend_xml(lang: str) -> str:
+def unattend_xml(lang: str, logon_secret: str) -> str:
+    """The answer file. ``logon_secret`` is the local account's random password: only AutoLogon uses it (SSH is
+    key-only), and the answer file is deleted once the image is built."""
     comp = 'processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"'
     bypass = "".join(
         f'<RunSynchronousCommand wcm:action="add"><Order>{i}</Order>'
@@ -339,7 +342,7 @@ def unattend_xml(lang: str) -> str:
         + modify.format(3, "<Format>NTFS</Format><Label>Windows</Label><Letter>C</Letter>")
     )
     dword = "/t REG_DWORD /d 1 /f"
-    password = "<Password><Value>divert</Value><PlainText>true</PlainText></Password>"
+    password = f"<Password><Value>{logon_secret}</Value><PlainText>true</PlainText></Password>"
     # FirstLogonCommands: the unattend ISO's drive letter is not fixed, look for setup.ps1 on each drive.
     first_logon = (
         "cmd /c for %d in (D E F G H I) do if exist %d:\\divert-setup.ps1 "
@@ -517,7 +520,7 @@ def cmd_init_windows(iso_path: Path, lang: str, timeout_h: float) -> None:
     shutil.rmtree(rdir, ignore_errors=True)
     unattend_dir = rdir / "unattend"
     unattend_dir.mkdir(parents=True)
-    (unattend_dir / "autounattend.xml").write_text(unattend_xml(lang))
+    (unattend_dir / "autounattend.xml").write_text(unattend_xml(lang, secrets.token_urlsafe(18)))
     (unattend_dir / "divert-setup.ps1").write_text(setup_ps1(pubkey))
     seed_iso = rdir / "unattend.iso"
     subprocess.run(
